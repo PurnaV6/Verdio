@@ -15,6 +15,7 @@ import {
   Home, Sparkles, BarChart3, ShieldAlert, Brain, Database,
   RefreshCw, Bell, CheckCircle, Layers, TrendingUp, Users, Package, Activity,
 } from "lucide-react";
+import type { VDEResult } from "../lib/decision/verdioDecisionEngine";
 
 const fmtN = (n: number) => Math.round(n).toLocaleString('en-GB');
 
@@ -644,34 +645,120 @@ function PageRisks({ r }: { r: PipelineResult }) {
    PAGE: RECOMMENDATIONS
 ───────────────────────────────────────────────────────────────── */
 function PageRecs({ r }: { r: PipelineResult }) {
-  if (!r.decision.recommendations.length) return <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm text-sm text-slate-500">No recommendations were generated for this dataset.</div>;
+  const recs = r.decision.recommendations as any[];
+  // Check if V2 is active (has financialImpact)
+  const isV2 = recs.length && recs[0].financialImpact;
+
+  // Get VDE summary if present (injected via _vdeMeta in runDataPipeline patch)
+  const vdeMeta = (r as any)._vdeMeta as VDEResult | undefined;
+  const modelMeta = (r as any)._modelMeta as any;
+
+  if (!recs.length) return <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm text-sm text-slate-500">No recommendations were generated for this dataset.</div>;
+
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-      <p className="text-[10px] font-bold text-slate-500 tracking-widest mb-4">PRIORITISED RECOMMENDATIONS</p>
-      <div className="space-y-3">
-        {r.decision.recommendations.map((rec, i) => {
-          const ai = findRecommendation(r.aiInsights, rec.title, i);
-          return (
-            <div key={i} className="flex items-start gap-4 p-5 rounded-xl border border-slate-100">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm text-white flex-shrink-0" style={{ background: i === 0 ? '#16A34A' : '#0F172A' }}>{i + 1}</div>
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-[#0F172A] text-sm mb-2">{rec.title}</p>
-                {r.aiLoading ? <SkeletonBlock lines={2} /> : ai ? (
-                  <div className="space-y-1.5">
-                    <p className="text-xs text-slate-600 leading-6">{ai.action}</p>
-                    <div className="flex items-center gap-4 text-xs text-slate-500 pt-1">
-                      <span><span className="font-semibold text-slate-600">Impact:</span> {ai.impactEstimate}</span>
-                      <span><span className="font-semibold text-slate-600">Timeline:</span> {ai.timeline}</span>
-                    </div>
-                  </div>
-                ) : <p className="text-xs text-slate-500 leading-6">{rec.desc}</p>}
-                <span className={`mt-3 inline-block text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${rec.impact === 'high' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'}`}>
-                  {rec.impact === 'high' ? 'High Impact' : 'Medium Impact'}
-                </span>
+    <div className="space-y-4">
+      {/* VDE Summary Card - NEW for visa endorsement */}
+      {isV2 && vdeMeta && (
+        <div className="bg-[#0F172A] rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-[#16A34A]/20 rounded-full blur-3xl" />
+          <div className="relative">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[10px] font-bold tracking-[0.2em] text-[#22C55E]">VERDIO DECISION ENGINE v2</span>
+              <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#16A34A] text-white font-bold">FINANCIALLY RANKED</span>
+            </div>
+            <p className="text-sm leading-7 text-slate-200 mb-4">{vdeMeta.summary}</p>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-white/10 rounded-xl p-3 border border-white/10">
+                <p className="text-[10px] text-slate-400 tracking-widest">VALUE AT RISK</p>
+                <p className="text-xl font-black text-white">£{vdeMeta.totalValueAtRisk?.toLocaleString()}</p>
+              </div>
+              <div className="bg-white/10 rounded-xl p-3 border border-white/10">
+                <p className="text-[10px] text-slate-400 tracking-widest">OPPORTUNITY VALUE</p>
+                <p className="text-xl font-black text-[#22C55E]">£{vdeMeta.totalOpportunityValue?.toLocaleString()}</p>
+              </div>
+              <div className="bg-white/10 rounded-xl p-3 border border-white/10">
+                <p className="text-[10px] text-slate-400 tracking-widest">ACTIONS RANKED</p>
+                <p className="text-xl font-black text-white">{recs.length}</p>
+                <p className="text-[10px] text-slate-400">by Priority Score</p>
               </div>
             </div>
-          );
-        })}
+            {modelMeta?.forecast && (
+              <div className="mt-4 p-3 bg-white/5 rounded-xl border border-white/10">
+                <p className="text-[10px] text-[#22C55E] font-bold tracking-widest mb-1">MODEL SELECTION TRANSPARENCY</p>
+                <p className="text-xs text-slate-300">Forecast model: <span className="text-white font-bold">{modelMeta.forecast.chosenModel}</span> (confidence {Math.round(modelMeta.forecast.confidence*100)}%) — {modelMeta.forecast.reason}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+        <p className="text-[10px] font-bold text-slate-500 tracking-widest mb-4">
+          {isV2 ? 'PRIORITISED ACTIONS — RANKED BY FINANCIAL IMPACT × CONFIDENCE / EFFORT' : 'PRIORITISED RECOMMENDATIONS'}
+        </p>
+        <div className="space-y-3">
+          {recs.map((rec: any, i: number) => {
+            const ai = findRecommendation(r.aiInsights, rec.title, i);
+            const hasFinance = !!rec.financialImpact;
+
+            return (
+              <div key={i} className="flex items-start gap-4 p-5 rounded-xl border border-slate-100 hover:border-[#16A34A]/30 transition-colors">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center font-black text-sm text-white flex-shrink-0" style={{ background: i === 0 ? '#16A34A' : '#0F172A' }}>
+                  {hasFinance ? rec.priorityScore || i+1 : i+1}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <p className="font-bold text-[#0F172A] text-[14px] leading-snug">{rec.title}</p>
+                    {hasFinance && (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase flex-shrink-0 ${
+                        rec.urgency === 'immediate' ? 'bg-red-50 text-red-700 border border-red-200' :
+                        rec.urgency === 'this_month' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                        'bg-slate-50 text-slate-600 border border-slate-200'
+                      }`}>
+                        {rec.urgency.replace('_',' ')}
+                      </span>
+                    )}
+                  </div>
+
+                  {r.aiLoading ? <SkeletonBlock lines={2} /> : ai ? (
+                    <div className="space-y-2">
+                      <p className="text-[13px] text-slate-600 leading-6">{ai.action}</p>
+                    </div>
+                  ) : <p className="text-[13px] text-slate-500 leading-6">{rec.desc}</p>}
+
+                  {/* NEW V2 Financial Impact Row */}
+                  {hasFinance ? (
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      <div className="bg-slate-50 rounded-lg p-2.5 border border-slate-100">
+                        <p className="text-[9px] tracking-widest text-slate-400 font-bold">EST. IMPACT</p>
+                        <p className="text-[13px] font-black text-[#0F172A]">£{rec.financialImpact.estimatedValue.toLocaleString()}</p>
+                        <p className="text-[10px] text-slate-500 truncate" title={rec.financialImpact.basis}>Range £{rec.financialImpact.rangeLow.toLocaleString()}–£{rec.financialImpact.rangeHigh.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-slate-50 rounded-lg p-2.5 border border-slate-100">
+                        <p className="text-[9px] tracking-widest text-slate-400 font-bold">CONFIDENCE & EFFORT</p>
+                        <p className="text-[13px] font-bold text-[#0F172A]">{Math.round(rec.confidence*100)}% conf • {rec.effortDays}d</p>
+                        <p className="text-[10px] text-slate-500 capitalize">{rec.effort} effort</p>
+                      </div>
+                      <div className="bg-[#16A34A]/10 rounded-lg p-2.5 border border-[#16A34A]/20">
+                        <p className="text-[9px] tracking-widest text-[#16A34A] font-bold">PRIORITY SCORE</p>
+                        <p className="text-[18px] font-black text-[#16A34A]">{rec.priorityScore}/100</p>
+                        <p className="text-[10px] text-slate-500">{rec.financialImpact.basis.slice(0, 48)}...</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <span className={`mt-3 inline-block text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${rec.impact === 'high' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-blue-700'}`}>
+                      {rec.impact === 'high' ? 'High Impact' : 'Medium Impact'}
+                    </span>
+                  )}
+
+                  {hasFinance && rec.relatedRiskTitles?.length > 0 && (
+                    <p className="mt-2 text-[10px] text-slate-400">Linked risks: {rec.relatedRiskTitles.join(', ')}</p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -963,3 +1050,4 @@ export default function App() {
     </div>
   );
 }
+

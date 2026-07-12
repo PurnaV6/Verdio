@@ -8,22 +8,19 @@ import { engineerFeatures } from "./engineerFeatures";
 import { computeStatistics } from "./statisticsEngine";
 import { generateAnalysisCandidates, generateMLAnalysisCandidates } from "../analysis/generateAnalysisCandidates";
 import { rankAnalyses } from "../analysis/rankAnalyses";
-import { runForecast } from "../ml/forecastEngine";
-import { runAnomalyDetection } from "../ml/anomalyEngine";
 import { runSegmentation } from "../ml/segmentationEngine";
+import { runForecastWithSelection, runAnomalyWithSelection } from "../ml/modelManager";
 import { computeHealthScore } from "../decision/healthScoreEngine";
 import { detectRisks } from "../decision/riskEngine";
 import { generateRecommendations } from "../decision/recommendationEngine";
+import { buildVerdioDecisions } from "../decision/verdioDecisionEngine";
 import type { MLResults } from "../../types/ml";
 import type { PipelineOutcome } from "../../types/pipeline";
 
 /* ================================================================
-   VERDIO — runDataPipeline()
-   The single entry point App.tsx should call on file upload. Runs
-   stages 1–11 synchronously and returns a fully-formed PipelineResult
-   with aiLoading:true — the caller is responsible for then calling
-   generateAIInsights() (services/ai.ts) in the background, exactly
-   as the retail-specific build did with calculateMetrics()/ai.ts.
+   VERDIO — runDataPipeline() v2 — Endorsable Version
+   Upgraded with autonomous Model Manager and VDE financial ranking.
+   This is the full file, replace your existing file completely.
    ================================================================ */
 
 export async function runDataPipeline(file: File): Promise<PipelineOutcome> {
@@ -53,15 +50,24 @@ export async function runDataPipeline(file: File): Promise<PipelineOutcome> {
   /* 9. Baseline analysis candidates (statistics-driven) */
   const baseAnalyses = generateAnalysisCandidates(engineeredRows, index, capabilities, statistics);
 
-  /* 10. ML — each model only runs if its capability was confirmed available */
-  const ml: MLResults = { forecast: null, anomalies: null, segmentation: null };
+  /* 10. ML — autonomous selection with transparency metadata */
+  const ml: MLResults = { forecast: null, anomalies: null, segmentation: null } as any;
   const primaryTS = statistics.timeSeries[0];
 
+  let forecastMeta: any = null;
+  let anomalyMeta: any = null;
+
   if (capabilities.available.some(c => c.type === 'forecasting') && primaryTS) {
-    ml.forecast = runForecast(primaryTS);
+    const withMeta = runForecastWithSelection(primaryTS, statistics.seasonality);
+    forecastMeta = withMeta.meta;
+    const { meta, ...rest } = withMeta as any;
+    ml.forecast = rest;
   }
   if (capabilities.available.some(c => c.type === 'anomaly_detection') && primaryTS) {
-    ml.anomalies = runAnomalyDetection(primaryTS);
+    const withMeta = runAnomalyWithSelection(primaryTS);
+    anomalyMeta = withMeta.meta;
+    const { meta, ...rest } = withMeta as any;
+    ml.anomalies = rest;
   }
   const segCap = capabilities.available.find(c => c.type === 'segmentation');
   if (segCap) {
@@ -69,24 +75,45 @@ export async function runDataPipeline(file: File): Promise<PipelineOutcome> {
     ml.segmentation = runSegmentation(engineeredRows, customerCol, dateCol, measureCol, primaryTS?.points.map(p => p.value) || []);
   }
 
-  /* 9 (cont.) ML-driven analysis candidates, then rank everything together */
+  /* 9 (cont.) ML-driven analysis candidates, then rank */
   const mlAnalyses = generateMLAnalysisCandidates(capabilities, ml, statistics);
   const analyses = rankAnalyses([...baseAnalyses, ...mlAnalyses], 10);
 
-  /* 11. Decision engine */
+  /* 11. Decision engine — health, risks, recommendations + VDE v2 */
   const health = computeHealthScore(quality, statistics, ml);
   const risks = detectRisks(engineeredRows, index, capabilities, statistics, quality, ml);
   const recommendations = generateRecommendations(risks, capabilities, statistics, quality, ml);
+
+  const vde = buildVerdioDecisions({
+    risks,
+    recommendations,
+    ml,
+    statistics,
+    quality,
+    engineeredRows,
+    index
+  });
 
   return {
     ok: true,
     result: {
       source: { fileName: parsed.data.fileName, fileType: parsed.data.fileType, rowCount: cleanedRows.length },
-      profile, cleaning, semantics, quality, capabilities,
-      features: addedFeatures, engineeredRows, statistics, analyses, ml,
-      decision: { health, risks, recommendations },
+      profile,
+      cleaning,
+      semantics,
+      quality,
+      capabilities,
+      features: addedFeatures,
+      engineeredRows,
+      statistics,
+      analyses,
+      ml,
+      decision: { health, risks, recommendations: vde.rankedActions as any },
       aiInsights: null,
       aiLoading: true,
-    },
+      // Exposed for UI transparency and endorsement demo
+      _vdeMeta: vde,
+      _modelMeta: { forecast: forecastMeta, anomaly: anomalyMeta }
+    } as any,
   };
 }
