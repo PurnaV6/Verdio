@@ -5,17 +5,20 @@ import { ChartRenderer } from "../components/ChartRenderer";
 import { computeCategoryBreakdown } from "../lib/analysis/categoryBreakdown";
 import { bestColumnOfRole, primaryMeasureColumn } from "../lib/analysis/pickColumns";
 import { buildAdvisorContext } from "../lib/analysis/factSummary";
-import { detectChartIntent } from "../lib/analysis/chatChartIntent";
+import { parseChartTagsFromAI, localAnalysisFallback } from "../lib/analysis/chatChartIntent";
 import type { ChartSpec } from "../types/analysis";
 import { runForecast } from "../lib/ml/forecastEngine";
 import { labelForMeasure } from "../lib/labels";
 import type { PipelineResult } from "../types/pipeline";
+import type { EnrichedRecommendation as EnrichedRec, VDEResult } from "../lib/decision/verdioDecisionEngine";
 import type { AIInsights } from "../types/aiInsights";
 import {
   Home, Sparkles, BarChart3, ShieldAlert, Brain, Database,
-  RefreshCw, Bell, CheckCircle, Layers, TrendingUp, Users, Package, Activity,
-} from "lucide-react";
-import type { VDEResult } from "../lib/decision/verdioDecisionEngine";
+  RefreshCw, Bell, CheckCircle, Layers, TrendingUp, Users, Package, Activity,LogOut } from "lucide-react";
+import { saveToHistory, loadHistory } from "../lib/history/historyStore";
+import { openReport } from "../lib/export/reportGenerator";
+import { useAuth, PasswordGateScreen } from "../lib/auth/AuthContext";
+import { getSupabase } from "../lib/auth/supabaseClient";
 
 const fmtN = (n: number) => Math.round(n).toLocaleString('en-GB');
 
@@ -63,7 +66,7 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
 
     const outcome = await runDataPipeline(file);
     setLoading(false);
-    if (!outcome.ok) { setError(outcome.error); return; }
+    if (!outcome.ok) { setError((outcome as any).error); return; }
     onLoaded(outcome.result);
   }
 
@@ -645,7 +648,7 @@ function PageRisks({ r }: { r: PipelineResult }) {
    PAGE: RECOMMENDATIONS
 ───────────────────────────────────────────────────────────────── */
 function PageRecs({ r }: { r: PipelineResult }) {
-  const recs = r.decision.recommendations as any[];
+  const recs = r.decision.recommendations as EnrichedRec[];
   // Check if V2 is active (has financialImpact)
   const isV2 = recs.length && recs[0].financialImpact;
 
@@ -697,7 +700,7 @@ function PageRecs({ r }: { r: PipelineResult }) {
           {isV2 ? 'PRIORITISED ACTIONS — RANKED BY FINANCIAL IMPACT × CONFIDENCE / EFFORT' : 'PRIORITISED RECOMMENDATIONS'}
         </p>
         <div className="space-y-3">
-          {recs.map((rec: any, i: number) => {
+          {recs.map((rec: EnrichedRec, i: number) => {
             const ai = findRecommendation(r.aiInsights, rec.title, i);
             const hasFinance = !!rec.financialImpact;
 
@@ -902,94 +905,110 @@ function PageQuality({ r }: { r: PipelineResult }) {
    PAGE: ADVISOR
 ───────────────────────────────────────────────────────────────── */
 function PageAdvisor({ r }: { r: PipelineResult }) {
-  const [messages, setMessages] = useState<{ role: 'ai' | 'user'; text?: string; chart?: ChartSpec }[]>([
-    { role: 'ai', text: `Hello! I've analysed "${r.source.fileName}" — ${fmtN(r.source.rowCount)} rows, health score ${r.decision.health.total}/100, data quality ${r.quality.overallScore}/100. Ask me anything about it, or ask to see a graph/chart of trend, forecast, products, markets, seasonality, customers, or correlations.` },
+  const [messages, setMessages] = useState<{ role: 'ai' | 'user'; text?: string; charts?: ChartSpec[] }[]>([
+    { role: 'ai', text: `Full analysis loaded — ${r.source.rowCount} rows, ${r.analyses.length} charts, health ${r.decision.health.total}/100. Hybrid LLM with local fallback.` },
   ]);
-  const [input, setInput]   = useState('');
+  const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [proxyStatus, setProxyStatus] = useState<string>('unknown');
   const PROXY = 'https://sme-bi-copilot-proxy.vercel.app/api/chat';
-
   const context = buildAdvisorContext(r);
 
-  async function send() {
-    if (!input.trim()) return;
-    const userMsg = input.trim();
-    setInput('');
-    setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
-
-    // Chart-shaped requests are answered directly from already-computed data —
-    // faster and guaranteed accurate, no model round-trip needed.
-    const chartIntent = detectChartIntent(userMsg, r);
-    if (chartIntent) {
-      setMessages(prev => [...prev, { role: 'ai', text: chartIntent.caption, chart: chartIntent.chart }]);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const res = await fetch(PROXY, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ max_tokens: 500, messages: [{ role: 'system', content: context }, { role: 'user', content: userMsg }] }) });
-      if (!res.ok) {
-        const bodyText = await res.text().catch(() => '(could not read body)');
-        console.error(`[Verdio Advisor] Proxy returned ${res.status} ${res.statusText}:`, bodyText);
-        throw new Error('proxy error');
+  async function callProxyWithRetry(userMsg: string, retries=2): Promise<string> {
+    for(let attempt=0; attempt<=retries; attempt++){
+      try {
+        const controller=new AbortController();
+        const t=setTimeout(()=>controller.abort(), 10000);
+        const res=await fetch(PROXY, {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          signal:controller.signal,
+          body:JSON.stringify({
+            max_tokens: 700,
+            messages:[
+              {role:'system', content: context},
+              {role:'user', content: userMsg}
+            ]
+          })
+        });
+        clearTimeout(t);
+        if(!res.ok){
+          const txt=await res.text();
+          throw new Error(`Proxy HTTP ${res.status}: ${txt.slice(0,300)}`);
+        }
+        const data=await res.json();
+        const txt=data.choices?.[0]?.message?.content;
+        if(!txt) throw new Error('Empty AI response');
+        setProxyStatus('online');
+        return txt;
+      } catch(e:any){
+        console.warn(`Proxy attempt ${attempt+1} failed`, e);
+        setProxyStatus(`retry ${attempt+1} failed: ${e.message?.slice(0,100)}`);
+        if(attempt===retries) throw e;
+        await new Promise(r=>setTimeout(r, 800* (attempt+1)));
       }
-      const data = await res.json();
-      setMessages(prev => [...prev, { role: 'ai', text: data.choices?.[0]?.message?.content || 'No response.' }]);
-    } catch (err) {
-      console.error('[Verdio Advisor] Failed to get a response:', err);
-      setMessages(prev => [...prev, { role: 'ai', text: 'Unable to connect to Advisor right now.' }]);
+    }
+    throw new Error('All retries failed');
+  }
+
+  async function send() {
+    if(!input.trim()) return;
+    const userMsg=input.trim();
+    setInput('');
+    setMessages(prev=>[...prev, {role:'user', text:userMsg}]);
+    setLoading(true);
+    try{
+      const aiText=await callProxyWithRetry(userMsg, 2);
+      const {cleanText, charts}=parseChartTagsFromAI(aiText, r);
+      setMessages(prev=>[...prev, {role:'ai', text:cleanText, charts}]);
+    }catch(err:any){
+      console.error('Proxy final fail, using local fallback', err);
+      setProxyStatus(`offline: ${err.message?.slice(0,200)}`);
+      const fallback=localAnalysisFallback(userMsg, r);
+      setMessages(prev=>[...prev, {
+        role:'ai',
+        text: `${fallback.text}
+
+⚠️ AI proxy is currently offline (${err.message?.slice(0,150)}). Showing answer from local analysis engines. Fix: check Vercel env OPENAI_API_KEY and redeploy proxy.`,
+        charts: fallback.charts
+      }]);
     }
     setLoading(false);
   }
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-      <div className="flex items-center gap-3 mb-5 pb-4 border-b border-slate-100">
-        <div className="w-10 h-10 rounded-xl bg-[#0F172A] flex items-center justify-center"><span className="text-[#22C55E] font-black">V</span></div>
-        <div>
-          <p className="font-bold text-[#0F172A]">Verdio Advisor</p>
-          <p className="text-xs text-[#16A34A] flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#16A34A] animate-pulse inline-block" />Grounded in this dataset</p>
+      <div className="flex items-center justify-between mb-5 pb-4 border-b border-slate-100">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#0F172A] flex items-center justify-center"><span className="text-[#22C55E] font-black">V</span></div>
+          <div><p className="font-bold text-[#0F172A]">Verdio Advisor — Hybrid LLM</p><p className="text-xs text-slate-500">Proxy: {proxyStatus} · {r.analyses.length} charts · LLM + local engines</p></div>
         </div>
       </div>
-      <div className="max-h-[600px] overflow-y-auto flex flex-col gap-3 mb-4">
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex gap-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-            <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs flex-shrink-0 ${msg.role === 'ai' ? 'bg-[#0F172A] text-[#22C55E]' : 'bg-slate-200 text-slate-600'}`}>{msg.role === 'ai' ? 'V' : 'U'}</div>
-            {msg.chart ? (
-              <div className="flex-1 max-w-[92%]">
-                {msg.text && <p className="text-sm text-slate-600 mb-2 px-1">{msg.text}</p>}
-                <ChartRenderer chart={msg.chart} />
-              </div>
-            ) : (
-              <div className={`px-4 py-2.5 rounded-2xl text-sm max-w-[85%] leading-6 ${msg.role === 'ai' ? 'bg-slate-50 border border-slate-200 rounded-tl-sm' : 'bg-[#0F172A] text-white rounded-tr-sm'}`}>{msg.text}</div>
-            )}
-          </div>
-        ))}
-        {loading && (
-          <div className="flex gap-2">
-            <div className="w-7 h-7 rounded-lg bg-[#0F172A] flex items-center justify-center text-[#22C55E] text-xs">V</div>
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl rounded-tl-sm px-4 py-3 flex gap-1">
-              {[0, 1, 2].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />)}
+      <div className="max-h-[700px] overflow-y-auto flex flex-col gap-4 mb-4 pr-1">
+        {messages.map((msg,i)=>(
+          <div key={i} className={`flex gap-2 ${msg.role==='user'?'flex-row-reverse':''}`}>
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs flex-shrink-0 ${msg.role==='ai'?'bg-[#0F172A] text-[#22C55E]':'bg-slate-200'}`}>{msg.role==='ai'?'V':'U'}</div>
+            <div className="flex-1 max-w-[92%]">
+              {msg.role==='user'?<div className="px-4 py-2.5 rounded-2xl text-sm bg-[#0F172A] text-white rounded-tr-sm ml-auto max-w-[85%] w-fit">{msg.text}</div>:
+              <div className="flex flex-col gap-3"><div className="px-4 py-2.5 rounded-2xl text-sm bg-slate-50 border border-slate-200 rounded-tl-sm leading-6 whitespace-pre-wrap">{msg.text}</div>{msg.charts?.map((ch,idx)=>(<div key={idx}><ChartRenderer chart={ch} /></div>))}</div>}
             </div>
           </div>
-        )}
+        ))}
+        {loading && <div className="flex gap-2"><div className="w-7 h-7 rounded-lg bg-[#0F172A] flex items-center justify-center text-[#22C55E] text-xs">V</div><div className="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 flex gap-1">{[0,1,2].map(i=><span key={i} className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{animationDelay:`${i*0.15}s`}}/>)}</div></div>}
       </div>
       <div className="flex gap-2">
-        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && !loading && send()}
-          className="flex-1 px-4 py-2.5 border border-slate-300 rounded-xl text-sm outline-none focus:border-[#16A34A] bg-slate-50"
-          placeholder="Ask anything about this dataset..." />
-        <button onClick={send} disabled={loading || !input.trim()} className="px-4 py-2.5 bg-[#0F172A] hover:bg-[#16A34A] text-white rounded-xl text-sm font-bold transition-all disabled:opacity-40">➤</button>
+        <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter' && !loading && send()} className="flex-1 px-4 py-2.5 border border-slate-300 rounded-xl text-sm outline-none focus:border-[#16A34A] bg-slate-50" placeholder="Ask about March, risks, forecast..." />
+        <button onClick={send} disabled={loading || !input.trim()} className="px-4 py-2.5 bg-[#0F172A] hover:bg-[#16A34A] text-white rounded-xl text-sm font-bold disabled:opacity-40">➤</button>
       </div>
     </div>
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────
-   MAIN APP
-───────────────────────────────────────────────────────────────── */
+
 export default function App() {
   const [result, setResult] = useState<PipelineResult | null>(null);
   const [page, setPage]     = useState('overview');
+  const { user, loading: authLoading, isEnabled } = useAuth();
 
   const reset = useCallback(() => { setResult(null); setPage('overview'); }, []);
 
@@ -1003,6 +1022,24 @@ export default function App() {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result?.aiLoading]);
+
+  // SaaS viability - save history
+  useEffect(() => {
+    if (result && !result.aiLoading) saveToHistory(result);
+  }, [result]);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#F5F7FB] flex items-center justify-center">
+        <div className="h-8 w-8 border-2 border-slate-200 border-t-[#16A34A] rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // MANDATORY PASSWORD GATE - must sign in before upload
+  if (isEnabled && !user) {
+    return <PasswordGateScreen />;
+  }
 
   if (!result) return <UploadScreen onLoaded={r => { setResult(r); setPage('overview'); }} />;
 
@@ -1024,6 +1061,17 @@ export default function App() {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-[10px] px-2 py-1 rounded-full bg-[#0F172A] text-white font-bold">Beta</span>
+            <button onClick={() => result && openReport(result)} className="flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold hover:bg-white hover:border-[#16A34A]/40 transition-all">
+              Export PDF Report
+            </button>
+            <button onClick={() => { const h=loadHistory(); alert(`History: ${h.length} analyses\n`+h.map((x:any)=>`• ${x.fileName} - Health ${x.healthScore}/100`).join('\n')); }} className="flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-xl text-xs font-bold hover:bg-white">
+              History ({typeof window !== 'undefined' ? loadHistory().length : 0})
+            </button>
+            <div className="h-6 w-px bg-slate-200 hidden md:block" />
+            <span className="text-xs text-slate-500 max-w-[160px] truncate hidden md:block">{user?.email}</span>
+            <button onClick={async ()=>{ const sb=getSupabase(); if(sb) await sb.auth.signOut(); }} className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-full text-xs font-bold hover:bg-slate-50">
+              <LogOut size={12} /> Sign out
+            </button>
             <button onClick={reset} className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-all">
               <RefreshCw size={14} className="text-[#16A34A]" /> Upload New File
             </button>
@@ -1050,4 +1098,3 @@ export default function App() {
     </div>
   );
 }
-

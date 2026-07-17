@@ -84,6 +84,7 @@ export interface ColumnQualityScore {
 }
 
 export interface DataQualityReport {
+  issues: any;
   overallScore:      number;        // 0–100
   completenessScore: number;
   validityScore:     number;

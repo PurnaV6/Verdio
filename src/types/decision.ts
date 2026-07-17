@@ -3,11 +3,14 @@
    ================================================================ */
 
 export interface HealthPillar { name: string; score: number; max: number; color: string }
-export interface HealthScore { total: number; pillars: HealthPillar[] }
+export interface HealthScore {
+  breakdown: {}; total: number; pillars: HealthPillar[] 
+}
 
 export type RiskLevel = 'high' | 'medium' | 'low';
 
 export interface Risk {
+  impact: any;
   level: RiskLevel;
   icon:  string;
   title: string;
@@ -18,6 +21,7 @@ export interface Risk {
 export type RecImpact = 'high' | 'medium';
 
 export interface Recommendation {
+  effort: any;
   title: string;
   desc:  string;
   impact: RecImpact;
