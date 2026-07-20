@@ -52,7 +52,7 @@ export function localAnalysisFallback(userMsg: string, p: PipelineResult): { tex
     const chart=ts ? buildBarChart(`Revenue by Month`, ts.points.slice(-12).map(pt=>({label:pt.label, value:Math.round(pt.value)})), 'label','value','currency') : undefined;
     return { text: `Monthly revenue ${ts?.points.length || 0} periods, total £${fmt(ts?.points.reduce((a,b)=>a+b.value,0)||0)}`, charts: chart ? [chart as any] : [] };
   }
-  if(/(major risk|biggest risk)/.test(msg)){
+  if(/(major risk|biggest risk|highest risk)/.test(msg)){
     const r=p.decision.risks[0];
     return { text: r ? `Major risk: [${r.level}] ${r.title} — ${r.desc}` : 'No risks found', charts: [] };
   }
