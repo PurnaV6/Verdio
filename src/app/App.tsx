@@ -131,6 +131,69 @@ function MetricCard({ label, value, sub, tone }: { label: string; value: string;
   );
 }
 
+function ExecutiveSignals({ result }: { result: PipelineResult }) {
+  const health = result.decision.health.total;
+  const quality = result.quality.overallScore;
+  const signals = [
+    {
+      label: 'Dataset scale',
+      value: fmtN(result.source.rowCount),
+      unit: 'rows',
+      detail: `${result.profile.columnCount} columns assessed`,
+      icon: Database,
+      tone: 'neutral',
+    },
+    {
+      label: 'Business health',
+      value: `${health}`,
+      unit: '/100',
+      detail: health >= 80 ? 'Strong operating position' : health >= 60 ? 'Active risks to monitor' : 'Executive attention required',
+      icon: Activity,
+      tone: health >= 80 ? 'positive' : health >= 60 ? 'watch' : 'critical',
+    },
+    {
+      label: 'Data integrity',
+      value: `${quality}`,
+      unit: '/100',
+      detail: quality >= 90 ? 'Decision-grade quality' : quality >= 70 ? 'Reliable with minor gaps' : 'Quality review recommended',
+      icon: CheckCircle,
+      tone: quality >= 90 ? 'positive' : quality >= 70 ? 'watch' : 'critical',
+    },
+    {
+      label: 'Analysis coverage',
+      value: `${result.analyses.length}`,
+      unit: 'charts',
+      detail: `${result.capabilities.available.length} analytical capabilities`,
+      icon: BarChart3,
+      tone: 'insight',
+    },
+  ];
+
+  return (
+    <section className="signals-panel" aria-labelledby="executive-signals-title">
+      <div className="signals-heading">
+        <div>
+          <p id="executive-signals-title">Executive signals</p>
+          <span>Current decision context from the active dataset</span>
+        </div>
+        <span className="signals-live"><i /> Live analysis</span>
+      </div>
+      <div className="signals-grid">
+        {signals.map(({ label, value, unit, detail, icon: Icon, tone }) => (
+          <article key={label} className={`signal-card signal-${tone}`}>
+            <div className="signal-icon"><Icon size={17} strokeWidth={1.8} /></div>
+            <div className="signal-copy">
+              <p>{label}</p>
+              <div className="signal-value"><strong>{value}</strong><span>{unit}</span></div>
+              <small>{detail}</small>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function PageOverview({ r }: { r: PipelineResult }) {
   const h = r.decision.health.total; const topRisk = r.decision.risks[0]; const topRec = r.decision.recommendations[0];
   return (
@@ -160,7 +223,7 @@ function PageOverview({ r }: { r: PipelineResult }) {
         <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm border-l-4 border-l-indigo-900"><p className="text-[10px] font-bold tracking-widest text-indigo-900 mb-1">TOP PRIORITY</p><p className="font-bold text-slate-900 text-[14px] leading-snug">{topRec?.title || 'No recommendations'}</p><p className="text-xs text-slate-500 leading-5 mt-2">{topRec?.desc}</p></div>
         <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm border-l-4 border-l-amber-500"><p className="text-[10px] font-bold tracking-widest text-amber-600 mb-1">HIGHEST RISK</p><p className="font-bold text-slate-900 text-[14px] leading-snug">{topRisk?.title || 'No critical risk'}</p><p className="text-xs text-slate-500 leading-5 mt-2">{topRisk?.desc}</p></div>
       </div>
-      <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm"><p className="text-[11px] font-bold tracking-widest text-slate-500 mb-3">KEY INSIGHTS</p>{r.aiLoading ? <SkeletonBlock lines={4} /> : <div className="space-y-2.5">{(r.aiInsights?.keyInsights || []).map((text, i) => <div key={i} className="flex items-start gap-2.5"><span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-900 text-white mt-0.5">AI</span><p className="text-[13px] text-slate-600 leading-5">{text}</p></div>)}</div>}</div>
+      <ExecutiveSignals result={r} />
     </div>
   );
 }
