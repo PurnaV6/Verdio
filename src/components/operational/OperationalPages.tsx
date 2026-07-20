@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Bell, CheckCircle, Clock, Database, FileSpreadsheet, Link2, LockKeyhole, Mail, ShieldCheck, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { Bell, CheckCircle, Clock, Database, FileSpreadsheet, Link2, LockKeyhole, Mail, Network, ShieldCheck, SlidersHorizontal, Trash2 } from 'lucide-react';
 import type { PipelineResult } from '../../types/pipeline';
 import { primaryMeasureColumn } from '../../lib/analysis/pickColumns';
 
@@ -42,6 +42,13 @@ export function PageConnections({ r }: { r: PipelineResult }) {
     { name: 'PostgreSQL / Supabase', detail: 'Read-only database synchronisation', icon: Database, status: 'Requires connection secret' },
   ];
   return <div className="space-y-5"><SectionHeader eyebrow="DATA OPERATIONS" title="Connections and refresh" description="Manage how information enters this workspace. External sources remain disabled until their OAuth or database credentials are configured."/><div className="active-source-card"><span><CheckCircle size={18}/></span><div><strong>Active source</strong><p>{r.source.fileName} · {r.source.rowCount.toLocaleString()} rows</p></div><div className="source-status"><i/> Ready</div></div><div className="connector-grid">{connectors.map(({name,detail,icon:Icon,status})=><article key={name} className="connector-card"><div className="connector-icon"><Icon size={19}/></div><div><strong>{name}</strong><p>{detail}</p></div><span>{status}</span><button disabled>Configure</button></article>)}</div><div className="configuration-note"><LockKeyhole size={17}/><div><strong>Secure configuration required</strong><p>Provider secrets must be stored in Vercel or Supabase server-side configuration. They should never be entered into the browser or committed to GitHub.</p></div></div></div>;
+}
+
+export function PageRelationships({ r }: { r: PipelineResult }) {
+  const organization=r.organization;
+  if(!organization) return <div className="space-y-5"><SectionHeader eyebrow="ORGANISATIONAL MODEL" title="Dataset relationships" description="Upload two or more datasets together to create a governed organisational data model."/><div className="configuration-note"><Network size={17}/><div><strong>No organisational model is active</strong><p>Start a new analysis and select sales, stock, customer, product or finance files together.</p></div></div></div>;
+  const confirmed=organization.relationships.filter(item=>item.confirmed);
+  return <div className="space-y-5"><SectionHeader eyebrow="ORGANISATIONAL MODEL" title="Dataset relationships" description="Review the sources and confirmed connections supporting this workspace."/><div className="relationship-summary-grid">{organization.datasets.map(dataset=><article key={dataset.id} className={dataset.primary?'is-primary':''}><span>{dataset.purpose}</span><strong>{dataset.fileName}</strong><p>{dataset.rowCount.toLocaleString()} rows · {dataset.columnCount} columns</p>{dataset.primary&&<small>Primary executive analysis</small>}</article>)}</div><div className="relationship-map"><div className="relationship-title"><div><Network size={17}/><span><strong>Confirmed relationship map</strong><small>{confirmed.length} governed connections across {organization.datasets.length} datasets</small></span></div></div>{confirmed.length===0?<div className="relationship-empty">No relationships were confirmed for this workspace.</div>:confirmed.map(relation=>{const left=organization.datasets.find(item=>item.id===relation.leftDatasetId);const right=organization.datasets.find(item=>item.id===relation.rightDatasetId);return <div className="relationship-map-row" key={relation.id}><div><strong>{left?.fileName}</strong><small>{relation.leftColumn}</small></div><span><Network size={14}/><b>{Math.round(relation.confidence*100)}%</b></span><div><strong>{right?.fileName}</strong><small>{relation.rightColumn} · {relation.overlapPct}% overlap</small></div></div>})}</div></div>;
 }
 
 export function PageAlerts({ r }: { r: PipelineResult }) {

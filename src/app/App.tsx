@@ -17,7 +17,7 @@ import {
   RefreshCw, CheckCircle, Layers, TrendingUp, Users, Package, Activity,
   ArrowUpRight, FileText, Menu, Search, Settings, X, UploadCloud, PlayCircle, Building2,
   Trash2, FolderOpen, Mail, Download, ChevronRight,
-  Plug, Bell, SlidersHorizontal, ShieldCheck
+  Plug, Bell, SlidersHorizontal, ShieldCheck, Network, Files
 } from "lucide-react";
 import { saveToHistory } from "../lib/history/historyStore";
 import { openReport, emailExecutiveSummary } from "../lib/export/reportGenerator";
@@ -26,7 +26,8 @@ import { getSupabase } from "../lib/auth/supabaseClient";
 import { createSampleBusinessFile } from "../lib/demo/sampleBusinessDataset";
 import { deleteProject, listProjects, saveProject, type SavedProject } from "../lib/projects/projectStore";
 import type { BusinessRole } from "../types/semantic";
-import { PageAlerts, PageConnections, PageScenarioPlanner, PageTrustCenter } from "../components/operational/OperationalPages";
+import { PageAlerts, PageConnections, PageRelationships, PageScenarioPlanner, PageTrustCenter } from "../components/operational/OperationalPages";
+import { prepareOrganizationWorkspace, type PreparedOrganizationWorkspace } from "../lib/organization/prepareOrganizationWorkspace";
 
 const fmtN = (n: number) => Math.round(n).toLocaleString('en-GB');
 
@@ -57,6 +58,7 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
   const [error, setError] = useState('');
   const [stage, setStage] = useState('');
   const [pending, setPending] = useState<{ file: File; result: PipelineResult } | null>(null);
+  const [organization, setOrganization] = useState<PreparedOrganizationWorkspace | null>(null);
   const [roleOverrides, setRoleOverrides] = useState<Record<string, BusinessRole>>({});
   async function handleFile(file: File, isDemo = false) {
     setError(''); setLoading(true);
@@ -69,6 +71,24 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
     if (isDemo) { onLoaded(outcome.result); return; }
     setRoleOverrides(Object.fromEntries(outcome.result.semantics.columns.map(c => [c.columnName, c.businessRole])));
     setPending({ file, result: outcome.result });
+  }
+  async function handleFiles(files: File[]) {
+    if (!files.length) return;
+    if (files.length === 1) { await handleFile(files[0]); return; }
+    setError(''); setLoading(true); setStage(`Profiling ${files.length} organisational datasets...`);
+    try { setOrganization(await prepareOrganizationWorkspace(files)); }
+    catch (e:any) { setError(e?.message || 'The organisational datasets could not be prepared.'); }
+    setLoading(false);
+  }
+  async function confirmOrganization() {
+    if (!organization) return;
+    const primary=organization.context.datasets.find(dataset=>dataset.primary);
+    if (!primary) { setError('Select one primary dataset for executive analysis.'); return; }
+    setLoading(true); setStage('Building the organisational workspace...');
+    const outcome=await runDataPipeline(organization.files[primary.id]);
+    setLoading(false);
+    if (!outcome.ok) { setError(outcome.error); return; }
+    onLoaded({ ...outcome.result, organization: organization.context });
   }
   async function confirmMapping() {
     if (!pending) return;
@@ -85,6 +105,21 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
     { value: 'identifier', label: 'Identifier' }, { value: 'status', label: 'Status' }, { value: 'percentage', label: 'Percentage' },
     { value: 'unknown', label: 'Ignore / other' },
   ];
+
+  if (organization) return (
+    <div className="onboarding-shell min-h-screen flex items-center justify-center p-4 md:p-8">
+      <div className="onboarding-glow" />
+      <div className="w-full max-w-[940px] elevated-panel rounded-[28px] p-6 md:p-9 relative">
+        <div className="organization-review-heading"><BrandMark compact /><div><div className="eyebrow mb-2"><span className="eyebrow-dot"/> ORGANISATIONAL DATA MODEL</div><h1>Confirm how your datasets work together</h1><p>Verdio classified each file and proposed relationships from shared keys and overlapping values. Review the structure before executive analysis.</p></div><span className="organization-count"><Files size={14}/>{organization.context.datasets.length} datasets</span></div>
+        <div className="organization-datasets">
+          {organization.context.datasets.map(dataset=><article key={dataset.id} className={dataset.primary?'is-primary':''}><div className="dataset-purpose"><Database size={16}/><span>{dataset.purpose}</span></div><strong>{dataset.fileName}</strong><p>{dataset.rowCount.toLocaleString()} rows · {dataset.columnCount} columns</p><label><input type="radio" name="primary-dataset" checked={dataset.primary} onChange={()=>setOrganization(current=>current?{...current,context:{...current.context,datasets:current.context.datasets.map(item=>({...item,primary:item.id===dataset.id}))}}:current)}/><span>Primary analysis source</span></label></article>)}
+        </div>
+        <section className="relationship-panel"><div className="relationship-title"><div><Network size={17}/><span><strong>Proposed relationships</strong><small>Confirmed relationships form the governed organisational model.</small></span></div><b>{organization.context.relationships.filter(item=>item.confirmed).length} confirmed</b></div>{organization.context.relationships.length===0?<div className="relationship-empty">No reliable shared keys were detected. Rename shared identifiers consistently—for example, Product ID or Customer ID—and try again.</div>:<div className="relationship-list">{organization.context.relationships.map(relation=>{const left=organization.context.datasets.find(item=>item.id===relation.leftDatasetId)!;const right=organization.context.datasets.find(item=>item.id===relation.rightDatasetId)!;return <label key={relation.id}><input type="checkbox" checked={relation.confirmed} onChange={e=>setOrganization(current=>current?{...current,context:{...current.context,relationships:current.context.relationships.map(item=>item.id===relation.id?{...item,confirmed:e.target.checked}:item)}}:current)}/><span className="relationship-route"><b>{left.fileName}</b><small>{relation.leftColumn}</small></span><i><Network size={14}/><em>{Math.round(relation.confidence*100)}%</em></i><span className="relationship-route"><b>{right.fileName}</b><small>{relation.rightColumn} · {relation.overlapPct}% overlap</small></span></label>})}</div>}</section>
+        {error&&<div className="mt-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>}
+        <div className="organization-footer"><button onClick={()=>setOrganization(null)} className="secondary-button justify-center">Choose different files</button><div><span>{organization.context.relationships.filter(item=>item.confirmed).length} relationships will be retained</span><button disabled={loading} onClick={confirmOrganization} className="primary-action justify-center">{loading?stage:'Create organisational workspace'}<ChevronRight size={15}/></button></div></div>
+      </div>
+    </div>
+  );
 
   if (pending) return (
     <div className="onboarding-shell min-h-screen flex items-center justify-center p-4 md:p-8">
@@ -109,12 +144,12 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
         <div className="mx-auto mb-6 flex justify-center"><BrandMark /></div>
         <div className="eyebrow justify-center mb-3"><span className="eyebrow-dot" /> NEW ANALYSIS</div>
         <h1 className="text-[30px] md:text-[36px] font-semibold tracking-[-0.04em] text-slate-950">Turn your data into decisions.</h1>
-        <p className="text-slate-500 text-[14px] leading-6 mt-3 mb-8 max-w-[470px] mx-auto">Upload a structured business dataset. Verdio will clean it, understand it and surface the decisions that matter.</p>
-        <div onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }} onClick={() => document.getElementById('fi')?.click()}
+        <p className="text-slate-500 text-[14px] leading-6 mt-3 mb-8 max-w-[470px] mx-auto">Upload one or more structured business datasets. Verdio will understand how they relate and surface the decisions that matter.</p>
+        <div onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); handleFiles(Array.from(e.dataTransfer.files)); }} onClick={() => document.getElementById('fi')?.click()}
           className={`upload-zone cursor-pointer rounded-[20px] border p-8 md:p-10 transition-all ${dragging ? 'is-dragging' : ''}`}>
-          <input id="fi" type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }} />
+          <input id="fi" type="file" multiple accept=".csv,.xlsx,.xls" className="hidden" onChange={e => { handleFiles(Array.from(e.target.files || [])); e.target.value = ''; }} />
           {loading ? <div className="flex flex-col items-center gap-3"><div className="h-9 w-9 border-2 border-slate-200 border-t-emerald-600 rounded-full animate-spin" /><p className="text-sm text-slate-700 font-medium">{stage}</p><p className="text-xs text-slate-400">This usually takes less than a minute.</p></div> :
-            <><div className="upload-icon mx-auto mb-4"><UploadCloud size={22}/></div><p className="font-semibold text-slate-950 text-sm">Drop your business data here</p><p className="mt-1.5 text-[12px] text-slate-500">or click to browse · CSV, XLSX or XLS</p><p className="mt-4 text-[10px] text-slate-400 font-semibold tracking-[0.12em]">YOUR DATA REMAINS PRIVATE</p></>}
+            <><div className="upload-icon mx-auto mb-4"><UploadCloud size={22}/></div><p className="font-semibold text-slate-950 text-sm">Drop one or multiple business datasets here</p><p className="mt-1.5 text-[12px] text-slate-500">Sales, stock, customers, products or finance · CSV, XLSX, XLS</p><p className="mt-4 text-[10px] text-slate-400 font-semibold tracking-[0.12em]">YOUR DATA REMAINS PRIVATE</p></>}
         </div>
         {error && <div className="mt-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>}
         <div className="demo-divider"><span>or explore before uploading</span></div>
@@ -143,6 +178,7 @@ const PAGES = [
   { id: 'health', label: 'Health Detail', icon: CheckCircle, group: 'EXPLORE' },
   { id: 'profile', label: 'Data Hub', icon: Layers, group: 'DATA' },
   { id: 'connections', label: 'Connections', icon: Plug, group: 'DATA' },
+  { id: 'relationships', label: 'Data Relationships', icon: Network, group: 'DATA' },
   { id: 'quality', label: 'Data Quality', icon: Database, group: 'DATA' },
   { id: 'alerts', label: 'Alerts & Reports', icon: Bell, group: 'DATA' },
   { id: 'trust', label: 'Trust Center', icon: ShieldCheck, group: 'DATA' },
@@ -423,13 +459,13 @@ export default function App() {
   if (authLoading) return <div className="min-h-screen bg-[#F5F6FA] flex items-center justify-center"><div className="h-8 w-8 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" /></div>;
   if (isEnabled && !user) return <PasswordGateScreen />;
   if (!result) return <UploadScreen onLoaded={r => { setCurrentProjectId(null); setResult(r); setPage('overview'); }} />;
-  const titles: Record<string, string> = { overview: 'Executive Workspace', advisor: 'AI Advisor', forecast: 'Predictions', scenarios: 'Scenario Planning', analyses: 'Intelligence', customers: 'Customer Intelligence', seasonality: 'Seasonality', health: 'Health Detail', risks: 'Risks & Opportunities', recs: 'Decisions', products: 'Products & Markets', profile: 'Data Hub', connections: 'Connections', quality: 'Data Quality', alerts: 'Alerts & Reports', trust: 'Trust Center' };
+  const titles: Record<string, string> = { overview: 'Executive Workspace', advisor: 'AI Advisor', forecast: 'Predictions', scenarios: 'Scenario Planning', analyses: 'Intelligence', customers: 'Customer Intelligence', seasonality: 'Seasonality', health: 'Health Detail', risks: 'Risks & Opportunities', recs: 'Decisions', products: 'Products & Markets', profile: 'Data Hub', connections: 'Connections', relationships: 'Data Relationships', quality: 'Data Quality', alerts: 'Alerts & Reports', trust: 'Trust Center' };
   return (
     <div className="app-shell min-h-screen">
       <Sidebar page={page} setPage={setPage} result={result} onReset={reset} open={navOpen} onClose={()=>setNavOpen(false)} />
       <div className="app-content lg:ml-[272px]">
         <header className="app-header sticky top-0 z-30 px-4 md:px-7 h-[72px] flex items-center justify-between gap-3">
-          <div className="flex items-center min-w-0"><button aria-label="Open navigation" onClick={()=>setNavOpen(true)} className="header-icon mr-3 lg:hidden"><Menu size={18}/></button><div className="min-w-0"><p className="text-[14px] font-semibold text-slate-950 truncate">{titles[page]}</p><p className="text-[10px] md:text-[11px] text-slate-500 truncate">{result.source.fileName} · {fmtN(result.source.rowCount)} rows · updated just now</p></div></div>
+          <div className="flex items-center min-w-0"><button aria-label="Open navigation" onClick={()=>setNavOpen(true)} className="header-icon mr-3 lg:hidden"><Menu size={18}/></button><div className="min-w-0"><p className="text-[14px] font-semibold text-slate-950 truncate">{titles[page]}</p><p className="text-[10px] md:text-[11px] text-slate-500 truncate">{result.organization?`${result.organization.datasets.length} connected datasets · `:''}{result.source.fileName} · {fmtN(result.source.rowCount)} rows · updated just now</p></div></div>
           <div className="flex items-center gap-2">
             <button aria-label="Search" className="header-icon hidden sm:flex"><Search size={16}/></button>
             <button onClick={() => setExportOpen(true)} className="header-action hidden md:flex"><FileText size={14}/> Export report</button>
@@ -437,7 +473,7 @@ export default function App() {
             <div className="user-menu group relative"><button className="user-avatar" aria-label="Account menu">{(user?.email?.[0] || 'V').toUpperCase()}</button><div className="user-popover"><p className="truncate text-xs font-semibold text-slate-900">{user?.email || 'Local workspace'}</p><button onClick={reset}><RefreshCw size={13}/> New dataset</button><button><Settings size={13}/> Settings</button><button onClick={async()=>{ const sb=getSupabase(); if(sb) await sb.auth.signOut(); }}>Sign out</button></div></div>
           </div>
         </header>
-        <main className="app-main p-4 md:p-7 max-w-[1480px] mx-auto">{page==='overview'&&<PageOverview r={result} />}{page==='advisor'&&<PageAdvisor r={result} />}{page==='forecast'&&<PageForecast r={result} />}{page==='scenarios'&&<PageScenarioPlanner r={result} />}{page==='analyses'&&<PageAnalyses r={result} />}{page==='customers'&&<PageCustomers r={result} />}{page==='seasonality'&&<PageSeasonality r={result} />}{page==='health'&&<PageHealth r={result} />}{page==='risks'&&<PageRisks r={result} />}{page==='recs'&&<PageRecs r={result} />}{page==='products'&&<PageProducts r={result} />}{page==='profile'&&<PageDataProfile r={result} />}{page==='connections'&&<PageConnections r={result} />}{page==='quality'&&<PageQuality r={result} />}{page==='alerts'&&<PageAlerts r={result} />}{page==='trust'&&<PageTrustCenter r={result} />}</main>
+        <main className="app-main p-4 md:p-7 max-w-[1480px] mx-auto">{page==='overview'&&<PageOverview r={result} />}{page==='advisor'&&<PageAdvisor r={result} />}{page==='forecast'&&<PageForecast r={result} />}{page==='scenarios'&&<PageScenarioPlanner r={result} />}{page==='analyses'&&<PageAnalyses r={result} />}{page==='customers'&&<PageCustomers r={result} />}{page==='seasonality'&&<PageSeasonality r={result} />}{page==='health'&&<PageHealth r={result} />}{page==='risks'&&<PageRisks r={result} />}{page==='recs'&&<PageRecs r={result} />}{page==='products'&&<PageProducts r={result} />}{page==='profile'&&<PageDataProfile r={result} />}{page==='connections'&&<PageConnections r={result} />}{page==='relationships'&&<PageRelationships r={result} />}{page==='quality'&&<PageQuality r={result} />}{page==='alerts'&&<PageAlerts r={result} />}{page==='trust'&&<PageTrustCenter r={result} />}</main>
       </div>
       <ProjectLibrary open={projectLibraryOpen} onClose={()=>setProjectLibraryOpen(false)} onOpen={project=>{ setResult(project.result); setCurrentProjectId(project.id); setPage('overview'); setProjectLibraryOpen(false); }} />
       <ExportDialog result={result} open={exportOpen} onClose={()=>setExportOpen(false)} />
