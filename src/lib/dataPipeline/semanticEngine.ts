@@ -178,8 +178,20 @@ function classifyColumn(col: ColumnProfile, rowCount: number): ColumnSemantics {
   };
 }
 
-export function classifyColumns(_rows: RawRow[], profile: DatasetProfile): SemanticResult {
-  const columns = profile.columns.map(col => classifyColumn(col, profile.rowCount));
+export function classifyColumns(_rows: RawRow[], profile: DatasetProfile, overrides: Partial<Record<string, BusinessRole>> = {}): SemanticResult {
+  const columns = profile.columns.map(col => {
+    const detected = classifyColumn(col, profile.rowCount);
+    const override = overrides[col.name];
+    if (!override) return detected;
+    return {
+      ...detected,
+      semanticType: semanticTypeFor(override, col),
+      businessRole: override,
+      confidence: 1,
+      needsReview: false,
+      evidence: [{ source: 'name_match' as const, weight: 1, detail: 'Confirmed by the user during data mapping.' }],
+    };
+  });
 
   const warnings: string[] = [];
   if (!columns.some(c => c.businessRole === 'date' && c.confidence >= 0.5)) {

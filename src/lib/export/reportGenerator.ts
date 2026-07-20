@@ -126,3 +126,23 @@ export function openReport(result: any): void {
   win.document.write(html);
   win.document.close();
 }
+
+export function emailExecutiveSummary(result: any): void {
+  const topRisk = result.decision.risks?.[0];
+  const topAction = result.decision.recommendations?.[0];
+  const subject = `Verdio executive summary — ${result.source.fileName}`;
+  const body = [
+    `Verdio executive summary for ${result.source.fileName}`,
+    '',
+    `Business health: ${result.decision.health.total}/100`,
+    `Data quality: ${result.quality.overallScore}/100`,
+    `Rows analysed: ${result.source.rowCount.toLocaleString()}`,
+    '',
+    topRisk ? `Priority risk: ${topRisk.title}\n${topRisk.desc}` : 'No priority risk identified.',
+    '',
+    topAction ? `Recommended action: ${topAction.title}\n${topAction.desc}` : 'No immediate action identified.',
+    '',
+    'Open Verdio to review the supporting evidence and full decision report.',
+  ].join('\n');
+  window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
