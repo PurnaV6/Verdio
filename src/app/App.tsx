@@ -16,7 +16,8 @@ import {
   Home, Sparkles, BarChart3, ShieldAlert, Brain, Database,
   RefreshCw, CheckCircle, Layers, TrendingUp, Users, Package, Activity,
   ArrowUpRight, FileText, Menu, Search, Settings, X, UploadCloud, PlayCircle, Building2,
-  Trash2, FolderOpen, Mail, Download, ChevronRight
+  Trash2, FolderOpen, Mail, Download, ChevronRight,
+  Plug, Bell, SlidersHorizontal, ShieldCheck
 } from "lucide-react";
 import { saveToHistory } from "../lib/history/historyStore";
 import { openReport, emailExecutiveSummary } from "../lib/export/reportGenerator";
@@ -25,6 +26,7 @@ import { getSupabase } from "../lib/auth/supabaseClient";
 import { createSampleBusinessFile } from "../lib/demo/sampleBusinessDataset";
 import { deleteProject, listProjects, saveProject, type SavedProject } from "../lib/projects/projectStore";
 import type { BusinessRole } from "../types/semantic";
+import { PageAlerts, PageConnections, PageScenarioPlanner, PageTrustCenter } from "../components/operational/OperationalPages";
 
 const fmtN = (n: number) => Math.round(n).toLocaleString('en-GB');
 
@@ -126,12 +128,16 @@ const PAGES = [
   { id: 'risks', label: 'Risks & Opportunities', icon: ShieldAlert, group: 'INTELLIGENCE' },
   { id: 'recs', label: 'Decisions', icon: Brain, group: 'INTELLIGENCE' },
   { id: 'advisor', label: 'AI Advisor', icon: Sparkles, badge: 'AI', group: 'INTELLIGENCE' },
+  { id: 'scenarios', label: 'Scenario Planning', icon: SlidersHorizontal, group: 'INTELLIGENCE' },
   { id: 'customers', label: 'Customer Intelligence', icon: Users, group: 'EXPLORE' },
   { id: 'seasonality', label: 'Seasonality', icon: Activity, group: 'EXPLORE' },
   { id: 'products', label: 'Products & Markets', icon: Package, group: 'EXPLORE' },
   { id: 'health', label: 'Health Detail', icon: CheckCircle, group: 'EXPLORE' },
   { id: 'profile', label: 'Data Hub', icon: Layers, group: 'DATA' },
+  { id: 'connections', label: 'Connections', icon: Plug, group: 'DATA' },
   { id: 'quality', label: 'Data Quality', icon: Database, group: 'DATA' },
+  { id: 'alerts', label: 'Alerts & Reports', icon: Bell, group: 'DATA' },
+  { id: 'trust', label: 'Trust Center', icon: ShieldCheck, group: 'DATA' },
 ];
 
 function Sidebar({ page, setPage, result, onReset, open, onClose }: { page: string; setPage: (p: string) => void; result: PipelineResult; onReset: () => void; open: boolean; onClose: () => void }) {
@@ -365,18 +371,20 @@ function PageDataProfile({ r }: { r: PipelineResult }) { return <div className="
 function PageQuality({ r }: { r: PipelineResult }) { return <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[{l:'Overall',v:r.quality.overallScore},{l:'Completeness',v:r.quality.completenessScore},{l:'Validity',v:r.quality.validityScore},{l:'Consistency',v:r.quality.consistencyScore}].map(s=><div key={s.l} className="bg-white rounded-[16px] border border-slate-200 p-4 shadow-sm"><p className="text-[10px] font-bold text-slate-400 tracking-widest">{s.l.toUpperCase()}</p><p className="text-2xl font-black mt-1 text-slate-900">{s.v}</p></div>)}</div>; }
 
 function PageAdvisor({ r }: { r: PipelineResult }) {
-  const [messages, setMessages] = useState<{ role: 'ai' | 'user'; text?: string; charts?: ChartSpec[] }[]>([{ role: 'ai', text: `Full analysis loaded — ${r.source.rowCount} rows, ${r.analyses.length} charts, health ${r.decision.health.total}/100.` }]);
+  const [messages, setMessages] = useState<{ role: 'ai' | 'user'; text?: string; charts?: ChartSpec[]; sources?: string[] }[]>([{ role: 'ai', text: `Full analysis loaded — ${r.source.rowCount} rows, ${r.analyses.length} charts, health ${r.decision.health.total}/100. Choose a decision task below or ask a specific question.`, sources: [r.source.fileName, 'Verdio decision engine'] }]);
   const [input, setInput] = useState(''); const [loading, setLoading] = useState(false); const PROXY = '/api/chat'; const context = buildAdvisorContext(r);
-  async function send() {
-    if (!input.trim()) return; const userMsg = input.trim(); setInput(''); setMessages(m => [...m, { role: 'user', text: userMsg }]); setLoading(true);
+  const quickActions = ['Explain the highest risk', 'Create a 30-day action plan', 'Compare recent performance', 'Summarise for the board'];
+  async function send(prompt?: string) {
+    const userMsg = (prompt || input).trim(); if (!userMsg) return; setInput(''); setMessages(m => [...m, { role: 'user', text: userMsg }]); setLoading(true);
     try {
-      const res = await fetch(PROXY, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: [{ role: 'system', content: context }, { role: 'user', content: userMsg }], max_tokens: 700 }) });
+      const groundedPrompt = `${userMsg}\n\nUse only the supplied Verdio analysis. State the supporting metric or analysis and finish with a concrete next action. Add [CHART:analysis_id] when a chart supports the answer.`;
+      const res = await fetch(PROXY, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: [{ role: 'system', content: context }, { role: 'user', content: groundedPrompt }], max_tokens: 700 }) });
       const data = await res.json(); const txt = data.choices?.[0]?.message?.content; if (!txt) throw new Error('empty');
-      const { cleanText, charts } = parseChartTagsFromAI(txt, r); setMessages(m => [...m, { role: 'ai', text: cleanText, charts }]);
-    } catch (e: any) { const fb = localAnalysisFallback(userMsg, r); setMessages(m => [...m, { role: 'ai', text: fb.text, charts: fb.charts }]); }
+      const { cleanText, charts } = parseChartTagsFromAI(txt, r); setMessages(m => [...m, { role: 'ai', text: cleanText, charts, sources: [r.source.fileName, ...charts.map(c=>c.title || 'Supporting analysis')] }]);
+    } catch (e: any) { const fb = localAnalysisFallback(userMsg, r); setMessages(m => [...m, { role: 'ai', text: fb.text, charts: fb.charts, sources: [r.source.fileName, 'Local analysis fallback'] }]); }
     setLoading(false);
   }
-  return <div className="bg-white rounded-[16px] border border-slate-200 shadow-sm p-4 flex flex-col h-[70vh]"><div className="flex-1 overflow-auto space-y-3 pr-1">{messages.map((msg,i)=><div key={i} className={`flex ${msg.role==='user'?'justify-end':''}`}><div className={`max-w-[85%] px-4 py-2.5 rounded-[14px] text-[13px] leading-6 whitespace-pre-wrap ${msg.role==='user'?'bg-slate-900 text-white':'bg-slate-50 border border-slate-200 text-slate-800'}`}>{msg.text}{msg.charts?.map((c,j)=><div key={j} className="mt-3 bg-white border rounded-xl p-2"><ChartRenderer chart={c} /></div>)}</div></div>)}{loading && <div className="text-xs text-slate-500">Thinking...</div>}</div><div className="flex gap-2 mt-3"><input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&send()} className="flex-1 px-4 py-2.5 rounded-full bg-slate-50 border border-slate-200 text-sm outline-none focus:bg-white focus:border-indigo-400" placeholder="Ask March sales, forecast..." /><button onClick={send} className="px-5 py-2.5 rounded-full bg-indigo-900 text-white text-sm font-bold">Send</button></div></div>;
+  return <div className="advisor-workspace"><div className="advisor-actions"><div><strong>Decision tasks</strong><span>Grounded in {r.source.fileName}</span></div>{quickActions.map(action=><button key={action} disabled={loading} onClick={()=>send(action)}>{action}<ChevronRight size={13}/></button>)}</div><div className="advisor-conversation"><div className="advisor-messages">{messages.map((msg,i)=><div key={i} className={`flex ${msg.role==='user'?'justify-end':''}`}><div className={`advisor-message ${msg.role==='user'?'is-user':'is-ai'}`}>{msg.text}{msg.charts?.map((c,j)=><div key={j} className="mt-3 bg-white border rounded-xl p-2"><ChartRenderer chart={c} /></div>)}{msg.sources&&<div className="advisor-sources"><span>Evidence</span>{msg.sources.map(source=><small key={source}>{source}</small>)}</div>}</div></div>)}{loading && <div className="advisor-thinking"><Sparkles size={13}/> Analysing the supporting evidence…</div>}</div><div className="advisor-input"><input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&send()} placeholder="Ask about a risk, forecast, customer segment or decision…" /><button disabled={loading} onClick={()=>send()}>Send</button></div></div></div>;
 }
 
 function ProjectLibrary({ open, onClose, onOpen }: { open: boolean; onClose: () => void; onOpen: (project: SavedProject) => void }) {
@@ -407,7 +415,7 @@ export default function App() {
   if (authLoading) return <div className="min-h-screen bg-[#F5F6FA] flex items-center justify-center"><div className="h-8 w-8 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" /></div>;
   if (isEnabled && !user) return <PasswordGateScreen />;
   if (!result) return <UploadScreen onLoaded={r => { setCurrentProjectId(null); setResult(r); setPage('overview'); }} />;
-  const titles: Record<string, string> = { overview: 'Executive Workspace', advisor: 'AI Advisor', forecast: 'Predictions', analyses: 'Intelligence', customers: 'Customer Intelligence', seasonality: 'Seasonality', health: 'Health Detail', risks: 'Risks & Opportunities', recs: 'Decisions', products: 'Products & Markets', profile: 'Data Hub', quality: 'Data Quality' };
+  const titles: Record<string, string> = { overview: 'Executive Workspace', advisor: 'AI Advisor', forecast: 'Predictions', scenarios: 'Scenario Planning', analyses: 'Intelligence', customers: 'Customer Intelligence', seasonality: 'Seasonality', health: 'Health Detail', risks: 'Risks & Opportunities', recs: 'Decisions', products: 'Products & Markets', profile: 'Data Hub', connections: 'Connections', quality: 'Data Quality', alerts: 'Alerts & Reports', trust: 'Trust Center' };
   return (
     <div className="app-shell min-h-screen">
       <Sidebar page={page} setPage={setPage} result={result} onReset={reset} open={navOpen} onClose={()=>setNavOpen(false)} />
@@ -421,7 +429,7 @@ export default function App() {
             <div className="user-menu group relative"><button className="user-avatar" aria-label="Account menu">{(user?.email?.[0] || 'V').toUpperCase()}</button><div className="user-popover"><p className="truncate text-xs font-semibold text-slate-900">{user?.email || 'Local workspace'}</p><button onClick={reset}><RefreshCw size={13}/> New dataset</button><button><Settings size={13}/> Settings</button><button onClick={async()=>{ const sb=getSupabase(); if(sb) await sb.auth.signOut(); }}>Sign out</button></div></div>
           </div>
         </header>
-        <main className="app-main p-4 md:p-7 max-w-[1480px] mx-auto">{page==='overview'&&<PageOverview r={result} />}{page==='advisor'&&<PageAdvisor r={result} />}{page==='forecast'&&<PageForecast r={result} />}{page==='analyses'&&<PageAnalyses r={result} />}{page==='customers'&&<PageCustomers r={result} />}{page==='seasonality'&&<PageSeasonality r={result} />}{page==='health'&&<PageHealth r={result} />}{page==='risks'&&<PageRisks r={result} />}{page==='recs'&&<PageRecs r={result} />}{page==='products'&&<PageProducts r={result} />}{page==='profile'&&<PageDataProfile r={result} />}{page==='quality'&&<PageQuality r={result} />}</main>
+        <main className="app-main p-4 md:p-7 max-w-[1480px] mx-auto">{page==='overview'&&<PageOverview r={result} />}{page==='advisor'&&<PageAdvisor r={result} />}{page==='forecast'&&<PageForecast r={result} />}{page==='scenarios'&&<PageScenarioPlanner r={result} />}{page==='analyses'&&<PageAnalyses r={result} />}{page==='customers'&&<PageCustomers r={result} />}{page==='seasonality'&&<PageSeasonality r={result} />}{page==='health'&&<PageHealth r={result} />}{page==='risks'&&<PageRisks r={result} />}{page==='recs'&&<PageRecs r={result} />}{page==='products'&&<PageProducts r={result} />}{page==='profile'&&<PageDataProfile r={result} />}{page==='connections'&&<PageConnections r={result} />}{page==='quality'&&<PageQuality r={result} />}{page==='alerts'&&<PageAlerts r={result} />}{page==='trust'&&<PageTrustCenter r={result} />}</main>
       </div>
       <ProjectLibrary open={projectLibraryOpen} onClose={()=>setProjectLibraryOpen(false)} onOpen={project=>{ setResult(project.result); setCurrentProjectId(project.id); setPage('overview'); setProjectLibraryOpen(false); }} />
       <ExportDialog result={result} open={exportOpen} onClose={()=>setExportOpen(false)} />
