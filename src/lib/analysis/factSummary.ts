@@ -8,9 +8,13 @@ export function buildAdvisorContext(p: PipelineResult): string {
   const tsText = ts ? ts.points.slice(-12).map(pt=>`${pt.periodKey}=${Math.round(pt.value)}`).join(', ') : 'none';
   const s = p.statistics.seasonality;
   const seasonText = s ? s.byMonthOfYear.map(m=>`${m.label}=${Math.round(m.value)}`).join(', ') : 'none';
+  const organizationText = p.organization
+    ? `${p.organization.datasets.map(d=>`${d.fileName}[${d.purpose},${d.rowCount} rows${d.primary?',primary':''}]`).join('; ')}; confirmed relationships: ${p.organization.relationships.filter(r=>r.confirmed).map(r=>`${r.leftColumn}<->${r.rightColumn}`).join(', ') || 'none'}`
+    : 'single dataset';
   
   return `You are Verdio Advisor LLM. Full analysis:
 Rows=${p.source.rowCount} Health=${p.decision.health.total} Quality=${p.quality.overallScore}
+ORGANISATIONAL_CONTEXT: ${organizationText}
 TIME_SERIES last 12: ${tsText}
 SEASONALITY: ${seasonText}
 RISKS: ${risks}

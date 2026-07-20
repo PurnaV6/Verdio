@@ -6,6 +6,7 @@ import type { AnalysisCandidate } from "./analysis";
 import type { MLResults } from "./ml";
 import type { DecisionResult } from "./decision";
 import type { AIInsights } from "./aiInsights";
+import type { OrganizationContext } from "./organization";
 
 /* ================================================================
    VERDIO — Pipeline Result (Stage 13 output)
@@ -29,6 +30,7 @@ export interface PipelineResult {
   /* AI layer — populated in the background after the rest renders */
   aiInsights: AIInsights | null;
   aiLoading:  boolean;
+  organization?: OrganizationContext;
 }
 
 export type PipelineOutcome =
