@@ -15,12 +15,13 @@ import type { AIInsights } from "../types/aiInsights";
 import {
   Home, Sparkles, BarChart3, ShieldAlert, Brain, Database,
   RefreshCw, CheckCircle, Layers, TrendingUp, Users, Package, Activity,
-  ArrowUpRight, FileText, Menu, Search, Settings, X, UploadCloud
+  ArrowUpRight, FileText, Menu, Search, Settings, X, UploadCloud, PlayCircle, Building2
 } from "lucide-react";
 import { saveToHistory, loadHistory } from "../lib/history/historyStore";
 import { openReport } from "../lib/export/reportGenerator";
 import { useAuth, PasswordGateScreen } from "../lib/auth/AuthContext";
 import { getSupabase } from "../lib/auth/supabaseClient";
+import { createSampleBusinessFile } from "../lib/demo/sampleBusinessDataset";
 
 const fmtN = (n: number) => Math.round(n).toLocaleString('en-GB');
 
@@ -42,9 +43,9 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [stage, setStage] = useState('');
-  async function handleFile(file: File) {
+  async function handleFile(file: File, isDemo = false) {
     setError(''); setLoading(true);
-    setStage('Parsing file...'); await new Promise(r => setTimeout(r, 30));
+    setStage(isDemo ? 'Preparing the sample business...' : 'Parsing file...'); await new Promise(r => setTimeout(r, 30));
     setStage('Profiling, cleaning and detecting columns...'); await new Promise(r => setTimeout(r, 30));
     setStage('Running statistics and ML models...');
     const outcome = await runDataPipeline(file);
@@ -67,6 +68,12 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
             <><div className="upload-icon mx-auto mb-4"><UploadCloud size={22}/></div><p className="font-semibold text-slate-950 text-sm">Drop your business data here</p><p className="mt-1.5 text-[12px] text-slate-500">or click to browse · CSV, XLSX or XLS</p><p className="mt-4 text-[10px] text-slate-400 font-semibold tracking-[0.12em]">YOUR DATA REMAINS PRIVATE</p></>}
         </div>
         {error && <div className="mt-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>}
+        <div className="demo-divider"><span>or explore before uploading</span></div>
+        <button type="button" disabled={loading} onClick={() => handleFile(createSampleBusinessFile(), true)} className="demo-entry group">
+          <span className="demo-entry-icon"><Building2 size={18} /></span>
+          <span className="demo-entry-copy"><strong>Explore a sample business</strong><small>See forecasts, risks and recommended decisions using 24 months of realistic operating data.</small></span>
+          <PlayCircle className="demo-entry-arrow" size={21} />
+        </button>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[11px] text-slate-400"><span>Automatic cleaning</span><span className="hidden sm:inline">•</span><span>Adaptive analysis</span><span className="hidden sm:inline">•</span><span>Explainable decisions</span></div>
       </div>
     </div>
