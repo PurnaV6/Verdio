@@ -40,7 +40,16 @@ export function generateRecommendations(
   if (ml.forecast && ts) {
     const last = ts.points[ts.points.length - 1]?.value || 0;
     if (ml.forecast.holtNextPeriod > last * 1.1) {
-      recs.push({ title: 'Prepare for forecasted uplift', desc: `Forecast projects ${Math.round(ml.forecast.holtNextPeriod).toLocaleString()} next period — ${Math.round((ml.forecast.holtNextPeriod / (last || 1) - 1) * 100)}% above current. Ensure capacity is ready.`, impact: 'high', sourceColumns: [ml.forecast.measureColumn] });
+      const upliftPct = Math.round((ml.forecast.holtNextPeriod / (last || 1) - 1) * 100);
+      const forecastValue = Math.round(ml.forecast.holtNextPeriod).toLocaleString();
+      recs.push({
+        title: 'Validate near-term growth scenario',
+        desc: upliftPct > 250
+          ? `The current model indicates a material step-change to ${forecastValue} next period. Validate the underlying demand drivers and baseline assumptions before committing capacity or resources.`
+          : `The current model indicates ${forecastValue} next period, approximately ${upliftPct}% above the latest observation. Confirm demand drivers and review capacity assumptions before operational planning.`,
+        impact: 'high',
+        sourceColumns: [ml.forecast.measureColumn],
+      });
     }
   }
 
