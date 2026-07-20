@@ -96,42 +96,44 @@ export function PasswordGateScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F7FB] flex items-center justify-center p-8">
-      <div className="w-full max-w-md bg-white rounded-3xl border border-slate-200 shadow-xl p-10">
+    <div className="auth-shell min-h-screen flex items-center justify-center p-5 md:p-8">
+      <div className="auth-orbit auth-orbit-one"/><div className="auth-orbit auth-orbit-two"/>
+      <div className="w-full max-w-[450px] elevated-panel rounded-[28px] p-7 md:p-10 relative">
         <div className="text-center mb-8">
-          <div className="mx-auto mb-5 h-14 w-14 rounded-2xl bg-[#0F172A] flex items-center justify-center shadow-lg">
-            <span className="text-[#22C55E] font-black text-xl">V</span>
+          <div className="mx-auto mb-6 h-12 w-12 rounded-[13px] bg-[#49c88b] flex items-center justify-center shadow-[0_8px_24px_rgba(31,157,104,.22)]">
+            <span className="text-[#062116] font-black text-lg">V</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-[#0F172A]">{mode === 'signin' ? 'Sign in to Verdio' : 'Create your Verdio account'}</h1>
-          <p className="text-sm text-slate-500 mt-2 leading-6">{mode === 'signin' ? 'Welcome back. Sign in to continue to your decision intelligence workspace.' : 'Start analyzing your business data in seconds.'}</p>
+          <p className="text-[9px] font-bold tracking-[.18em] text-emerald-700 mb-2">VERDIO DECISION INTELLIGENCE</p>
+          <h1 className="text-[27px] font-semibold tracking-[-.04em] text-[#102019]">{mode === 'signin' ? 'Welcome back' : 'Create your workspace'}</h1>
+          <p className="text-sm text-slate-500 mt-2 leading-6">{mode === 'signin' ? 'Sign in to continue to your executive workspace.' : 'Turn your business data into prioritised decisions.'}</p>
         </div>
 
         <div className="space-y-4">
           <div>
-            <label className="text-xs font-bold text-slate-700 mb-1.5 block">Work email</label>
-            <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@company.com" className="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm focus:outline-none focus:border-[#16A34A] focus:ring-2 focus:ring-[#16A34A]/10 bg-slate-50" />
+            <label className="text-[11px] font-semibold text-slate-700 mb-1.5 block">Work email</label>
+            <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@company.com" className="auth-input w-full px-4 py-3 rounded-xl border text-sm focus:outline-none" />
           </div>
           <div>
-            <label className="text-xs font-bold text-slate-700 mb-1.5 block">Password</label>
-            <input type="password" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=> e.key==='Enter' && submit()} placeholder={mode==='signin' ? 'Your password' : 'At least 6 characters'} className="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm focus:outline-none focus:border-[#16A34A] focus:ring-2 focus:ring-[#16A34A]/10 bg-slate-50" />
+            <label className="text-[11px] font-semibold text-slate-700 mb-1.5 block">Password</label>
+            <input type="password" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=> e.key==='Enter' && submit()} placeholder={mode==='signin' ? 'Your password' : 'At least 6 characters'} className="auth-input w-full px-4 py-3 rounded-xl border text-sm focus:outline-none" />
           </div>
 
           {error && <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-2.5 text-xs text-red-700">{error}</div>}
           {info && <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-2.5 text-xs text-emerald-700">{info}</div>}
 
-          <button onClick={submit} disabled={loading} className="w-full py-3 bg-[#0F172A] hover:bg-black text-white rounded-xl text-sm font-bold transition-all disabled:opacity-50">
+          <button onClick={submit} disabled={loading} className="w-full py-3 bg-[#102019] hover:bg-[#07110d] text-white rounded-xl text-sm font-semibold transition-all disabled:opacity-50 shadow-[0_8px_20px_rgba(16,32,25,.14)]">
             {loading ? 'Please wait...' : mode === 'signin' ? 'Sign in' : 'Create account'}
           </button>
 
           <div className="text-center pt-2">
-            <button onClick={()=>{ setMode(mode==='signin'?'signup':'signin'); setError(''); setInfo(''); }} className="text-xs font-semibold text-slate-500 hover:text-[#0F172A]">
+            <button onClick={()=>{ setMode(mode==='signin'?'signup':'signin'); setError(''); setInfo(''); }} className="text-xs font-semibold text-slate-500 hover:text-emerald-700">
               {mode === 'signin' ? "Don't have an account? Create one" : "Already have an account? Sign in"}
             </button>
           </div>
         </div>
 
         <div className="mt-8 pt-6 border-t border-slate-100 text-center">
-          <p className="text-[11px] text-slate-400">Secure authentication · Your data stays private</p>
+          <p className="text-[10px] text-slate-400 tracking-wide">SECURE AUTHENTICATION · PRIVATE BY DESIGN</p>
         </div>
       </div>
     </div>

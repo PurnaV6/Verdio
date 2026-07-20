@@ -14,7 +14,8 @@ import type { EnrichedRecommendation as EnrichedRec, VDEResult } from "../lib/de
 import type { AIInsights } from "../types/aiInsights";
 import {
   Home, Sparkles, BarChart3, ShieldAlert, Brain, Database,
-  RefreshCw, CheckCircle, Layers, TrendingUp, Users, Package, Activity
+  RefreshCw, CheckCircle, Layers, TrendingUp, Users, Package, Activity,
+  ArrowUpRight, FileText, Menu, Search, Settings, X, UploadCloud
 } from "lucide-react";
 import { saveToHistory, loadHistory } from "../lib/history/historyStore";
 import { openReport } from "../lib/export/reportGenerator";
@@ -22,6 +23,10 @@ import { useAuth, PasswordGateScreen } from "../lib/auth/AuthContext";
 import { getSupabase } from "../lib/auth/supabaseClient";
 
 const fmtN = (n: number) => Math.round(n).toLocaleString('en-GB');
+
+function BrandMark({ compact = false }: { compact?: boolean }) {
+  return <div className={`brand-mark ${compact ? 'h-9 w-9' : 'h-12 w-12'}`} aria-label="Verdio"><span>V</span><i /></div>;
+}
 
 function SkeletonLine({ width = '100%' }: { width?: string }) { return <div className="h-3 animate-pulse bg-slate-200 rounded" style={{ width }} />; }
 function SkeletonBlock({ lines = 3 }: { lines?: number }) {
@@ -48,70 +53,70 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
     onLoaded(outcome.result);
   }
   return (
-    <div className="min-h-screen bg-[#F5F6FA] flex items-center justify-center p-8">
-      <div className="w-full max-w-[560px] bg-white rounded-[24px] border border-slate-200 shadow-[0_4px_24px_rgba(0,0,0,0.06)] p-10 text-center">
-        <div className="mx-auto mb-6 h-14 w-14 rounded-[14px] bg-indigo-900 flex items-center justify-center shadow-lg"><span className="text-white font-black text-xl">V</span></div>
-        <h1 className="text-[28px] font-bold tracking-tight text-slate-900">Verdio</h1>
-        <p className="text-[11px] font-bold tracking-[0.2em] text-slate-400 mt-1 mb-4">ADAPTIVE DATA INTELLIGENCE</p>
-        <p className="text-slate-500 text-[13px] leading-6 mb-8">Upload any business dataset. Verdio profiles it, understands columns, builds forecast, risks and recommendations.</p>
+    <div className="onboarding-shell min-h-screen flex items-center justify-center p-5 md:p-8">
+      <div className="onboarding-glow" />
+      <div className="w-full max-w-[620px] elevated-panel rounded-[28px] p-7 md:p-11 text-center relative">
+        <div className="mx-auto mb-6 flex justify-center"><BrandMark /></div>
+        <div className="eyebrow justify-center mb-3"><span className="eyebrow-dot" /> NEW ANALYSIS</div>
+        <h1 className="text-[30px] md:text-[36px] font-semibold tracking-[-0.04em] text-slate-950">Turn your data into decisions.</h1>
+        <p className="text-slate-500 text-[14px] leading-6 mt-3 mb-8 max-w-[470px] mx-auto">Upload a structured business dataset. Verdio will clean it, understand it and surface the decisions that matter.</p>
         <div onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }} onClick={() => document.getElementById('fi')?.click()}
-          className={`cursor-pointer rounded-[16px] border-2 border-dashed p-10 transition-all ${dragging ? 'border-indigo-600 bg-indigo-50' : 'border-slate-200 bg-slate-50 hover:border-indigo-300 hover:bg-white'}`}>
+          className={`upload-zone cursor-pointer rounded-[20px] border p-8 md:p-10 transition-all ${dragging ? 'is-dragging' : ''}`}>
           <input id="fi" type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }} />
-          {loading ? <div className="flex flex-col items-center gap-3"><div className="h-8 w-8 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" /><p className="text-sm text-slate-600 font-medium">{stage}</p></div> :
-            <><p className="text-2xl mb-2">📁</p><p className="font-semibold text-slate-900 text-sm">Drag and drop your file</p><p className="mt-1 text-[12px] text-slate-500">or click to browse — CSV, XLSX, XLS</p></>}
+          {loading ? <div className="flex flex-col items-center gap-3"><div className="h-9 w-9 border-2 border-slate-200 border-t-emerald-600 rounded-full animate-spin" /><p className="text-sm text-slate-700 font-medium">{stage}</p><p className="text-xs text-slate-400">This usually takes less than a minute.</p></div> :
+            <><div className="upload-icon mx-auto mb-4"><UploadCloud size={22}/></div><p className="font-semibold text-slate-950 text-sm">Drop your business data here</p><p className="mt-1.5 text-[12px] text-slate-500">or click to browse · CSV, XLSX or XLS</p><p className="mt-4 text-[10px] text-slate-400 font-semibold tracking-[0.12em]">YOUR DATA REMAINS PRIVATE</p></>}
         </div>
         {error && <div className="mt-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>}
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[11px] text-slate-400"><span>Automatic cleaning</span><span className="hidden sm:inline">•</span><span>Adaptive analysis</span><span className="hidden sm:inline">•</span><span>Explainable decisions</span></div>
       </div>
     </div>
   );
 }
 
 const PAGES = [
-  { id: 'overview', label: 'Executive Brief', icon: Home },
-  { id: 'advisor', label: 'Verdio Advisor', icon: Sparkles, badge: 'AI' },
-  { id: 'forecast', label: 'Forecast', icon: TrendingUp },
-  { id: 'analyses', label: 'Analyses', icon: BarChart3 },
-  { id: 'customers', label: 'Customers', icon: Users },
-  { id: 'seasonality', label: 'Seasonality', icon: Activity },
-  { id: 'health', label: 'Health Score', icon: CheckCircle },
-  { id: 'risks', label: 'Risk Detection', icon: ShieldAlert },
-  { id: 'recs', label: 'Recommendations', icon: Brain },
-  { id: 'products', label: 'Products & Markets', icon: Package },
-  { id: 'profile', label: 'Data Understanding', icon: Layers },
-  { id: 'quality', label: 'Data Quality', icon: Database },
+  { id: 'overview', label: 'Executive Workspace', icon: Home, group: 'WORKSPACE' },
+  { id: 'analyses', label: 'Intelligence', icon: BarChart3, group: 'INTELLIGENCE' },
+  { id: 'forecast', label: 'Predictions', icon: TrendingUp, group: 'INTELLIGENCE' },
+  { id: 'risks', label: 'Risks & Opportunities', icon: ShieldAlert, group: 'INTELLIGENCE' },
+  { id: 'recs', label: 'Decisions', icon: Brain, group: 'INTELLIGENCE' },
+  { id: 'advisor', label: 'AI Advisor', icon: Sparkles, badge: 'AI', group: 'INTELLIGENCE' },
+  { id: 'customers', label: 'Customer Intelligence', icon: Users, group: 'EXPLORE' },
+  { id: 'seasonality', label: 'Seasonality', icon: Activity, group: 'EXPLORE' },
+  { id: 'products', label: 'Products & Markets', icon: Package, group: 'EXPLORE' },
+  { id: 'health', label: 'Health Detail', icon: CheckCircle, group: 'EXPLORE' },
+  { id: 'profile', label: 'Data Hub', icon: Layers, group: 'DATA' },
+  { id: 'quality', label: 'Data Quality', icon: Database, group: 'DATA' },
 ];
 
-function Sidebar({ page, setPage, result, onReset }: { page: string; setPage: (p: string) => void; result: PipelineResult; onReset: () => void }) {
+function Sidebar({ page, setPage, result, onReset, open, onClose }: { page: string; setPage: (p: string) => void; result: PipelineResult; onReset: () => void; open: boolean; onClose: () => void }) {
+  const groups = ['WORKSPACE', 'INTELLIGENCE', 'EXPLORE', 'DATA'];
   return (
-    <aside className="fixed left-0 top-0 h-screen w-[260px] bg-white border-r border-slate-200 flex flex-col z-50">
-      <div className="px-5 py-5 border-b border-slate-100">
+    <><button aria-label="Close navigation" onClick={onClose} className={`mobile-scrim ${open ? 'is-open' : ''}`} /><aside className={`app-sidebar fixed left-0 top-0 h-screen w-[272px] flex flex-col z-50 ${open ? 'is-open' : ''}`}>
+      <div className="px-5 h-[72px] flex items-center border-b border-white/10">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-[10px] bg-indigo-900 flex items-center justify-center font-black text-white text-sm">V</div>
-          <div><div className="font-bold text-slate-900 text-[14px]">Verdio</div><div className="text-[10px] text-slate-400 tracking-widest font-medium">ADAPTIVE INTELLIGENCE</div></div>
+          <BrandMark compact />
+          <div><div className="font-semibold text-white text-[15px] tracking-tight">Verdio</div><div className="text-[9px] text-slate-500 tracking-[0.16em] font-semibold">DECISION INTELLIGENCE</div></div>
         </div>
+        <button aria-label="Close navigation" onClick={onClose} className="ml-auto text-slate-400 lg:hidden"><X size={19}/></button>
       </div>
-      <nav className="flex-1 p-3 overflow-y-auto space-y-0.5">
-        {PAGES.map(({ id, label, icon: Icon, badge }) => (
-          <button key={id} onClick={() => setPage(id)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-[13px] font-medium text-left ${page === id ? 'bg-indigo-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}>
-            <Icon size={16} className={page === id ? 'text-white' : 'text-slate-400'} />
+      <nav className="flex-1 px-3 py-4 overflow-y-auto">
+        {groups.map(group => <div key={group} className="mb-4"><p className="px-3 mb-1.5 text-[9px] tracking-[0.18em] font-bold text-slate-600">{group}</p>{PAGES.filter(p=>p.group===group).map(({ id, label, icon: Icon, badge }) => (
+          <button key={id} onClick={() => { setPage(id); onClose(); }} className={`nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-[12px] font-medium text-left ${page === id ? 'is-active' : ''}`}>
+            <Icon size={16} />
             <span className="flex-1">{label}</span>
-            {badge && <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold ${page === id ? 'bg-white text-indigo-900' : 'bg-amber-400 text-slate-900'}`}>{badge}</span>}
+            {badge && <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-400/15 text-emerald-300 font-bold">{badge}</span>}
           </button>
-        ))}
+        ))}</div>)}
       </nav>
-      <div className="p-3 space-y-2 border-t border-slate-100">
-        <div className="rounded-[12px] border border-slate-200 bg-slate-50 p-3">
-          <p className="text-[10px] font-bold text-slate-400 tracking-widest">BUSINESS HEALTH</p>
-          <div className="flex items-baseline gap-1 mt-1"><span className="text-xl font-black text-slate-900">{result.decision.health.total}</span><span className="text-xs text-slate-400">/100</span></div>
-          <div className="mt-2 h-1.5 rounded-full bg-slate-200 overflow-hidden"><div className="h-full rounded-full bg-indigo-900" style={{ width: `${result.decision.health.total}%` }} /></div>
-        </div>
-        <div className="rounded-[12px] border border-slate-200 bg-amber-50/60 p-3">
-          <p className="text-[10px] font-bold text-slate-500 tracking-widest">DATA QUALITY</p>
-          <div className="flex items-baseline gap-1 mt-1"><span className="text-xl font-black text-slate-900">{result.quality.overallScore}</span><span className="text-xs text-slate-500">/100</span></div>
+      <div className="p-3 border-t border-white/10">
+        <div className="sidebar-score rounded-[14px] p-3.5">
+          <div className="flex items-center justify-between"><p className="text-[9px] font-bold text-slate-500 tracking-[0.14em]">BUSINESS HEALTH</p><span className="text-xs font-semibold text-emerald-300">{result.decision.health.total}/100</span></div>
+          <div className="mt-2.5 h-1 rounded-full bg-white/10 overflow-hidden"><div className="h-full rounded-full bg-emerald-400" style={{ width: `${result.decision.health.total}%` }} /></div>
+          <p className="text-[10px] text-slate-500 mt-2">Data quality {result.quality.overallScore}/100</p>
         </div>
       </div>
-      <div className="p-3"><button onClick={onReset} className="w-full py-2.5 rounded-[10px] bg-slate-900 text-white text-xs font-semibold hover:bg-black">↑ Upload New File</button></div>
-    </aside>
+      <div className="px-3 pb-3"><button onClick={onReset} className="sidebar-upload w-full py-2.5 rounded-[10px] text-xs font-semibold flex items-center justify-center gap-2"><UploadCloud size={14}/> New dataset</button></div>
+    </aside></>
   );
 }
 
@@ -129,29 +134,29 @@ function MetricCard({ label, value, sub, tone }: { label: string; value: string;
 function PageOverview({ r }: { r: PipelineResult }) {
   const h = r.decision.health.total; const topRisk = r.decision.risks[0]; const topRec = r.decision.recommendations[0];
   return (
-    <div className="space-y-4">
-      <div className="bg-white rounded-[16px] border border-slate-200 p-6 shadow-sm relative overflow-hidden">
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-900 via-indigo-600 to-amber-400" />
-        <div className="flex items-start justify-between gap-6">
+    <div className="space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-1"><div><div className="eyebrow"><span className="eyebrow-dot"/> LIVE EXECUTIVE BRIEF</div><h1 className="page-title mt-2">Good afternoon. Here’s what matters.</h1><p className="text-[13px] text-slate-500 mt-1">Verdio has prioritised the strongest signals in your latest data.</p></div><button className="secondary-button">View methodology <ArrowUpRight size={13}/></button></div>
+      <div className="executive-hero rounded-[22px] p-5 md:p-7 relative overflow-hidden">
+        <div className="flex flex-col md:flex-row items-start justify-between gap-6">
           <div className="flex-1">
-            <span className={`inline-flex px-2.5 py-1 rounded-full text-[11px] font-bold mb-3 border ${h >= 80 ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : h >= 60 ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-red-50 text-red-800 border-red-200'}`}>{h >= 80 ? 'Healthy and Stable' : h >= 60 ? 'Performing with Risks' : 'Attention Required'} • {h}/100</span>
-            <h2 className="text-[20px] font-bold text-slate-900 leading-snug mb-2">{topRisk ? `${topRisk.title} requires attention.` : 'Data analysed. Review your decision brief below.'}</h2>
-            <p className="text-slate-500 text-[13px] leading-6">Verdio analysed {fmtN(r.source.rowCount)} rows across {r.profile.columnCount} columns from "{r.source.fileName}". {r.capabilities.available.length} of {r.capabilities.capabilities.length} analyses available, quality {r.quality.overallScore}/100.{topRec ? ` Top action: ${topRec.title.toLowerCase()}.` : ''}</p>
+            <span className={`status-pill ${h >= 80 ? 'is-good' : h >= 60 ? 'is-watch' : 'is-risk'}`}><i/>{h >= 80 ? 'Healthy and stable' : h >= 60 ? 'Performing with risks' : 'Attention required'}</span>
+            <h2 className="text-[22px] md:text-[28px] font-semibold tracking-[-0.035em] text-white leading-tight mt-4 mb-3 max-w-2xl">{topRisk ? `${topRisk.title} requires your attention.` : 'Your business signals are ready to review.'}</h2>
+            <p className="text-slate-400 text-[13px] leading-6 max-w-2xl">Verdio analysed {fmtN(r.source.rowCount)} rows across {r.profile.columnCount} columns. {topRec ? `The highest-priority action is ${topRec.title.toLowerCase()}.` : 'Your executive brief is ready.'}</p>
           </div>
-          <div className="bg-slate-900 rounded-[14px] p-4 text-center min-w-[110px]"><p className="text-[10px] text-slate-400 font-bold tracking-widest">HEALTH</p><p className="text-4xl font-black text-white mt-1">{h}</p></div>
+          <div className="health-ring" style={{'--score': `${h * 3.6}deg`} as React.CSSProperties}><div><strong>{h}</strong><span>HEALTH</span></div></div>
         </div>
       </div>
       <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm">
         <div className="flex items-center gap-2 mb-3"><Brain size={16} className="text-indigo-700" /><p className="text-[11px] font-bold tracking-widest text-slate-500">AI EXECUTIVE SUMMARY</p>{r.aiLoading ? <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">Generating</span> : <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">AI Generated</span>}</div>
         {r.aiLoading ? <SkeletonBlock lines={3} /> : <p className="text-[13px] text-slate-600 leading-6">{r.aiInsights?.executiveSummary}</p>}
       </div>
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
         <MetricCard label="Rows Analysed" value={fmtN(r.source.rowCount)} sub={`${r.profile.columnCount} columns`} />
         <MetricCard label="Data Quality" value={`${r.quality.overallScore}/100`} sub={r.quality.overallScore >= 80 ? 'Excellent' : 'Good'} tone={r.quality.overallScore >= 80 ? 'green' : r.quality.overallScore >= 60 ? 'amber' : 'red'} />
         <MetricCard label="Analyses Available" value={`${r.capabilities.available.length}/${r.capabilities.capabilities.length}`} sub="Capability-gated" />
         <MetricCard label="Health Score" value={`${h}/100`} sub={h >= 80 ? 'Strong' : 'Moderate'} tone={h >= 80 ? 'green' : h >= 60 ? 'amber' : 'red'} />
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm border-l-4 border-l-indigo-900"><p className="text-[10px] font-bold tracking-widest text-indigo-900 mb-1">TOP PRIORITY</p><p className="font-bold text-slate-900 text-[14px] leading-snug">{topRec?.title || 'No recommendations'}</p><p className="text-xs text-slate-500 leading-5 mt-2">{topRec?.desc}</p></div>
         <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm border-l-4 border-l-amber-500"><p className="text-[10px] font-bold tracking-widest text-amber-600 mb-1">HIGHEST RISK</p><p className="font-bold text-slate-900 text-[14px] leading-snug">{topRisk?.title || 'No critical risk'}</p><p className="text-xs text-slate-500 leading-5 mt-2">{topRisk?.desc}</p></div>
       </div>
@@ -268,6 +273,7 @@ function PageAdvisor({ r }: { r: PipelineResult }) {
 export default function App() {
   const [result, setResult] = useState<PipelineResult | null>(null);
   const [page, setPage] = useState('overview');
+  const [navOpen, setNavOpen] = useState(false);
   const { user, loading: authLoading, isEnabled } = useAuth();
   const reset = useCallback(() => { setResult(null); setPage('overview'); }, []);
   useEffect(() => { if (!result || !result.aiLoading) return; let cancelled=false; generateAIInsights(result).then(ai=>{ if(!cancelled) setResult(prev=>prev?{...prev, aiInsights: ai, aiLoading:false}:prev); }); return()=>{cancelled=true;}; }, [result?.aiLoading]);
@@ -275,16 +281,21 @@ export default function App() {
   if (authLoading) return <div className="min-h-screen bg-[#F5F6FA] flex items-center justify-center"><div className="h-8 w-8 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" /></div>;
   if (isEnabled && !user) return <PasswordGateScreen />;
   if (!result) return <UploadScreen onLoaded={r => { setResult(r); setPage('overview'); }} />;
-  const titles: Record<string, string> = { overview: 'Executive Decision Brief', advisor: 'Verdio Advisor', forecast: 'Forecast', analyses: 'Analyses', customers: 'Customer Intelligence', seasonality: 'Seasonality', health: 'Business Health', risks: 'Risk Detection', recs: 'Recommendations', products: 'Products & Markets', profile: 'Data Understanding', quality: 'Data Quality' };
+  const titles: Record<string, string> = { overview: 'Executive Workspace', advisor: 'AI Advisor', forecast: 'Predictions', analyses: 'Intelligence', customers: 'Customer Intelligence', seasonality: 'Seasonality', health: 'Health Detail', risks: 'Risks & Opportunities', recs: 'Decisions', products: 'Products & Markets', profile: 'Data Hub', quality: 'Data Quality' };
   return (
-    <div className="min-h-screen bg-[#F5F6FA]">
-      <Sidebar page={page} setPage={setPage} result={result} onReset={reset} />
-      <div className="ml-[260px]">
-        <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-200 px-6 h-[60px] flex items-center justify-between">
-          <div><p className="text-[13px] font-bold text-slate-900">{titles[page]}</p><p className="text-[11px] text-slate-500">{fmtN(result.source.rowCount)} rows · {result.profile.columnCount} cols · Health {result.decision.health.total} · Quality {result.quality.overallScore}</p></div>
-          <div className="flex items-center gap-2"><button onClick={() => result && openReport(result)} className="px-3 py-1.5 border border-slate-200 rounded-full text-[11px] font-semibold bg-white hover:bg-slate-50">Export PDF</button><button onClick={()=>{ const h=loadHistory(); alert(`History: ${h.length}`); }} className="px-3 py-1.5 border border-slate-200 rounded-full text-[11px] font-semibold bg-white">History ({typeof window !== 'undefined' ? loadHistory().length : 0})</button><span className="text-[11px] text-slate-500 hidden md:block max-w-[140px] truncate">{user?.email}</span><button onClick={async()=>{ const sb=getSupabase(); if(sb) await sb.auth.signOut(); }} className="px-3 py-1.5 border border-slate-200 rounded-full text-[11px] font-semibold bg-white">Sign out</button><button onClick={reset} className="px-3 py-1.5 rounded-full bg-indigo-900 text-white text-[11px] font-bold flex items-center gap-1"><RefreshCw size={12}/> New File</button></div>
-        </div>
-        <main className="p-6 max-w-[1400px]">{page==='overview'&&<PageOverview r={result} />}{page==='advisor'&&<PageAdvisor r={result} />}{page==='forecast'&&<PageForecast r={result} />}{page==='analyses'&&<PageAnalyses r={result} />}{page==='customers'&&<PageCustomers r={result} />}{page==='seasonality'&&<PageSeasonality r={result} />}{page==='health'&&<PageHealth r={result} />}{page==='risks'&&<PageRisks r={result} />}{page==='recs'&&<PageRecs r={result} />}{page==='products'&&<PageProducts r={result} />}{page==='profile'&&<PageDataProfile r={result} />}{page==='quality'&&<PageQuality r={result} />}</main>
+    <div className="app-shell min-h-screen">
+      <Sidebar page={page} setPage={setPage} result={result} onReset={reset} open={navOpen} onClose={()=>setNavOpen(false)} />
+      <div className="app-content lg:ml-[272px]">
+        <header className="app-header sticky top-0 z-30 px-4 md:px-7 h-[72px] flex items-center justify-between gap-3">
+          <div className="flex items-center min-w-0"><button aria-label="Open navigation" onClick={()=>setNavOpen(true)} className="header-icon mr-3 lg:hidden"><Menu size={18}/></button><div className="min-w-0"><p className="text-[14px] font-semibold text-slate-950 truncate">{titles[page]}</p><p className="text-[10px] md:text-[11px] text-slate-500 truncate">{result.source.fileName} · {fmtN(result.source.rowCount)} rows · updated just now</p></div></div>
+          <div className="flex items-center gap-2">
+            <button aria-label="Search" className="header-icon hidden sm:flex"><Search size={16}/></button>
+            <button onClick={() => result && openReport(result)} className="header-action hidden md:flex"><FileText size={14}/> Export report</button>
+            <button onClick={()=>{ const h=loadHistory(); alert(`History: ${h.length}`); }} className="header-icon hidden sm:flex" aria-label="Analysis history"><Activity size={16}/></button>
+            <div className="user-menu group relative"><button className="user-avatar" aria-label="Account menu">{(user?.email?.[0] || 'V').toUpperCase()}</button><div className="user-popover"><p className="truncate text-xs font-semibold text-slate-900">{user?.email || 'Local workspace'}</p><button onClick={reset}><RefreshCw size={13}/> New dataset</button><button><Settings size={13}/> Settings</button><button onClick={async()=>{ const sb=getSupabase(); if(sb) await sb.auth.signOut(); }}>Sign out</button></div></div>
+          </div>
+        </header>
+        <main className="app-main p-4 md:p-7 max-w-[1480px] mx-auto">{page==='overview'&&<PageOverview r={result} />}{page==='advisor'&&<PageAdvisor r={result} />}{page==='forecast'&&<PageForecast r={result} />}{page==='analyses'&&<PageAnalyses r={result} />}{page==='customers'&&<PageCustomers r={result} />}{page==='seasonality'&&<PageSeasonality r={result} />}{page==='health'&&<PageHealth r={result} />}{page==='risks'&&<PageRisks r={result} />}{page==='recs'&&<PageRecs r={result} />}{page==='products'&&<PageProducts r={result} />}{page==='profile'&&<PageDataProfile r={result} />}{page==='quality'&&<PageQuality r={result} />}</main>
       </div>
     </div>
   );
