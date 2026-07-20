@@ -4,9 +4,16 @@
 
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+function getAIConfig() {
+  const apiKey = process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY;
+  const isGroq = Boolean(process.env.GROQ_API_KEY) || apiKey?.startsWith('gsk_');
+
+  return {
+    apiKey,
+    model: process.env.AI_MODEL || (isGroq ? 'llama-3.3-70b-versatile' : 'gpt-4o-mini'),
+    baseURL: isGroq ? 'https://api.groq.com/openai/v1' : undefined,
+  };
+}
 
 export default async function handler(req, res) {
   // CORS
@@ -23,9 +30,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    if (!process.env.OPENAI_API_KEY) {
-      console.error('OPENAI_API_KEY missing');
-      return res.status(500).json({ error: 'OPENAI_API_KEY not set in Vercel env vars' });
+    const config = getAIConfig();
+    if (!config.apiKey) {
+      console.error('AI provider key missing');
+      return res.status(503).json({ error: 'AI service is not configured' });
     }
 
     const { messages, max_tokens = 700 } = req.body;
@@ -37,10 +45,11 @@ export default async function handler(req, res) {
     // Keep only last 12 messages to stay under limit and avoid timeout
     const trimmed = messages.slice(-12);
 
-    console.log('Calling OpenAI with', trimmed.length, 'messages');
+    const client = new OpenAI({ apiKey: config.apiKey, baseURL: config.baseURL });
+    console.log('Calling AI provider with', trimmed.length, 'messages');
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const completion = await client.chat.completions.create({
+      model: config.model,
       messages: trimmed,
       max_tokens: max_tokens,
       temperature: 0.3,
@@ -50,9 +59,6 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error('Proxy error:', err);
-    return res.status(500).json({
-      error: err.message || 'Proxy error',
-      details: err.stack?.slice(0, 800),
-    });
+    return res.status(502).json({ error: 'AI provider request failed' });
   }
 }

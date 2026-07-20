@@ -63,10 +63,10 @@ export function detectRisks(
     const measureLabel = labelForMeasure(ts.measureColumn);
     const swingPct = Math.round(cv * 100);
     risks.push(cv > 0.4
-      ? { level: 'high', icon: '📉', title: 'Unpredictable Revenue', desc: `"${measureLabel}" swings by roughly ${swingPct}% around its average from period to period — that's a large, hard-to-plan-around swing. Cash flow forecasting is unreliable until a steadier, recurring revenue base is built.`, sourceColumns: [ts.measureColumn] }
+      ? { level: 'high', icon: '📉', title: 'Elevated Revenue Variability', desc: `"${measureLabel}" shows approximately ${swingPct}% period-to-period variability. Use scenario ranges in cash-flow and capacity planning, and validate the operational drivers behind the largest movements.`, sourceColumns: [ts.measureColumn] }
       : cv > 0.2
-      ? { level: 'medium', icon: '📉', title: 'Some Revenue Unpredictability', desc: `"${measureLabel}" varies by around ${swingPct}% period to period — noticeable but manageable. A retainer, subscription, or repeat-order structure would smooth this out further.`, sourceColumns: [ts.measureColumn] }
-      : { level: 'low', icon: '📈', title: 'Stable, Predictable Revenue', desc: `"${measureLabel}" holds steady from one period to the next — a strong sign the business is on a reliable footing.`, sourceColumns: [ts.measureColumn] }
+      ? { level: 'medium', icon: '📉', title: 'Revenue Variability Requires Monitoring', desc: `"${measureLabel}" shows approximately ${swingPct}% period-to-period variability. Incorporate sensitivity ranges into cash-flow and capacity planning, and evaluate recurring-revenue opportunities where commercially appropriate.`, sourceColumns: [ts.measureColumn] }
+      : { level: 'low', icon: '📈', title: 'Stable Revenue Profile', desc: `"${measureLabel}" remains comparatively stable between periods, supporting more reliable planning against the current operating baseline.`, sourceColumns: [ts.measureColumn] }
     );
   }
 

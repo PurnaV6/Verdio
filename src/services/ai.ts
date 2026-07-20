@@ -2,7 +2,7 @@ import type { PipelineResult } from "../types/pipeline";
 import type { AIInsights } from "../types/aiInsights";
 import { buildAdvisorContext } from "../lib/analysis/factSummary";
 
-const PROXY = 'https://sme-bi-copilot-proxy.vercel.app/api/chat';
+const PROXY = '/api/chat';
 
 const SYSTEM_PROMPT = `You are Verdio's analysis narrator. You have the FULL analysis payload from all engines in your system context. Your ONLY job is to answer using those numbers.
 
@@ -12,7 +12,15 @@ If user asks for March, find 2023-03, 2024-03 in TIME_SERIES and March in SEASON
 If user asks for revenue analysis, give: total, monthly trend direction, best/worst month, forecast, top product/market, using real numbers.
 If user asks for chart, say "Generating [chart name] with [1-sentence insight]" - frontend will render chart.
 
-Format: plain text, 4-8 sentences, specific numbers, UK English. No markdown headers.`;
+Return valid JSON only, with this exact shape:
+{
+  "executiveSummary": "4-8 concise sentences with specific numbers in UK English",
+  "riskExplanations": [{"title":"string","impact":"string","action":"string"}],
+  "recommendations": [{"title":"string","action":"string","impactEstimate":"string","timeline":"string","priority":"high|medium|low"}],
+  "keyInsights": ["string"],
+  "analysisNarratives": [{"analysisId":"string","title":"string","narrative":"string"}]
+}
+Do not use markdown fences or add commentary outside the JSON object.`;
 
 function buildPrompt(p: PipelineResult): string {
   // buildAdvisorContext now contains everything, so we just reuse it as user content
