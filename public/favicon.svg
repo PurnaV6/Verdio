@@ -1,7 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="8" fill="#0F172A"/>
-  <line x1="8" y1="8" x2="16" y2="22" stroke="#22C55E" stroke-width="3" stroke-linecap="round"/>
-  <line x1="24" y1="8" x2="16" y2="22" stroke="#22C55E" stroke-width="3" stroke-linecap="round"/>
-  <line x1="16" y1="22" x2="16" y2="13" stroke="#22C55E" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="2 2.5"/>
-  <circle cx="16" cy="22" r="2.5" fill="#22C55E"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <defs><linearGradient id="g" x1="7" y1="5" x2="42" y2="45" gradientUnits="userSpaceOnUse"><stop stop-color="#5BD99C"/><stop offset="1" stop-color="#35AD73"/></linearGradient></defs>
+  <rect width="48" height="48" rx="13" fill="url(#g)"/>
+  <path d="M10.5 13.5 22.8 34.5 36.5 10.5" fill="none" stroke="#092117" stroke-width="3.25" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M22.8 34.5V24.2" fill="none" stroke="#092117" stroke-opacity=".58" stroke-width="2" stroke-linecap="round" stroke-dasharray="2.2 3"/>
+  <circle cx="10.5" cy="13.5" r="2.4" fill="#72E2AD" stroke="#092117" stroke-width="1.7"/>
+  <circle cx="36.5" cy="10.5" r="2.4" fill="#72E2AD" stroke="#092117" stroke-width="1.7"/>
+  <circle cx="22.8" cy="34.5" r="3.1" fill="#092117"/>
 </svg>
