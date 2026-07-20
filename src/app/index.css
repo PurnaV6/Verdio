@@ -73,6 +73,27 @@ button { cursor: pointer; }
 .health-ring strong { color: white; font: 700 30px/1 Manrope, sans-serif; }
 .health-ring span { margin-top: 5px; color: #6f8278; font-size: 8px; font-weight: 700; letter-spacing: .15em; }
 
+.signals-panel { overflow: hidden; border: 1px solid #dfe6e1; border-radius: 20px; background: #fff; box-shadow: 0 8px 30px rgba(15, 31, 23, .045); }
+.signals-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 20px; border-bottom: 1px solid #e8ece9; }
+.signals-heading > div > p { margin: 0; color: #17241e; font: 650 13px/1.3 Manrope, sans-serif; letter-spacing: -.015em; }
+.signals-heading > div > span { display: block; margin-top: 4px; color: #7a8881; font-size: 10px; }
+.signals-live { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; color: #47705e; font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.signals-live i { width: 6px; height: 6px; border-radius: 50%; background: #35ad73; box-shadow: 0 0 0 4px rgba(53, 173, 115, .1); }
+.signals-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.signal-card { position: relative; display: flex; min-width: 0; gap: 12px; padding: 20px; border-right: 1px solid #e8ece9; }
+.signal-card:last-child { border-right: 0; }
+.signal-icon { display: grid; place-items: center; flex: 0 0 auto; width: 34px; height: 34px; border: 1px solid #e1e8e3; border-radius: 10px; color: #51645a; background: #f5f7f5; }
+.signal-copy { min-width: 0; }
+.signal-copy > p { margin: 0; color: #748179; font-size: 9px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; }
+.signal-value { display: flex; align-items: baseline; gap: 5px; margin-top: 7px; white-space: nowrap; }
+.signal-value strong { color: #14211b; font: 650 24px/1 Manrope, sans-serif; letter-spacing: -.04em; }
+.signal-value span { color: #8a9690; font-size: 10px; font-weight: 600; }
+.signal-copy small { display: block; overflow: hidden; margin-top: 7px; color: #7b8881; font-size: 10px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.signal-positive .signal-icon { border-color: #cfe8da; color: #17754c; background: #edf8f2; }
+.signal-watch .signal-icon { border-color: #eedfbd; color: #9a6614; background: #fdf8ed; }
+.signal-critical .signal-icon { border-color: #efd4d2; color: #a64945; background: #fcf2f1; }
+.signal-insight .signal-icon { border-color: #d8e1eb; color: #3f627d; background: #f1f5f8; }
+
 .onboarding-shell { position: relative; overflow: hidden; background: radial-gradient(circle at 50% 0%, #e8f4ed 0, transparent 35%), #f4f6f3; }
 .onboarding-glow { position: absolute; width: 440px; height: 440px; top: -320px; border-radius: 50%; background: rgba(31,157,104,.16); filter: blur(60px); }
 .elevated-panel { background: rgba(255,255,255,.94); border: 1px solid rgba(219,226,221,.95); box-shadow: 0 26px 80px rgba(25, 48, 37, .10), 0 2px 6px rgba(25,48,37,.04); }
@@ -99,6 +120,9 @@ button { cursor: pointer; }
   .app-sidebar.is-open { transform: translateX(0); }
   .mobile-scrim { position: fixed; inset: 0; z-index: 45; border: 0; background: rgba(5, 15, 11, .44); backdrop-filter: blur(2px); }
   .mobile-scrim.is-open { display: block; }
+  .signals-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .signal-card:nth-child(2) { border-right: 0; }
+  .signal-card:nth-child(-n+2) { border-bottom: 1px solid #e8ece9; }
 }
 
 @media (max-width: 640px) {
@@ -107,6 +131,12 @@ button { cursor: pointer; }
   .health-ring strong { font-size: 25px; }
   .onboarding-shell { padding: 14px; }
   .elevated-panel { border-radius: 22px; }
+  .signals-heading { align-items: flex-start; padding: 16px; }
+  .signals-grid { grid-template-columns: 1fr; }
+  .signal-card { padding: 16px; border-right: 0; border-bottom: 1px solid #e8ece9; }
+  .signal-card:nth-child(3) { border-bottom: 1px solid #e8ece9; }
+  .signal-card:last-child { border-bottom: 0; }
+  .signal-copy small { white-space: normal; }
 }
 
 @media (prefers-reduced-motion: reduce) {
