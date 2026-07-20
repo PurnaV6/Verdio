@@ -16,6 +16,7 @@ import { generateRecommendations } from "../decision/recommendationEngine";
 import { buildVerdioDecisions } from "../decision/verdioDecisionEngine";
 import type { MLResults } from "../../types/ml";
 import type { PipelineOutcome } from "../../types/pipeline";
+import type { BusinessRole } from "../../types/semantic";
 
 /* ================================================================
    VERDIO — runDataPipeline() v2 — Endorsable Version
@@ -23,7 +24,7 @@ import type { PipelineOutcome } from "../../types/pipeline";
    This is the full file, replace your existing file completely.
    ================================================================ */
 
-export async function runDataPipeline(file: File): Promise<PipelineOutcome> {
+export async function runDataPipeline(file: File, semanticOverrides: Partial<Record<string, BusinessRole>> = {}): Promise<PipelineOutcome> {
   /* 1. Parse */
   const parsed = await parseDataset(file);
   if (!parsed.ok) return { ok: false, error: parsed.error.message };
@@ -38,7 +39,7 @@ export async function runDataPipeline(file: File): Promise<PipelineOutcome> {
   }
 
   /* 4. Semantic detection → 5. Quality → 6. Capabilities */
-  const semantics = classifyColumns(cleanedRows, profile);
+  const semantics = classifyColumns(cleanedRows, profile, semanticOverrides);
   const index = buildSemanticIndex(semantics);
   const quality = assessDataQuality(cleanedRows, profile, semantics);
   const capabilities = detectCapabilities(profile, index);

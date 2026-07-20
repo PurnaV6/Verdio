@@ -15,12 +15,16 @@ import type { AIInsights } from "../types/aiInsights";
 import {
   Home, Sparkles, BarChart3, ShieldAlert, Brain, Database,
   RefreshCw, CheckCircle, Layers, TrendingUp, Users, Package, Activity,
-  ArrowUpRight, FileText, Menu, Search, Settings, X, UploadCloud
+  ArrowUpRight, FileText, Menu, Search, Settings, X, UploadCloud, PlayCircle, Building2,
+  Trash2, FolderOpen, Mail, Download, ChevronRight
 } from "lucide-react";
-import { saveToHistory, loadHistory } from "../lib/history/historyStore";
-import { openReport } from "../lib/export/reportGenerator";
+import { saveToHistory } from "../lib/history/historyStore";
+import { openReport, emailExecutiveSummary } from "../lib/export/reportGenerator";
 import { useAuth, PasswordGateScreen } from "../lib/auth/AuthContext";
 import { getSupabase } from "../lib/auth/supabaseClient";
+import { createSampleBusinessFile } from "../lib/demo/sampleBusinessDataset";
+import { deleteProject, listProjects, saveProject, type SavedProject } from "../lib/projects/projectStore";
+import type { BusinessRole } from "../types/semantic";
 
 const fmtN = (n: number) => Math.round(n).toLocaleString('en-GB');
 
@@ -42,16 +46,52 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [stage, setStage] = useState('');
-  async function handleFile(file: File) {
+  const [pending, setPending] = useState<{ file: File; result: PipelineResult } | null>(null);
+  const [roleOverrides, setRoleOverrides] = useState<Record<string, BusinessRole>>({});
+  async function handleFile(file: File, isDemo = false) {
     setError(''); setLoading(true);
-    setStage('Parsing file...'); await new Promise(r => setTimeout(r, 30));
+    setStage(isDemo ? 'Preparing the sample business...' : 'Parsing file...'); await new Promise(r => setTimeout(r, 30));
     setStage('Profiling, cleaning and detecting columns...'); await new Promise(r => setTimeout(r, 30));
     setStage('Running statistics and ML models...');
     const outcome = await runDataPipeline(file);
     setLoading(false);
     if (!outcome.ok) { setError((outcome as any).error); return; }
+    if (isDemo) { onLoaded(outcome.result); return; }
+    setRoleOverrides(Object.fromEntries(outcome.result.semantics.columns.map(c => [c.columnName, c.businessRole])));
+    setPending({ file, result: outcome.result });
+  }
+  async function confirmMapping() {
+    if (!pending) return;
+    setLoading(true); setStage('Applying your mapping and building the analysis...');
+    const outcome = await runDataPipeline(pending.file, roleOverrides);
+    setLoading(false);
+    if (!outcome.ok) { setError(outcome.error); return; }
     onLoaded(outcome.result);
   }
+  const roleOptions: Array<{ value: BusinessRole; label: string }> = [
+    { value: 'date', label: 'Date' }, { value: 'revenue', label: 'Revenue' }, { value: 'cost', label: 'Cost' },
+    { value: 'price', label: 'Price' }, { value: 'quantity', label: 'Quantity' }, { value: 'customer', label: 'Customer' },
+    { value: 'product', label: 'Product' }, { value: 'location', label: 'Region / location' }, { value: 'category', label: 'Category' },
+    { value: 'identifier', label: 'Identifier' }, { value: 'status', label: 'Status' }, { value: 'percentage', label: 'Percentage' },
+    { value: 'unknown', label: 'Ignore / other' },
+  ];
+
+  if (pending) return (
+    <div className="onboarding-shell min-h-screen flex items-center justify-center p-4 md:p-8">
+      <div className="onboarding-glow" />
+      <div className="w-full max-w-[760px] elevated-panel rounded-[28px] p-6 md:p-9 relative">
+        <div className="flex items-start gap-4"><BrandMark compact /><div><div className="eyebrow mb-2"><span className="eyebrow-dot" /> DATA MAPPING</div><h1 className="text-2xl font-semibold tracking-tight text-slate-950">Confirm how Verdio should read your data</h1><p className="mt-2 text-sm text-slate-500">We detected these roles automatically. Correct anything that does not match your business before analysis.</p></div></div>
+        <div className="mapping-list mt-6">
+          {pending.result.semantics.columns.map(column => <div key={column.columnName} className="mapping-row">
+            <div className="min-w-0"><strong>{column.columnName}</strong><span>{column.dataType} · {Math.round(column.confidence * 100)}% detected confidence</span></div>
+            <select aria-label={`Role for ${column.columnName}`} value={roleOverrides[column.columnName]} onChange={e=>setRoleOverrides(v=>({...v,[column.columnName]:e.target.value as BusinessRole}))}>{roleOptions.map(role=><option key={role.value} value={role.value}>{role.label}</option>)}</select>
+          </div>)}
+        </div>
+        {error && <div className="mt-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>}
+        <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-between gap-3"><button onClick={()=>setPending(null)} className="secondary-button justify-center">Choose another file</button><button disabled={loading} onClick={confirmMapping} className="primary-action justify-center">{loading ? stage : 'Confirm mapping and analyse'} <ChevronRight size={15}/></button></div>
+      </div>
+    </div>
+  );
   return (
     <div className="onboarding-shell min-h-screen flex items-center justify-center p-5 md:p-8">
       <div className="onboarding-glow" />
@@ -67,6 +107,12 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
             <><div className="upload-icon mx-auto mb-4"><UploadCloud size={22}/></div><p className="font-semibold text-slate-950 text-sm">Drop your business data here</p><p className="mt-1.5 text-[12px] text-slate-500">or click to browse · CSV, XLSX or XLS</p><p className="mt-4 text-[10px] text-slate-400 font-semibold tracking-[0.12em]">YOUR DATA REMAINS PRIVATE</p></>}
         </div>
         {error && <div className="mt-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>}
+        <div className="demo-divider"><span>or explore before uploading</span></div>
+        <button type="button" disabled={loading} onClick={() => handleFile(createSampleBusinessFile(), true)} className="demo-entry group">
+          <span className="demo-entry-icon"><Building2 size={18} /></span>
+          <span className="demo-entry-copy"><strong>Explore a sample business</strong><small>See forecasts, risks and recommended decisions using 24 months of realistic operating data.</small></span>
+          <PlayCircle className="demo-entry-arrow" size={21} />
+        </button>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[11px] text-slate-400"><span>Automatic cleaning</span><span className="hidden sm:inline">•</span><span>Adaptive analysis</span><span className="hidden sm:inline">•</span><span>Explainable decisions</span></div>
       </div>
     </div>
@@ -310,7 +356,7 @@ function PageRecs({ r }: { r: PipelineResult }) {
   return (
     <div className="space-y-4">
       {vdeMeta && <div className="bg-indigo-900 rounded-[16px] p-5 text-white"><p className="text-[11px] tracking-widest opacity-70">VERDIO DECISION ENGINE v2 • FINANCIALLY RANKED</p><p className="text-sm mt-2 leading-6 opacity-90">{vdeMeta.summary}</p><div className="grid grid-cols-3 gap-3 mt-4"><div className="bg-white/10 rounded-xl p-3"><p className="text-[10px] opacity-60">VALUE AT RISK</p><p className="font-bold">£{vdeMeta.totalValueAtRisk?.toLocaleString()}</p></div><div className="bg-white/10 rounded-xl p-3"><p className="text-[10px] opacity-60">OPPORTUNITY</p><p className="font-bold text-amber-300">£{vdeMeta.totalOpportunityValue?.toLocaleString()}</p></div><div className="bg-white/10 rounded-xl p-3"><p className="text-[10px] opacity-60">ACTIONS</p><p className="font-bold">{recs.length}</p></div></div></div>}
-      <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm space-y-3">{recs.map((rec,i)=>{ const ai=findRecommendation(r.aiInsights, rec.title, i); return <div key={i} className="flex gap-3 p-4 rounded-xl border border-slate-100"><div className="w-8 h-8 rounded-full bg-indigo-900 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">{i+1}</div><div><p className="font-bold text-[13px] text-slate-900">{rec.title}</p>{r.aiLoading?<SkeletonLine width="70%"/>:ai?<p className="text-xs text-slate-600 mt-1 leading-5">{ai.action}</p>:<p className="text-xs text-slate-500 mt-1">{rec.desc}</p>}{rec.financialImpact && <div className="mt-2 flex gap-2 text-[11px]"><span className="px-2 py-0.5 rounded-full bg-slate-100 border">£{rec.financialImpact.estimatedValue.toLocaleString()} impact</span><span className="px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200">{Math.round(rec.confidence*100)}% conf</span></div>}</div></div>; })}</div>
+      <div className="space-y-3">{recs.map((rec,i)=>{ const ai=findRecommendation(r.aiInsights, rec.title, i); return <article key={i} className="decision-evidence-card"><div className="flex gap-3"><div className="w-8 h-8 rounded-full bg-indigo-900 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">{i+1}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-bold text-[13px] text-slate-900">{rec.title}</p><span className="evidence-confidence">{Math.round(rec.confidence*100)}% confidence</span></div>{r.aiLoading?<SkeletonLine width="70%"/>:ai?<p className="text-xs text-slate-600 mt-1 leading-5">{ai.action}</p>:<p className="text-xs text-slate-500 mt-1 leading-5">{rec.desc}</p>}</div></div>{rec.financialImpact && <div className="evidence-grid"><div><span>Estimated impact</span><strong>£{rec.financialImpact.estimatedValue.toLocaleString()}</strong><small>Range £{rec.financialImpact.rangeLow.toLocaleString()}–£{rec.financialImpact.rangeHigh.toLocaleString()}</small></div><div><span>Calculation basis</span><p>{rec.financialImpact.basis}</p></div><div><span>Supporting data</span><p>{rec.sourceColumns.length ? rec.sourceColumns.join(', ') : 'Business-wide operating baseline'}</p></div></div>}<details className="evidence-details"><summary>View assumptions and decision evidence</summary><div><p><b>Priority:</b> {rec.priorityScore}/100 · <b>Urgency:</b> {rec.urgency.replace('_',' ')} · <b>Estimated effort:</b> {rec.effortDays} days</p><p>Confidence combines data completeness, validity and the quality of the source columns. Financial impact is an indicative planning range, not a guaranteed outcome.</p></div></details></article>; })}</div>
     </div>
   );
 }
@@ -333,17 +379,34 @@ function PageAdvisor({ r }: { r: PipelineResult }) {
   return <div className="bg-white rounded-[16px] border border-slate-200 shadow-sm p-4 flex flex-col h-[70vh]"><div className="flex-1 overflow-auto space-y-3 pr-1">{messages.map((msg,i)=><div key={i} className={`flex ${msg.role==='user'?'justify-end':''}`}><div className={`max-w-[85%] px-4 py-2.5 rounded-[14px] text-[13px] leading-6 whitespace-pre-wrap ${msg.role==='user'?'bg-slate-900 text-white':'bg-slate-50 border border-slate-200 text-slate-800'}`}>{msg.text}{msg.charts?.map((c,j)=><div key={j} className="mt-3 bg-white border rounded-xl p-2"><ChartRenderer chart={c} /></div>)}</div></div>)}{loading && <div className="text-xs text-slate-500">Thinking...</div>}</div><div className="flex gap-2 mt-3"><input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&send()} className="flex-1 px-4 py-2.5 rounded-full bg-slate-50 border border-slate-200 text-sm outline-none focus:bg-white focus:border-indigo-400" placeholder="Ask March sales, forecast..." /><button onClick={send} className="px-5 py-2.5 rounded-full bg-indigo-900 text-white text-sm font-bold">Send</button></div></div>;
 }
 
+function ProjectLibrary({ open, onClose, onOpen }: { open: boolean; onClose: () => void; onOpen: (project: SavedProject) => void }) {
+  const [projects, setProjects] = useState<SavedProject[]>([]);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => { if (!open) return; setLoading(true); listProjects().then(setProjects).finally(()=>setLoading(false)); }, [open]);
+  if (!open) return null;
+  async function remove(id: string) { await deleteProject(id); setProjects(items=>items.filter(item=>item.id!==id)); }
+  return <div className="modal-shell" role="dialog" aria-modal="true" aria-label="Saved analyses"><button className="modal-scrim" onClick={onClose} aria-label="Close saved analyses"/><section className="workspace-modal"><div className="modal-heading"><div><div className="eyebrow mb-2"><span className="eyebrow-dot"/> WORKSPACE</div><h2>Saved analyses</h2><p>Return to previous decision workspaces without uploading the dataset again.</p></div><button className="header-icon flex" onClick={onClose} aria-label="Close"><X size={17}/></button></div><div className="project-list">{loading?<p className="empty-state">Loading projects…</p>:projects.length===0?<p className="empty-state">Your completed analyses will appear here automatically.</p>:projects.map(project=><article key={project.id} className="project-row"><span className="project-icon"><FolderOpen size={17}/></span><div><strong>{project.name}</strong><small>{project.result.source.rowCount.toLocaleString()} rows · Health {project.result.decision.health.total}/100 · {new Date(project.updatedAt).toLocaleDateString('en-GB')}</small></div><button onClick={()=>onOpen(project)} className="project-open">Open</button><button onClick={()=>remove(project.id)} className="project-delete" aria-label={`Delete ${project.name}`}><Trash2 size={15}/></button></article>)}</div></section></div>;
+}
+
+function ExportDialog({ result, open, onClose }: { result: PipelineResult; open: boolean; onClose: () => void }) {
+  if (!open) return null;
+  return <div className="modal-shell" role="dialog" aria-modal="true" aria-label="Export executive report"><button className="modal-scrim" onClick={onClose} aria-label="Close export dialog"/><section className="export-modal"><div className="modal-heading"><div><div className="eyebrow mb-2"><span className="eyebrow-dot"/> EXECUTIVE REPORTING</div><h2>Share the decision brief</h2><p>Use a board-ready report or send a concise summary through your email application.</p></div><button className="header-icon flex" onClick={onClose} aria-label="Close"><X size={17}/></button></div><div className="export-options"><button onClick={()=>openReport(result)}><span><Download size={18}/></span><div><strong>PDF-ready executive report</strong><small>Open the formatted report, then print or save it as PDF.</small></div><ChevronRight size={17}/></button><button onClick={()=>emailExecutiveSummary(result)}><span><Mail size={18}/></span><div><strong>Email executive summary</strong><small>Prepare a concise risk, health and recommended-action email.</small></div><ChevronRight size={17}/></button></div></section></div>;
+}
+
 export default function App() {
   const [result, setResult] = useState<PipelineResult | null>(null);
   const [page, setPage] = useState('overview');
   const [navOpen, setNavOpen] = useState(false);
+  const [projectLibraryOpen, setProjectLibraryOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const { user, loading: authLoading, isEnabled } = useAuth();
-  const reset = useCallback(() => { setResult(null); setPage('overview'); }, []);
+  const reset = useCallback(() => { setResult(null); setPage('overview'); setCurrentProjectId(null); }, []);
   useEffect(() => { if (!result || !result.aiLoading) return; let cancelled=false; generateAIInsights(result).then(ai=>{ if(!cancelled) setResult(prev=>prev?{...prev, aiInsights: ai, aiLoading:false}:prev); }); return()=>{cancelled=true;}; }, [result?.aiLoading]);
-  useEffect(() => { if (result && !result.aiLoading) saveToHistory(result); }, [result]);
+  useEffect(() => { if (!result || result.aiLoading) return; saveToHistory(result); saveProject(result, currentProjectId || undefined).then(setCurrentProjectId).catch(e=>console.warn('Project save failed', e)); }, [result]);
   if (authLoading) return <div className="min-h-screen bg-[#F5F6FA] flex items-center justify-center"><div className="h-8 w-8 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" /></div>;
   if (isEnabled && !user) return <PasswordGateScreen />;
-  if (!result) return <UploadScreen onLoaded={r => { setResult(r); setPage('overview'); }} />;
+  if (!result) return <UploadScreen onLoaded={r => { setCurrentProjectId(null); setResult(r); setPage('overview'); }} />;
   const titles: Record<string, string> = { overview: 'Executive Workspace', advisor: 'AI Advisor', forecast: 'Predictions', analyses: 'Intelligence', customers: 'Customer Intelligence', seasonality: 'Seasonality', health: 'Health Detail', risks: 'Risks & Opportunities', recs: 'Decisions', products: 'Products & Markets', profile: 'Data Hub', quality: 'Data Quality' };
   return (
     <div className="app-shell min-h-screen">
@@ -353,13 +416,15 @@ export default function App() {
           <div className="flex items-center min-w-0"><button aria-label="Open navigation" onClick={()=>setNavOpen(true)} className="header-icon mr-3 lg:hidden"><Menu size={18}/></button><div className="min-w-0"><p className="text-[14px] font-semibold text-slate-950 truncate">{titles[page]}</p><p className="text-[10px] md:text-[11px] text-slate-500 truncate">{result.source.fileName} · {fmtN(result.source.rowCount)} rows · updated just now</p></div></div>
           <div className="flex items-center gap-2">
             <button aria-label="Search" className="header-icon hidden sm:flex"><Search size={16}/></button>
-            <button onClick={() => result && openReport(result)} className="header-action hidden md:flex"><FileText size={14}/> Export report</button>
-            <button onClick={()=>{ const h=loadHistory(); alert(`History: ${h.length}`); }} className="header-icon hidden sm:flex" aria-label="Analysis history"><Activity size={16}/></button>
+            <button onClick={() => setExportOpen(true)} className="header-action hidden md:flex"><FileText size={14}/> Export report</button>
+            <button onClick={()=>setProjectLibraryOpen(true)} className="header-icon hidden sm:flex" aria-label="Analysis history"><Activity size={16}/></button>
             <div className="user-menu group relative"><button className="user-avatar" aria-label="Account menu">{(user?.email?.[0] || 'V').toUpperCase()}</button><div className="user-popover"><p className="truncate text-xs font-semibold text-slate-900">{user?.email || 'Local workspace'}</p><button onClick={reset}><RefreshCw size={13}/> New dataset</button><button><Settings size={13}/> Settings</button><button onClick={async()=>{ const sb=getSupabase(); if(sb) await sb.auth.signOut(); }}>Sign out</button></div></div>
           </div>
         </header>
         <main className="app-main p-4 md:p-7 max-w-[1480px] mx-auto">{page==='overview'&&<PageOverview r={result} />}{page==='advisor'&&<PageAdvisor r={result} />}{page==='forecast'&&<PageForecast r={result} />}{page==='analyses'&&<PageAnalyses r={result} />}{page==='customers'&&<PageCustomers r={result} />}{page==='seasonality'&&<PageSeasonality r={result} />}{page==='health'&&<PageHealth r={result} />}{page==='risks'&&<PageRisks r={result} />}{page==='recs'&&<PageRecs r={result} />}{page==='products'&&<PageProducts r={result} />}{page==='profile'&&<PageDataProfile r={result} />}{page==='quality'&&<PageQuality r={result} />}</main>
       </div>
+      <ProjectLibrary open={projectLibraryOpen} onClose={()=>setProjectLibraryOpen(false)} onOpen={project=>{ setResult(project.result); setCurrentProjectId(project.id); setPage('overview'); setProjectLibraryOpen(false); }} />
+      <ExportDialog result={result} open={exportOpen} onClose={()=>setExportOpen(false)} />
     </div>
   );
 }
