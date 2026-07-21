@@ -17,7 +17,7 @@ import {
   RefreshCw, CheckCircle, Layers, TrendingUp, Users, Package, Activity,
   ArrowUpRight, FileText, Menu, Search, Settings, X, UploadCloud, PlayCircle, Building2,
   Trash2, FolderOpen, Mail, Download, ChevronRight,
-  Plug, Bell, SlidersHorizontal, ShieldCheck, Network, Files
+  Plug, Bell, SlidersHorizontal, ShieldCheck, Network, Files, ClipboardCheck, Target
 } from "lucide-react";
 import { saveToHistory } from "../lib/history/historyStore";
 import { openReport, emailExecutiveSummary } from "../lib/export/reportGenerator";
@@ -28,6 +28,7 @@ import { deleteProject, listProjects, saveProject, type SavedProject } from "../
 import type { BusinessRole } from "../types/semantic";
 import { PageAlerts, PageConnections, PageRelationships, PageScenarioPlanner, PageTrustCenter } from "../components/operational/OperationalPages";
 import { prepareOrganizationWorkspace, type PreparedOrganizationWorkspace } from "../lib/organization/prepareOrganizationWorkspace";
+import { PageActionTracker, PageKpiTargets } from "../components/execution/ExecutionPages";
 
 const fmtN = (n: number) => Math.round(n).toLocaleString('en-GB');
 
@@ -170,6 +171,8 @@ const PAGES = [
   { id: 'forecast', label: 'Predictions', icon: TrendingUp, group: 'INTELLIGENCE' },
   { id: 'risks', label: 'Risks & Opportunities', icon: ShieldAlert, group: 'INTELLIGENCE' },
   { id: 'recs', label: 'Decisions', icon: Brain, group: 'INTELLIGENCE' },
+  { id: 'actions', label: 'Action Tracker', icon: ClipboardCheck, group: 'WORKSPACE' },
+  { id: 'targets', label: 'KPI Targets', icon: Target, group: 'WORKSPACE' },
   { id: 'advisor', label: 'AI Advisor', icon: Sparkles, badge: 'AI', group: 'INTELLIGENCE' },
   { id: 'scenarios', label: 'Scenario Planning', icon: SlidersHorizontal, group: 'INTELLIGENCE' },
   { id: 'customers', label: 'Customer Intelligence', icon: Users, group: 'EXPLORE' },
@@ -459,7 +462,7 @@ export default function App() {
   if (authLoading) return <div className="min-h-screen bg-[#F5F6FA] flex items-center justify-center"><div className="h-8 w-8 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" /></div>;
   if (isEnabled && !user) return <PasswordGateScreen />;
   if (!result) return <UploadScreen onLoaded={r => { setCurrentProjectId(null); setResult(r); setPage('overview'); }} />;
-  const titles: Record<string, string> = { overview: 'Executive Workspace', advisor: 'AI Advisor', forecast: 'Predictions', scenarios: 'Scenario Planning', analyses: 'Intelligence', customers: 'Customer Intelligence', seasonality: 'Seasonality', health: 'Health Detail', risks: 'Risks & Opportunities', recs: 'Decisions', products: 'Products & Markets', profile: 'Data Hub', connections: 'Connections', relationships: 'Data Relationships', quality: 'Data Quality', alerts: 'Alerts & Reports', trust: 'Trust Center' };
+  const titles: Record<string, string> = { overview: 'Executive Workspace', actions: 'Action Tracker', targets: 'KPI Targets', advisor: 'AI Advisor', forecast: 'Predictions', scenarios: 'Scenario Planning', analyses: 'Intelligence', customers: 'Customer Intelligence', seasonality: 'Seasonality', health: 'Health Detail', risks: 'Risks & Opportunities', recs: 'Decisions', products: 'Products & Markets', profile: 'Data Hub', connections: 'Connections', relationships: 'Data Relationships', quality: 'Data Quality', alerts: 'Alerts & Reports', trust: 'Trust Center' };
   return (
     <div className="app-shell min-h-screen">
       <Sidebar page={page} setPage={setPage} result={result} onReset={reset} open={navOpen} onClose={()=>setNavOpen(false)} />
@@ -473,7 +476,7 @@ export default function App() {
             <div className="user-menu group relative"><button className="user-avatar" aria-label="Account menu">{(user?.email?.[0] || 'V').toUpperCase()}</button><div className="user-popover"><p className="truncate text-xs font-semibold text-slate-900">{user?.email || 'Local workspace'}</p><button onClick={reset}><RefreshCw size={13}/> New dataset</button><button><Settings size={13}/> Settings</button><button onClick={async()=>{ const sb=getSupabase(); if(sb) await sb.auth.signOut(); }}>Sign out</button></div></div>
           </div>
         </header>
-        <main className="app-main p-4 md:p-7 max-w-[1480px] mx-auto">{page==='overview'&&<PageOverview r={result} />}{page==='advisor'&&<PageAdvisor r={result} />}{page==='forecast'&&<PageForecast r={result} />}{page==='scenarios'&&<PageScenarioPlanner r={result} />}{page==='analyses'&&<PageAnalyses r={result} />}{page==='customers'&&<PageCustomers r={result} />}{page==='seasonality'&&<PageSeasonality r={result} />}{page==='health'&&<PageHealth r={result} />}{page==='risks'&&<PageRisks r={result} />}{page==='recs'&&<PageRecs r={result} />}{page==='products'&&<PageProducts r={result} />}{page==='profile'&&<PageDataProfile r={result} />}{page==='connections'&&<PageConnections r={result} />}{page==='relationships'&&<PageRelationships r={result} />}{page==='quality'&&<PageQuality r={result} />}{page==='alerts'&&<PageAlerts r={result} />}{page==='trust'&&<PageTrustCenter r={result} />}</main>
+        <main className="app-main p-4 md:p-7 max-w-[1480px] mx-auto">{page==='overview'&&<PageOverview r={result} />}{page==='actions'&&<PageActionTracker r={result} />}{page==='targets'&&<PageKpiTargets r={result} />}{page==='advisor'&&<PageAdvisor r={result} />}{page==='forecast'&&<PageForecast r={result} />}{page==='scenarios'&&<PageScenarioPlanner r={result} />}{page==='analyses'&&<PageAnalyses r={result} />}{page==='customers'&&<PageCustomers r={result} />}{page==='seasonality'&&<PageSeasonality r={result} />}{page==='health'&&<PageHealth r={result} />}{page==='risks'&&<PageRisks r={result} />}{page==='recs'&&<PageRecs r={result} />}{page==='products'&&<PageProducts r={result} />}{page==='profile'&&<PageDataProfile r={result} />}{page==='connections'&&<PageConnections r={result} />}{page==='relationships'&&<PageRelationships r={result} />}{page==='quality'&&<PageQuality r={result} />}{page==='alerts'&&<PageAlerts r={result} />}{page==='trust'&&<PageTrustCenter r={result} />}</main>
       </div>
       <ProjectLibrary open={projectLibraryOpen} onClose={()=>setProjectLibraryOpen(false)} onOpen={project=>{ setResult(project.result); setCurrentProjectId(project.id); setPage('overview'); setProjectLibraryOpen(false); }} />
       <ExportDialog result={result} open={exportOpen} onClose={()=>setExportOpen(false)} />
