@@ -13,19 +13,6 @@ import type { BusinessMetrics, Risk, Rec, AnomalyPoint, CustomerSegment, Forecas
    • Churn risk scoring
    ================================================================ */
 
-/* ── CSV parser — handles quoted commas exactly as Flora ── */
-function parseCSVLine(line: string): string[] {
-  const vals: string[] = [];
-  let cur = '', inQ = false;
-  for (const ch of line) {
-    if (ch === '"') { inQ = !inQ; continue; }
-    if (ch === ',' && !inQ) { vals.push(cur.trim()); cur = ''; }
-    else cur += ch;
-  }
-  vals.push(cur.trim());
-  return vals;
-}
-
 /* ── Column index finder — partial match, case insensitive (Flora method) ── */
 function findColIdx(headers: string[], candidates: string[]): number {
   for (const c of candidates) {

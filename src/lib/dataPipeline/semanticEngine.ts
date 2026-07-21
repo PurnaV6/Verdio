@@ -16,7 +16,7 @@ const MIN_CANDIDATE_SCORE = 0.2;      // below this, a column is classified 'unk
 const ALTERNATIVE_THRESHOLD = 0.15;   // roles scoring above this are shown as alternatives
 
 function normaliseHeader(h: string): string {
-  return h.toLowerCase().replace(/[_\-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return h.toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function nameMatchEvidence(header: string, role: BusinessRole): EvidenceItem | null {

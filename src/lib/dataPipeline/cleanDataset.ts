@@ -1,4 +1,4 @@
-import type { RawRow, DatasetProfile, CleaningAction, CleaningReport, CleanedDataset } from "../../types/dataPipeline";
+import type { RawRow, DatasetProfile, CleaningAction, CleanedDataset } from "../../types/dataPipeline";
 import { isMissingValue, looksNumeric, looksDate } from "./profileDataset";
 
 /* ================================================================
