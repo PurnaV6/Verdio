@@ -172,10 +172,7 @@ const PAGES = [
   { id: 'forecast', label: 'Predictions', icon: TrendingUp, group: 'INTELLIGENCE' },
   { id: 'risks', label: 'Risks & Opportunities', icon: ShieldAlert, group: 'INTELLIGENCE' },
   { id: 'recs', label: 'Decisions', icon: Brain, group: 'INTELLIGENCE' },
-  { id: 'actions', label: 'Action Tracker', icon: ClipboardCheck, group: 'WORKSPACE' },
-  { id: 'targets', label: 'KPI Targets', icon: Target, group: 'WORKSPACE' },
-  { id: 'outcomes', label: 'Decision Outcomes', icon: Gauge, group: 'WORKSPACE' },
-  { id: 'approvals', label: 'Decision Approvals', icon: Stamp, group: 'WORKSPACE' },
+  { id: 'execution', label: 'Execution', icon: ClipboardCheck, group: 'WORKSPACE' },
   { id: 'advisor', label: 'AI Advisor', icon: Sparkles, badge: 'AI', group: 'INTELLIGENCE' },
   { id: 'scenarios', label: 'Scenario Planning', icon: SlidersHorizontal, group: 'INTELLIGENCE' },
   { id: 'customers', label: 'Customer Intelligence', icon: Users, group: 'EXPLORE' },
@@ -185,11 +182,8 @@ const PAGES = [
   { id: 'profile', label: 'Data Hub', icon: Layers, group: 'DATA' },
   { id: 'connections', label: 'Connections', icon: Plug, group: 'DATA' },
   { id: 'relationships', label: 'Data Relationships', icon: Network, group: 'DATA' },
-  { id: 'quality', label: 'Data Quality', icon: Database, group: 'DATA' },
-  { id: 'evidence', label: 'Evidence Register', icon: ScrollText, group: 'DATA' },
-  { id: 'models', label: 'Model Assurance', icon: BrainCircuit, group: 'DATA' },
+  { id: 'governance', label: 'Governance', icon: ShieldCheck, group: 'DATA' },
   { id: 'alerts', label: 'Alerts & Reports', icon: Bell, group: 'DATA' },
-  { id: 'trust', label: 'Trust Center', icon: ShieldCheck, group: 'DATA' },
 ];
 
 function Sidebar({ page, setPage, result, onReset, open, onClose }: { page: string; setPage: (p: string) => void; result: PipelineResult; onReset: () => void; open: boolean; onClose: () => void }) {
@@ -422,6 +416,19 @@ function PageRecs({ r }: { r: PipelineResult }) {
 function PageDataProfile({ r }: { r: PipelineResult }) { return <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm overflow-auto"><table className="w-full text-sm"><thead><tr className="text-left border-b border-slate-100">{['Column','Type','Role','Conf'].map(h=><th key={h} className="pb-2 text-[10px] text-slate-400 uppercase">{h}</th>)}</tr></thead><tbody>{r.semantics.columns.map(c=><tr key={c.columnName} className="border-t border-slate-100"><td className="py-2 font-medium">{c.columnName}</td><td className="text-slate-500">{c.dataType}</td><td><span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">{c.businessRole}</span></td><td className="text-slate-600">{Math.round(c.confidence*100)}%</td></tr>)}</tbody></table></div>; }
 function PageQuality({ r }: { r: PipelineResult }) { return <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[{l:'Overall',v:r.quality.overallScore},{l:'Completeness',v:r.quality.completenessScore},{l:'Validity',v:r.quality.validityScore},{l:'Consistency',v:r.quality.consistencyScore}].map(s=><div key={s.l} className="bg-white rounded-[16px] border border-slate-200 p-4 shadow-sm"><p className="text-[10px] font-bold text-slate-400 tracking-widest">{s.l.toUpperCase()}</p><p className="text-2xl font-black mt-1 text-slate-900">{s.v}</p></div>)}</div>; }
 
+function WorkspaceHub({ tabs, initial }: { tabs: { id: string; label: string; icon: typeof ClipboardCheck; content: React.ReactNode }[]; initial: string }) {
+  const [active, setActive] = useState(initial);
+  return <div className="space-y-5"><nav className="workspace-tabs" aria-label="Workspace sections">{tabs.map(({id,label,icon:Icon})=><button key={id} className={active===id?'is-active':''} onClick={()=>setActive(id)}><Icon size={14}/>{label}</button>)}</nav>{tabs.find(tab=>tab.id===active)?.content}</div>;
+}
+
+function PageExecutionHub({ r }: { r: PipelineResult }) {
+  return <WorkspaceHub initial="actions" tabs={[{id:'actions',label:'Actions',icon:ClipboardCheck,content:<PageActionTracker r={r}/>},{id:'targets',label:'KPI Targets',icon:Target,content:<PageKpiTargets r={r}/>},{id:'outcomes',label:'Outcomes',icon:Gauge,content:<PageOutcomes r={r}/>},{id:'approvals',label:'Approvals',icon:Stamp,content:<PageApprovals r={r}/>}]} />;
+}
+
+function PageGovernanceHub({ r }: { r: PipelineResult }) {
+  return <WorkspaceHub initial="evidence" tabs={[{id:'evidence',label:'Evidence',icon:ScrollText,content:<PageEvidence r={r}/>},{id:'models',label:'Models',icon:BrainCircuit,content:<PageModelAssurance r={r}/>},{id:'quality',label:'Data Quality',icon:Database,content:<PageQuality r={r}/>},{id:'trust',label:'Trust',icon:ShieldCheck,content:<PageTrustCenter r={r}/>}]} />;
+}
+
 function PageAdvisor({ r }: { r: PipelineResult }) {
   const [messages, setMessages] = useState<{ role: 'ai' | 'user'; text?: string; charts?: ChartSpec[]; sources?: string[] }[]>([{ role: 'ai', text: `Full analysis loaded — ${r.source.rowCount} rows, ${r.analyses.length} charts, health ${r.decision.health.total}/100. Choose a decision task below or ask a specific question.`, sources: [r.source.fileName, 'Verdio decision engine'] }]);
   const [input, setInput] = useState(''); const [loading, setLoading] = useState(false); const PROXY = '/api/chat'; const context = buildAdvisorContext(r);
@@ -467,7 +474,7 @@ export default function App() {
   if (authLoading) return <div className="min-h-screen bg-[#F5F6FA] flex items-center justify-center"><div className="h-8 w-8 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" /></div>;
   if (isEnabled && !user) return <PasswordGateScreen />;
   if (!result) return <UploadScreen onLoaded={r => { setCurrentProjectId(null); setResult(r); setPage('overview'); }} />;
-  const titles: Record<string, string> = { overview: 'Executive Workspace', actions: 'Action Tracker', targets: 'KPI Targets', outcomes: 'Decision Outcomes', approvals: 'Decision Approvals', evidence: 'Evidence Register', models: 'Model Assurance', advisor: 'AI Advisor', forecast: 'Predictions', scenarios: 'Scenario Planning', analyses: 'Intelligence', customers: 'Customer Intelligence', seasonality: 'Seasonality', health: 'Health Detail', risks: 'Risks & Opportunities', recs: 'Decisions', products: 'Products & Markets', profile: 'Data Hub', connections: 'Connections', relationships: 'Data Relationships', quality: 'Data Quality', alerts: 'Alerts & Reports', trust: 'Trust Center' };
+  const titles: Record<string, string> = { overview: 'Executive Workspace', execution: 'Execution', governance: 'Governance', advisor: 'AI Advisor', forecast: 'Predictions', scenarios: 'Scenario Planning', analyses: 'Intelligence', customers: 'Customer Intelligence', seasonality: 'Seasonality', health: 'Health Detail', risks: 'Risks & Opportunities', recs: 'Decisions', products: 'Products & Markets', profile: 'Data Hub', connections: 'Connections', relationships: 'Data Relationships', alerts: 'Alerts & Reports' };
   return (
     <div className="app-shell min-h-screen">
       <Sidebar page={page} setPage={setPage} result={result} onReset={reset} open={navOpen} onClose={()=>setNavOpen(false)} />
@@ -481,7 +488,7 @@ export default function App() {
             <div className="user-menu group relative"><button className="user-avatar" aria-label="Account menu">{(user?.email?.[0] || 'V').toUpperCase()}</button><div className="user-popover"><p className="truncate text-xs font-semibold text-slate-900">{user?.email || 'Local workspace'}</p><button onClick={reset}><RefreshCw size={13}/> New dataset</button><button><Settings size={13}/> Settings</button><button onClick={async()=>{ const sb=getSupabase(); if(sb) await sb.auth.signOut(); }}>Sign out</button></div></div>
           </div>
         </header>
-        <main className="app-main p-4 md:p-7 max-w-[1480px] mx-auto">{page==='overview'&&<PageOverview r={result} />}{page==='actions'&&<PageActionTracker r={result} />}{page==='targets'&&<PageKpiTargets r={result} />}{page==='outcomes'&&<PageOutcomes r={result} />}{page==='approvals'&&<PageApprovals r={result} />}{page==='evidence'&&<PageEvidence r={result} />}{page==='models'&&<PageModelAssurance r={result} />}{page==='advisor'&&<PageAdvisor r={result} />}{page==='forecast'&&<PageForecast r={result} />}{page==='scenarios'&&<PageScenarioPlanner r={result} />}{page==='analyses'&&<PageAnalyses r={result} />}{page==='customers'&&<PageCustomers r={result} />}{page==='seasonality'&&<PageSeasonality r={result} />}{page==='health'&&<PageHealth r={result} />}{page==='risks'&&<PageRisks r={result} />}{page==='recs'&&<PageRecs r={result} />}{page==='products'&&<PageProducts r={result} />}{page==='profile'&&<PageDataProfile r={result} />}{page==='connections'&&<PageConnections r={result} />}{page==='relationships'&&<PageRelationships r={result} />}{page==='quality'&&<PageQuality r={result} />}{page==='alerts'&&<PageAlerts r={result} />}{page==='trust'&&<PageTrustCenter r={result} />}</main>
+        <main className="app-main p-4 md:p-7 max-w-[1480px] mx-auto">{page==='overview'&&<PageOverview r={result} />}{page==='execution'&&<PageExecutionHub r={result} />}{page==='governance'&&<PageGovernanceHub r={result} />}{page==='advisor'&&<PageAdvisor r={result} />}{page==='forecast'&&<PageForecast r={result} />}{page==='scenarios'&&<PageScenarioPlanner r={result} />}{page==='analyses'&&<PageAnalyses r={result} />}{page==='customers'&&<PageCustomers r={result} />}{page==='seasonality'&&<PageSeasonality r={result} />}{page==='health'&&<PageHealth r={result} />}{page==='risks'&&<PageRisks r={result} />}{page==='recs'&&<PageRecs r={result} />}{page==='products'&&<PageProducts r={result} />}{page==='profile'&&<PageDataProfile r={result} />}{page==='connections'&&<PageConnections r={result} />}{page==='relationships'&&<PageRelationships r={result} />}{page==='alerts'&&<PageAlerts r={result} />}</main>
       </div>
       <ProjectLibrary open={projectLibraryOpen} onClose={()=>setProjectLibraryOpen(false)} onOpen={project=>{ setResult(project.result); setCurrentProjectId(project.id); setPage('overview'); setProjectLibraryOpen(false); }} />
       <ExportDialog result={result} open={exportOpen} onClose={()=>setExportOpen(false)} />
