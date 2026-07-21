@@ -48,6 +48,7 @@ button { cursor: pointer; }
 .nav-item:hover { color: #e9f2ed; background: rgba(255,255,255,.055); }
 .nav-item.is-active { color: white; background: rgba(73, 200, 139, .13); box-shadow: inset 2px 0 #49c88b; }
 .nav-item.is-active svg { color: #5bdd9c; }
+.workspace-tabs { display:flex;gap:6px;overflow-x:auto;padding:6px;border:1px solid #dfe6e1;border-radius:14px;background:#f4f7f5;scrollbar-width:none }.workspace-tabs::-webkit-scrollbar{display:none}.workspace-tabs button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:max-content;padding:9px 13px;border:1px solid transparent;border-radius:9px;color:#64756c;background:transparent;font-size:10px;font-weight:700}.workspace-tabs button:hover{color:#294b3a;background:#fff}.workspace-tabs button.is-active{border-color:#d5e3da;color:#1f6847;background:#fff;box-shadow:0 2px 8px rgba(19,52,37,.06)}
 .sidebar-score { background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.075); }
 .sidebar-upload { color: #d9e8e0; background: rgba(255,255,255,.075); border: 1px solid rgba(255,255,255,.08); transition: .18s ease; }
 .sidebar-upload:hover { color: white; background: rgba(255,255,255,.12); }

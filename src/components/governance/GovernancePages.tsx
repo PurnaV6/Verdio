@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { BrainCircuit, CheckCircle2, Database, FileCheck2, Gauge, ScrollText, ShieldCheck, Stamp } from 'lucide-react';
 import type { PipelineResult } from '../../types/pipeline';
 import type { EnrichedRecommendation } from '../../lib/decision/verdioDecisionEngine';
 import type { ModelSelection } from '../../lib/ml/modelManager';
+import { useWorkspaceState } from '../../lib/workspace/useWorkspaceState';
 
 type ReviewStatus = 'not_started' | 'monitoring' | 'validated';
 interface OutcomeRecord { id: string; decision: string; expected: number; actual: string; status: ReviewStatus; note: string; }
@@ -13,14 +14,11 @@ interface ModelMetadata extends ModelSelection { seasonalityStrength?: number; v
 function SectionHeader({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) {
   return <div className="operational-heading"><div className="eyebrow"><span className="eyebrow-dot"/> {eyebrow}</div><h1>{title}</h1><p>{description}</p></div>;
 }
-function loadRecords(key: string, fallback: OutcomeRecord[]) { try { const value = localStorage.getItem(key); return value ? JSON.parse(value) as OutcomeRecord[] : fallback; } catch { return fallback; } }
 
 export function PageOutcomes({ r }: { r: PipelineResult }) {
   const recommendations = r.decision.recommendations as EnrichedRecommendation[];
   const defaults = useMemo<OutcomeRecord[]>(() => recommendations.slice(0, 5).map((item, index) => ({ id: `${index}-${item.title}`, decision: item.title, expected: item.financialImpact?.estimatedValue || 0, actual: '', status: 'not_started', note: '' })), [recommendations]);
-  const storageKey = `verdio_outcomes_v1_${r.source.fileName}`;
-  const [records, setRecords] = useState(() => loadRecords(storageKey, defaults));
-  const save = (next: OutcomeRecord[]) => { setRecords(next); localStorage.setItem(storageKey, JSON.stringify(next)); };
+  const { value: records, save, mode } = useWorkspaceState('outcomes', r.source.fileName, defaults);
   const update = (id: string, changes: Partial<OutcomeRecord>) => save(records.map(item => item.id === id ? { ...item, ...changes } : item));
   const actualTotal = records.reduce((sum, item) => sum + (Number(item.actual) || 0), 0);
   const expectedTotal = records.reduce((sum, item) => sum + item.expected, 0);
@@ -28,7 +26,7 @@ export function PageOutcomes({ r }: { r: PipelineResult }) {
   return <div className="space-y-5"><SectionHeader eyebrow="VALUE REALISATION" title="Decision outcomes" description="Track what happened after a recommendation was approved and compare realised value with Verdio's original estimate."/>
     <div className="outcome-summary"><div><Gauge size={18}/><span><small>Expected value</small><strong>£{expectedTotal.toLocaleString()}</strong></span></div><div><span><small>Recorded outcome</small><strong>£{actualTotal.toLocaleString()}</strong></span></div><div><span><small>Validated decisions</small><strong>{validated}/{records.length}</strong></span></div></div>
     <div className="outcome-table"><div className="outcome-head"><span>Decision</span><span>Expected</span><span>Realised</span><span>Review status</span><span>Outcome evidence</span></div>{records.map(record => <article key={record.id} className="outcome-row"><div><strong>{record.decision}</strong><small>Based on current analysis</small></div><b>£{record.expected.toLocaleString()}</b><label><span>£</span><input type="number" min="0" placeholder="Not recorded" value={record.actual} onChange={event => update(record.id, { actual: event.target.value })}/></label><select value={record.status} onChange={event => update(record.id, { status: event.target.value as ReviewStatus })}><option value="not_started">Not started</option><option value="monitoring">Monitoring</option><option value="validated">Validated</option></select><input className="outcome-note" value={record.note} placeholder="Add evidence or review note" onChange={event => update(record.id, { note: event.target.value })}/></article>)}</div>
-    <div className="configuration-note"><CheckCircle2 size={17}/><div><strong>Evidence-led learning loop</strong><p>Recording outcomes creates a transparent link between recommendation, action and realised value. Figures are user-confirmed and remain separate from source analytics.</p></div></div>
+    <div className="configuration-note"><CheckCircle2 size={17}/><div><strong>Evidence-led learning loop · {mode === 'cloud' ? 'Cloud saved' : mode === 'syncing' ? 'Synchronising' : 'Local fallback'}</strong><p>Recording outcomes creates a transparent link between recommendation, action and realised value. Figures are user-confirmed and remain separate from source analytics.</p></div></div>
   </div>;
 }
 
@@ -46,16 +44,14 @@ export function PageEvidence({ r }: { r: PipelineResult }) {
 export function PageApprovals({ r }: { r: PipelineResult }) {
   const recommendations = r.decision.recommendations as EnrichedRecommendation[];
   const defaults = useMemo<ApprovalRecord[]>(() => recommendations.slice(0, 5).map((item, index) => ({ id: `${index}-${item.title}`, decision: item.title, state: 'pending', reviewer: '', rationale: '', reviewedAt: '' })), [recommendations]);
-  const storageKey = `verdio_approvals_v1_${r.source.fileName}`;
-  const [records, setRecords] = useState(() => { try { const value = localStorage.getItem(storageKey); return value ? JSON.parse(value) as ApprovalRecord[] : defaults; } catch { return defaults; } });
-  const save = (next: ApprovalRecord[]) => { setRecords(next); localStorage.setItem(storageKey, JSON.stringify(next)); };
+  const { value: records, save, mode } = useWorkspaceState('approvals', r.source.fileName, defaults);
   const update = (id: string, changes: Partial<ApprovalRecord>) => save(records.map(item => item.id === id ? { ...item, ...changes } : item));
   const decide = (record: ApprovalRecord, state: ApprovalState) => update(record.id, { state, reviewedAt: state === 'pending' ? '' : new Date().toISOString() });
   const approved = records.filter(item => item.state === 'approved').length;
   return <div className="space-y-5"><SectionHeader eyebrow="DECISION GOVERNANCE" title="Decision approvals" description="Record who reviewed each recommendation, the decision reached and the business rationale supporting it."/>
     <div className="approval-summary"><Stamp size={18}/><div><strong>{approved} approved · {records.length - approved} awaiting or declined</strong><p>Approval records are linked to the active dataset and preserved in this workspace.</p></div><span>{records.length} decisions</span></div>
     <div className="approval-list">{records.map(record => <article key={record.id} className={`approval-card is-${record.state}`}><div className="approval-card-head"><div><small>{record.state.replace('_', ' ')}</small><strong>{record.decision}</strong></div><select value={record.state} onChange={event => decide(record, event.target.value as ApprovalState)}><option value="pending">Pending review</option><option value="approved">Approved</option><option value="declined">Declined</option></select></div><div className="approval-fields"><label>Reviewer<input value={record.reviewer} placeholder="Name or role" onChange={event => update(record.id, { reviewer: event.target.value })}/></label><label>Decision rationale<input value={record.rationale} placeholder="Why was this decision taken?" onChange={event => update(record.id, { rationale: event.target.value })}/></label></div><footer><span>{record.reviewedAt ? `Recorded ${new Date(record.reviewedAt).toLocaleString('en-GB')}` : 'No decision recorded'}</span><div><button onClick={() => decide(record, 'declined')}>Decline</button><button className="approve" onClick={() => decide(record, 'approved')}>Approve</button></div></footer></article>)}</div>
-    <div className="configuration-note"><ShieldCheck size={17}/><div><strong>Governed workspace record</strong><p>This MVP stores approvals on the current device. Verified multi-user approvals will require organisation roles, server-side audit records and row-level security before enterprise release.</p></div></div>
+    <div className="configuration-note"><ShieldCheck size={17}/><div><strong>Governed workspace record · {mode === 'cloud' ? 'Cloud saved' : mode === 'syncing' ? 'Synchronising' : 'Local fallback'}</strong><p>Per-user records are protected by Supabase row-level security when configured. Verified multi-user approvals will follow with organisation roles and an immutable audit trail.</p></div></div>
   </div>;
 }
 
