@@ -61,13 +61,13 @@ export async function runDataPipeline(file: File, semanticOverrides: Partial<Rec
   if (capabilities.available.some(c => c.type === 'forecasting') && primaryTS) {
     const withMeta = runForecastWithSelection(primaryTS, statistics.seasonality);
     forecastMeta = withMeta.meta;
-    const { meta, ...rest } = withMeta as any;
+    const { meta: _meta, ...rest } = withMeta as any;
     ml.forecast = rest;
   }
   if (capabilities.available.some(c => c.type === 'anomaly_detection') && primaryTS) {
     const withMeta = runAnomalyWithSelection(primaryTS);
     anomalyMeta = withMeta.meta;
-    const { meta, ...rest } = withMeta as any;
+    const { meta: _meta, ...rest } = withMeta as any;
     ml.anomalies = rest;
   }
   const segCap = capabilities.available.find(c => c.type === 'segmentation');

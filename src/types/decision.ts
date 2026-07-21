@@ -4,7 +4,7 @@
 
 export interface HealthPillar { name: string; score: number; max: number; color: string }
 export interface HealthScore {
-  breakdown: {}; total: number; pillars: HealthPillar[] 
+  breakdown: Record<string, never>; total: number; pillars: HealthPillar[]
 }
 
 export type RiskLevel = 'high' | 'medium' | 'low';

@@ -147,7 +147,6 @@ function deriveEffort(recTitle: string): { effort: EnrichedRecommendation['effor
 
 function calcConfidence(quality: DataQualityReport, rec: Recommendation): number {
   const base = quality.overallScore / 100;
-  const sourceCols = rec.sourceColumns.length || 1;
   // More source columns with high quality = higher confidence, but cap
   const colQuality = rec.sourceColumns.length
     ? rec.sourceColumns.reduce((sum, col) => {

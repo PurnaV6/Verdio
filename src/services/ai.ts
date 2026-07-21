@@ -52,12 +52,12 @@ export async function generateAIInsights(p: PipelineResult): Promise<AIInsights>
     });
     if(!res.ok) throw new Error('proxy');
     const data = await res.json();
-    let raw = (data.choices?.[0]?.message?.content||'').trim().replace(/^```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
+    const raw = (data.choices?.[0]?.message?.content||'').trim().replace(/^```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
     let parsed:any;
     try{ parsed=JSON.parse(raw); } catch { 
       // Try to repair truncated
       const lastBrace = raw.lastIndexOf('}');
-      if(lastBrace>0) { try{ parsed=JSON.parse(raw.slice(0,lastBrace+1)); }catch{} }
+      if(lastBrace>0) { try{ parsed=JSON.parse(raw.slice(0,lastBrace+1)); }catch{ parsed=null; } }
       if(!parsed) throw new Error('parse');
     }
     return {

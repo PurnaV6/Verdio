@@ -3,7 +3,7 @@ import type { ChartSpec } from "../../types/analysis";
 import { buildBarChart } from "./buildChartSpecs";
 
 export function parseChartTagsFromAI(aiText: string, p: PipelineResult): { cleanText: string; charts: ChartSpec[] } {
-  const regex = /\[CHART:([a-zA-Z0-9_\-]+)\]/g;
+  const regex = /\[CHART:([a-zA-Z0-9_-]+)\]/g;
   const charts: ChartSpec[] = [];
   let m; const ids:string[]=[];
   while ((m=regex.exec(aiText))!==null) ids.push(m[1]);

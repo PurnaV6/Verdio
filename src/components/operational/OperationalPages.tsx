@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Bell, CheckCircle, Clock, Database, FileSpreadsheet, Link2, LockKeyhole, Mail, Network, ShieldCheck, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { Bell, CheckCircle, Clock, Database, FileSpreadsheet, Link2, LockKeyhole, Network, ShieldCheck, SlidersHorizontal, Trash2 } from 'lucide-react';
 import type { PipelineResult } from '../../types/pipeline';
 import { primaryMeasureColumn } from '../../lib/analysis/pickColumns';
 
