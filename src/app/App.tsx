@@ -30,6 +30,7 @@ import { PageAlerts, PageConnections, PageRelationships, PageScenarioPlanner, Pa
 import { prepareOrganizationWorkspace, type PreparedOrganizationWorkspace } from "../lib/organization/prepareOrganizationWorkspace";
 import { PageActionTracker, PageKpiTargets } from "../components/execution/ExecutionPages";
 import { PageApprovals, PageEvidence, PageModelAssurance, PageOutcomes } from "../components/governance/GovernancePages";
+import { PageTeamWorkspace } from "../components/team/TeamWorkspace";
 
 const fmtN = (n: number) => Math.round(n).toLocaleString('en-GB');
 
@@ -426,7 +427,7 @@ function PageExecutionHub({ r }: { r: PipelineResult }) {
 }
 
 function PageGovernanceHub({ r }: { r: PipelineResult }) {
-  return <WorkspaceHub initial="evidence" tabs={[{id:'evidence',label:'Evidence',icon:ScrollText,content:<PageEvidence r={r}/>},{id:'models',label:'Models',icon:BrainCircuit,content:<PageModelAssurance r={r}/>},{id:'quality',label:'Data Quality',icon:Database,content:<PageQuality r={r}/>},{id:'trust',label:'Trust',icon:ShieldCheck,content:<PageTrustCenter r={r}/>}]} />;
+  return <WorkspaceHub initial="evidence" tabs={[{id:'evidence',label:'Evidence',icon:ScrollText,content:<PageEvidence r={r}/>},{id:'models',label:'Models',icon:BrainCircuit,content:<PageModelAssurance r={r}/>},{id:'quality',label:'Data Quality',icon:Database,content:<PageQuality r={r}/>},{id:'team',label:'Team & Roles',icon:Users,content:<PageTeamWorkspace/>},{id:'trust',label:'Trust',icon:ShieldCheck,content:<PageTrustCenter r={r}/>}]} />;
 }
 
 function PageAdvisor({ r }: { r: PipelineResult }) {

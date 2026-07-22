@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Bell, CheckCircle, Clock, Database, FileSpreadsheet, Link2, LockKeyhole, Network, ShieldCheck, SlidersHorizontal, Trash2 } from 'lucide-react';
 import type { PipelineResult } from '../../types/pipeline';
 import { primaryMeasureColumn } from '../../lib/analysis/pickColumns';
+import { getSupabase } from '../../lib/auth/supabaseClient';
 
 const PREFS_KEY = 'verdio_operational_preferences_v1';
 
@@ -60,12 +61,28 @@ export function PageAlerts({ r }: { r: PipelineResult }) {
     prefs.qualityAlert && r.quality.overallScore < prefs.qualityThreshold ? `Data quality is below ${prefs.qualityThreshold}` : null,
     prefs.revenueDropAlert && r.decision.risks.some(x=>/drop|variability|revenue/i.test(x.title) && x.level !== 'low') ? 'A material revenue movement requires review' : null,
   ].filter(Boolean);
-  function persist() { savePreferences(prefs); setSaved(true); window.setTimeout(()=>setSaved(false),1800); }
+  useEffect(()=>{const sb=getSupabase();if(!sb)return;void sb.auth.getUser().then(async({data})=>{if(!data.user)return;const {data:row}=await sb.from('report_schedules').select('cadence,recipient_email,active').eq('user_id',data.user.id).eq('dataset_key',r.source.fileName).maybeSingle();if(row)setPrefs(current=>({...current,reportCadence:row.active?row.cadence:'off',reportEmail:row.recipient_email}))})},[r.source.fileName]);
+  async function persist() {
+    savePreferences(prefs);
+    const sb=getSupabase();
+    if(sb){
+      const {data:{user}}=await sb.auth.getUser();
+      if(user){
+        if(prefs.reportCadence==='off') await sb.from('report_schedules').delete().eq('user_id',user.id).eq('dataset_key',r.source.fileName);
+        else {
+          const next=new Date();
+          if(prefs.reportCadence==='weekly') next.setDate(next.getDate()+7); else next.setMonth(next.getMonth()+1);
+          await sb.from('report_schedules').upsert({user_id:user.id,dataset_key:r.source.fileName,cadence:prefs.reportCadence,recipient_email:prefs.reportEmail,active:true,next_run_at:next.toISOString(),snapshot:{health:r.decision.health.total,quality:r.quality.overallScore,risks:r.decision.risks.slice(0,3),recommendations:r.decision.recommendations.slice(0,3)},updated_at:new Date().toISOString()},{onConflict:'user_id,dataset_key'});
+        }
+      }
+    }
+    setSaved(true); window.setTimeout(()=>setSaved(false),1800);
+  }
   return <div className="space-y-5"><SectionHeader eyebrow="MONITORING" title="Alerts and scheduled briefs" description="Define which operating signals should demand attention and how often an executive brief should be prepared."/><div className="alert-summary"><Bell size={18}/><div><strong>{activeSignals.length ? `${activeSignals.length} rule${activeSignals.length===1?'':'s'} triggered` : 'No configured thresholds are currently breached'}</strong><p>{activeSignals.length ? activeSignals.join(' · ') : 'Rules are evaluated whenever the active analysis is refreshed.'}</p></div></div><div className="settings-panel"><h2>Alert rules</h2>{[
     {key:'healthAlert' as const,label:'Business health deterioration',desc:'Flag when the health score falls below the threshold.',threshold:'healthThreshold' as const},
     {key:'qualityAlert' as const,label:'Data quality degradation',desc:'Flag incomplete or unreliable incoming data.',threshold:'qualityThreshold' as const},
     {key:'revenueDropAlert' as const,label:'Material revenue movement',desc:'Flag significant negative changes or elevated variability.'},
-  ].map(rule=><div className="setting-row" key={rule.key}><label><input type="checkbox" checked={prefs[rule.key]} onChange={e=>update(rule.key,e.target.checked)}/><span><strong>{rule.label}</strong><small>{rule.desc}</small></span></label>{rule.threshold&&<div className="threshold-input"><input type="number" min="1" max="100" value={prefs[rule.threshold]} onChange={e=>update(rule.threshold,Number(e.target.value))}/><span>/100</span></div>}</div>)}<h2 className="settings-subheading">Scheduled executive report</h2><div className="schedule-grid"><label><span>Cadence</span><select value={prefs.reportCadence} onChange={e=>update('reportCadence',e.target.value as OperationalPreferences['reportCadence'])}><option value="off">Off</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label><label><span>Delivery email</span><input type="email" value={prefs.reportEmail} onChange={e=>update('reportEmail',e.target.value)} placeholder="executive@company.com"/></label></div><div className="settings-footer"><p><Clock size={13}/> Automated delivery requires a deployed scheduler; preferences are saved now and ready for backend activation.</p><button onClick={persist}>{saved?'Saved':'Save preferences'}</button></div></div></div>;
+  ].map(rule=><div className="setting-row" key={rule.key}><label><input type="checkbox" checked={prefs[rule.key]} onChange={e=>update(rule.key,e.target.checked)}/><span><strong>{rule.label}</strong><small>{rule.desc}</small></span></label>{rule.threshold&&<div className="threshold-input"><input type="number" min="1" max="100" value={prefs[rule.threshold]} onChange={e=>update(rule.threshold,Number(e.target.value))}/><span>/100</span></div>}</div>)}<h2 className="settings-subheading">Scheduled executive report</h2><div className="schedule-grid"><label><span>Cadence</span><select value={prefs.reportCadence} onChange={e=>update('reportCadence',e.target.value as OperationalPreferences['reportCadence'])}><option value="off">Off</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label><label><span>Delivery email</span><input type="email" value={prefs.reportEmail} onChange={e=>update('reportEmail',e.target.value)} placeholder="executive@company.com"/></label></div><div className="settings-footer"><p><Clock size={13}/> Schedules are stored securely in Supabase. Email delivery becomes active after the scheduler endpoint and mail-provider secret are configured.</p><button onClick={persist}>{saved?'Cloud schedule saved':'Save schedule'}</button></div></div></div>;
 }
 
 export function PageScenarioPlanner({ r }: { r: PipelineResult }) {
