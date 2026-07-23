@@ -23,6 +23,7 @@ import { saveToHistory } from "../lib/history/historyStore";
 import { openReport, emailExecutiveSummary } from "../lib/export/reportGenerator";
 import { useAuth, PasswordGateScreen } from "../lib/auth/AuthContext";
 import { getSupabase } from "../lib/auth/supabaseClient";
+import { useOrganizationAccess } from "../lib/auth/useOrganizationAccess";
 import { createSampleBusinessFile } from "../lib/demo/sampleBusinessDataset";
 import { deleteProject, listProjects, saveProject, type SavedProject } from "../lib/projects/projectStore";
 import type { BusinessRole } from "../types/semantic";
@@ -468,12 +469,16 @@ export default function App() {
   const [projectLibraryOpen, setProjectLibraryOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  const [inviteMessage,setInviteMessage]=useState('');
   const { user, loading: authLoading, isEnabled } = useAuth();
+  const access=useOrganizationAccess();
   const reset = useCallback(() => { setResult(null); setPage('overview'); setCurrentProjectId(null); }, []);
   useEffect(() => { if (!result || !result.aiLoading) return; let cancelled=false; generateAIInsights(result).then(ai=>{ if(!cancelled) setResult(prev=>prev?{...prev, aiInsights: ai, aiLoading:false}:prev); }); return()=>{cancelled=true;}; }, [result?.aiLoading]);
   useEffect(() => { if (!result || result.aiLoading) return; saveToHistory(result); saveProject(result, currentProjectId || undefined).then(setCurrentProjectId).catch(e=>console.warn('Project save failed', e)); }, [result]);
+  useEffect(()=>{if(!user)return;const token=new URLSearchParams(window.location.search).get('invite');if(!token)return;const sb=getSupabase();if(!sb)return;void sb.rpc('accept_organization_invitation',{invitation_token:token}).then(({error})=>{setInviteMessage(error?error.message:'Invitation accepted. Your workspace role is now active.');if(!error)window.history.replaceState({},'',window.location.pathname)})},[user]);
   if (authLoading) return <div className="min-h-screen bg-[#F5F6FA] flex items-center justify-center"><div className="h-8 w-8 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" /></div>;
   if (isEnabled && !user) return <PasswordGateScreen />;
+  if (!result && access.role==='viewer') return <div className="onboarding-shell min-h-screen flex items-center justify-center p-6"><div className="elevated-panel max-w-lg rounded-[24px] p-8 text-center"><ShieldCheck className="mx-auto text-emerald-700"/><h1 className="text-2xl font-semibold mt-4">Viewer access is active</h1><p className="text-sm text-slate-500 mt-3">Your role provides read-only access. Ask an owner or administrator to share an organisation analysis with you.</p>{inviteMessage&&<p className="mt-4 text-xs text-emerald-700">{inviteMessage}</p>}</div></div>;
   if (!result) return <UploadScreen onLoaded={r => { setCurrentProjectId(null); setResult(r); setPage('overview'); }} />;
   const titles: Record<string, string> = { overview: 'Executive Workspace', execution: 'Execution', governance: 'Governance', advisor: 'AI Advisor', forecast: 'Predictions', scenarios: 'Scenario Planning', analyses: 'Intelligence', customers: 'Customer Intelligence', seasonality: 'Seasonality', health: 'Health Detail', risks: 'Risks & Opportunities', recs: 'Decisions', products: 'Products & Markets', profile: 'Data Hub', connections: 'Connections', relationships: 'Data Relationships', alerts: 'Alerts & Reports' };
   return (
@@ -489,7 +494,7 @@ export default function App() {
             <div className="user-menu group relative"><button className="user-avatar" aria-label="Account menu">{(user?.email?.[0] || 'V').toUpperCase()}</button><div className="user-popover"><p className="truncate text-xs font-semibold text-slate-900">{user?.email || 'Local workspace'}</p><button onClick={reset}><RefreshCw size={13}/> New dataset</button><button><Settings size={13}/> Settings</button><button onClick={async()=>{ const sb=getSupabase(); if(sb) await sb.auth.signOut(); }}>Sign out</button></div></div>
           </div>
         </header>
-        <main className="app-main p-4 md:p-7 max-w-[1480px] mx-auto">{page==='overview'&&<PageOverview r={result} />}{page==='execution'&&<PageExecutionHub r={result} />}{page==='governance'&&<PageGovernanceHub r={result} />}{page==='advisor'&&<PageAdvisor r={result} />}{page==='forecast'&&<PageForecast r={result} />}{page==='scenarios'&&<PageScenarioPlanner r={result} />}{page==='analyses'&&<PageAnalyses r={result} />}{page==='customers'&&<PageCustomers r={result} />}{page==='seasonality'&&<PageSeasonality r={result} />}{page==='health'&&<PageHealth r={result} />}{page==='risks'&&<PageRisks r={result} />}{page==='recs'&&<PageRecs r={result} />}{page==='products'&&<PageProducts r={result} />}{page==='profile'&&<PageDataProfile r={result} />}{page==='connections'&&<PageConnections r={result} />}{page==='relationships'&&<PageRelationships r={result} />}{page==='alerts'&&<PageAlerts r={result} />}</main>
+        <main className={`app-main p-4 md:p-7 max-w-[1480px] mx-auto ${access.role==='viewer'?'read-only-workspace':''}`}>{page==='overview'&&<PageOverview r={result} />}{page==='execution'&&<PageExecutionHub r={result} />}{page==='governance'&&<PageGovernanceHub r={result} />}{page==='advisor'&&<PageAdvisor r={result} />}{page==='forecast'&&<PageForecast r={result} />}{page==='scenarios'&&<PageScenarioPlanner r={result} />}{page==='analyses'&&<PageAnalyses r={result} />}{page==='customers'&&<PageCustomers r={result} />}{page==='seasonality'&&<PageSeasonality r={result} />}{page==='health'&&<PageHealth r={result} />}{page==='risks'&&<PageRisks r={result} />}{page==='recs'&&<PageRecs r={result} />}{page==='products'&&<PageProducts r={result} />}{page==='profile'&&<PageDataProfile r={result} />}{page==='connections'&&<PageConnections r={result} />}{page==='relationships'&&<PageRelationships r={result} />}{page==='alerts'&&<PageAlerts r={result} />}</main>
       </div>
       <ProjectLibrary open={projectLibraryOpen} onClose={()=>setProjectLibraryOpen(false)} onOpen={project=>{ setResult(project.result); setCurrentProjectId(project.id); setPage('overview'); setProjectLibraryOpen(false); }} />
       <ExportDialog result={result} open={exportOpen} onClose={()=>setExportOpen(false)} />
