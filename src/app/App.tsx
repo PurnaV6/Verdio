@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, lazy, Suspense } from "react";
+import { useState, useCallback, useEffect, useRef, lazy, Suspense } from "react";
 import { runDataPipeline } from "../lib/dataPipeline/runDataPipeline";
 import { generateAIInsights } from "../services/ai";
 const ChartRenderer = lazy(() => import("../components/ChartRenderer").then(m => ({ default: m.ChartRenderer })));
@@ -483,8 +483,10 @@ export default function App() {
   const { user, loading: authLoading, isEnabled } = useAuth();
   const access=useOrganizationAccess();
   const reset = useCallback(() => { setResult(null); setPage('overview'); setCurrentProjectId(null); }, []);
-  useEffect(() => { if (!result || !result.aiLoading) return; let cancelled=false; generateAIInsights(result).then(ai=>{ if(!cancelled) setResult(prev=>prev?{...prev, aiInsights: ai, aiLoading:false}:prev); }); return()=>{cancelled=true;}; }, [result?.aiLoading]);
-  useEffect(() => { if (!result || result.aiLoading) return; saveToHistory(result); saveProject(result, currentProjectId || undefined).then(setCurrentProjectId).catch(e=>console.warn('Project save failed', e)); }, [result]);
+  const currentProjectIdRef = useRef(currentProjectId);
+  useEffect(() => { currentProjectIdRef.current = currentProjectId; }, [currentProjectId]);
+  useEffect(() => { if (!result || !result.aiLoading) return; let cancelled=false; generateAIInsights(result).then(ai=>{ if(!cancelled) setResult(prev=>prev?{...prev, aiInsights: ai, aiLoading:false}:prev); }); return()=>{cancelled=true;}; }, [result]);
+  useEffect(() => { if (!result || result.aiLoading) return; saveToHistory(result); saveProject(result, currentProjectIdRef.current || undefined).then(setCurrentProjectId).catch(e=>console.warn('Project save failed', e)); }, [result]);
   useEffect(()=>{if(!user)return;const token=new URLSearchParams(window.location.search).get('invite');if(!token)return;const sb=getSupabase();if(!sb)return;void sb.rpc('accept_organization_invitation',{invitation_token:token}).then(({error})=>{setInviteMessage(error?error.message:'Invitation accepted. Your workspace role is now active.');if(!error)window.history.replaceState({},'',window.location.pathname)})},[user]);
   if (authLoading) return <div className="min-h-screen bg-[#F5F6FA] flex items-center justify-center"><div className="h-8 w-8 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" /></div>;
   if (isEnabled && !user) return <PasswordGateScreen />;
