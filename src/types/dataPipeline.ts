@@ -14,7 +14,7 @@ export interface ParsedDataset {
   rows:    RawRow[];
   headers: string[];      // normalised (trimmed) header order as they appeared in the file
   fileName: string;
-  fileType: 'csv' | 'xlsx' | 'xls';
+  fileType: 'csv' | 'xlsx' | 'xls' | 'tsv' | 'json';
 }
 
 export interface ParseError {

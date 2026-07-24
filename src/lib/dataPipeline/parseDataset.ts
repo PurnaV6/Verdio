@@ -33,14 +33,28 @@ function normaliseHeaders(rows: Record<string, string>[]): { rows: RawRow[]; hea
   return { rows: cleaned, headers };
 }
 
-function parseCSVText(text: string): Promise<Record<string, string>[]> {
+function parseDelimitedText(text: string, delimiter?: string): Promise<Record<string, string>[]> {
   return new Promise((resolve, reject) => {
     Papa.parse(text, {
       header: true,
       skipEmptyLines: true,
+      delimiter,
       complete: r => resolve(r.data as Record<string, string>[]),
       error: (e: Error) => reject(e),
     });
+  });
+}
+
+function jsonRecordsToRawRows(records: Record<string, unknown>[]): Record<string, string>[] {
+  const keys = new Set<string>();
+  records.forEach(record => Object.keys(record).forEach(key => keys.add(key)));
+  return records.map(record => {
+    const row: Record<string, string> = {};
+    for (const key of keys) {
+      const v = record[key];
+      row[key] = v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
+    }
+    return row;
   });
 }
 
@@ -53,7 +67,8 @@ export async function parseDataset(file: File): Promise<ParseResult> {
   }
 
   const ext = (file.name.split('.').pop() || '').toLowerCase();
-  const fileType: ParsedDataset['fileType'] = ext === 'xlsx' ? 'xlsx' : ext === 'xls' ? 'xls' : 'csv';
+  const fileType: ParsedDataset['fileType'] =
+    ext === 'xlsx' ? 'xlsx' : ext === 'xls' ? 'xls' : ext === 'tsv' ? 'tsv' : ext === 'json' ? 'json' : 'csv';
 
   try {
     let rawRows: Record<string, string>[];
@@ -65,10 +80,22 @@ export async function parseDataset(file: File): Promise<ParseResult> {
       const firstSheet = wb.Sheets[wb.SheetNames[0]];
       if (!firstSheet) return { ok: false, error: { code: 'NO_ROWS', message: 'The workbook has no readable sheets.' } };
       const csv = XLSX.utils.sheet_to_csv(firstSheet);
-      rawRows = await parseCSVText(csv);
+      rawRows = await parseDelimitedText(csv);
+    } else if (fileType === 'tsv') {
+      const text = await file.text();
+      rawRows = await parseDelimitedText(text, '\t');
+    } else if (fileType === 'json') {
+      const text = await file.text();
+      let parsed: unknown;
+      try { parsed = JSON.parse(text); } catch { return { ok: false, error: { code: 'PARSE_FAILED', message: 'This file is not valid JSON.' } }; }
+      const arr = Array.isArray(parsed) ? parsed : Object.values(parsed as Record<string, unknown>).find(Array.isArray);
+      if (!Array.isArray(arr) || !arr.every(item => typeof item === 'object' && item !== null && !Array.isArray(item))) {
+        return { ok: false, error: { code: 'PARSE_FAILED', message: 'JSON files must contain an array of records (objects), or an object with one array field of records.' } };
+      }
+      rawRows = jsonRecordsToRawRows(arr as Record<string, unknown>[]);
     } else {
       const text = await file.text();
-      rawRows = await parseCSVText(text);
+      rawRows = await parseDelimitedText(text);
     }
 
     if (!rawRows.length) {
