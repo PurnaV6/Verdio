@@ -1,7 +1,7 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, lazy, Suspense } from "react";
 import { runDataPipeline } from "../lib/dataPipeline/runDataPipeline";
 import { generateAIInsights } from "../services/ai";
-import { ChartRenderer } from "../components/ChartRenderer";
+const ChartRenderer = lazy(() => import("../components/ChartRenderer").then(m => ({ default: m.ChartRenderer })));
 import { computeCategoryBreakdown } from "../lib/analysis/categoryBreakdown";
 import { bestColumnOfRole, primaryMeasureColumn } from "../lib/analysis/pickColumns";
 import { buildAdvisorContext } from "../lib/analysis/factSummary";
@@ -27,11 +27,19 @@ import { useOrganizationAccess } from "../lib/auth/useOrganizationAccess";
 import { createSampleBusinessFile } from "../lib/demo/sampleBusinessDataset";
 import { deleteProject, listProjects, saveProject, type SavedProject } from "../lib/projects/projectStore";
 import type { BusinessRole } from "../types/semantic";
-import { PageAlerts, PageConnections, PageRelationships, PageScenarioPlanner, PageTrustCenter } from "../components/operational/OperationalPages";
+const PageAlerts = lazy(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageAlerts })));
+const PageConnections = lazy(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageConnections })));
+const PageRelationships = lazy(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageRelationships })));
+const PageScenarioPlanner = lazy(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageScenarioPlanner })));
+const PageTrustCenter = lazy(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageTrustCenter })));
 import { prepareOrganizationWorkspace, type PreparedOrganizationWorkspace } from "../lib/organization/prepareOrganizationWorkspace";
-import { PageActionTracker, PageKpiTargets } from "../components/execution/ExecutionPages";
-import { PageApprovals, PageEvidence, PageModelAssurance, PageOutcomes } from "../components/governance/GovernancePages";
-import { PageTeamWorkspace } from "../components/team/TeamWorkspace";
+const PageActionTracker = lazy(() => import("../components/execution/ExecutionPages").then(m => ({ default: m.PageActionTracker })));
+const PageKpiTargets = lazy(() => import("../components/execution/ExecutionPages").then(m => ({ default: m.PageKpiTargets })));
+const PageApprovals = lazy(() => import("../components/governance/GovernancePages").then(m => ({ default: m.PageApprovals })));
+const PageEvidence = lazy(() => import("../components/governance/GovernancePages").then(m => ({ default: m.PageEvidence })));
+const PageModelAssurance = lazy(() => import("../components/governance/GovernancePages").then(m => ({ default: m.PageModelAssurance })));
+const PageOutcomes = lazy(() => import("../components/governance/GovernancePages").then(m => ({ default: m.PageOutcomes })));
+const PageTeamWorkspace = lazy(() => import("../components/team/TeamWorkspace").then(m => ({ default: m.PageTeamWorkspace })));
 
 const fmtN = (n: number) => Math.round(n).toLocaleString('en-GB');
 
@@ -418,9 +426,11 @@ function PageRecs({ r }: { r: PipelineResult }) {
 function PageDataProfile({ r }: { r: PipelineResult }) { return <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm overflow-auto"><table className="w-full text-sm"><thead><tr className="text-left border-b border-slate-100">{['Column','Type','Role','Conf'].map(h=><th key={h} className="pb-2 text-[10px] text-slate-400 uppercase">{h}</th>)}</tr></thead><tbody>{r.semantics.columns.map(c=><tr key={c.columnName} className="border-t border-slate-100"><td className="py-2 font-medium">{c.columnName}</td><td className="text-slate-500">{c.dataType}</td><td><span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">{c.businessRole}</span></td><td className="text-slate-600">{Math.round(c.confidence*100)}%</td></tr>)}</tbody></table></div>; }
 function PageQuality({ r }: { r: PipelineResult }) { return <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[{l:'Overall',v:r.quality.overallScore},{l:'Completeness',v:r.quality.completenessScore},{l:'Validity',v:r.quality.validityScore},{l:'Consistency',v:r.quality.consistencyScore}].map(s=><div key={s.l} className="bg-white rounded-[16px] border border-slate-200 p-4 shadow-sm"><p className="text-[10px] font-bold text-slate-400 tracking-widest">{s.l.toUpperCase()}</p><p className="text-2xl font-black mt-1 text-slate-900">{s.v}</p></div>)}</div>; }
 
+function PageLoadingFallback() { return <div className="flex items-center justify-center py-16"><div className="h-8 w-8 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" /></div>; }
+
 function WorkspaceHub({ tabs, initial }: { tabs: { id: string; label: string; icon: typeof ClipboardCheck; content: React.ReactNode }[]; initial: string }) {
   const [active, setActive] = useState(initial);
-  return <div className="space-y-5"><nav className="workspace-tabs" aria-label="Workspace sections">{tabs.map(({id,label,icon:Icon})=><button key={id} className={active===id?'is-active':''} onClick={()=>setActive(id)}><Icon size={14}/>{label}</button>)}</nav>{tabs.find(tab=>tab.id===active)?.content}</div>;
+  return <div className="space-y-5"><nav className="workspace-tabs" aria-label="Workspace sections">{tabs.map(({id,label,icon:Icon})=><button key={id} className={active===id?'is-active':''} onClick={()=>setActive(id)}><Icon size={14}/>{label}</button>)}</nav><Suspense fallback={<PageLoadingFallback />}>{tabs.find(tab=>tab.id===active)?.content}</Suspense></div>;
 }
 
 function PageExecutionHub({ r }: { r: PipelineResult }) {
@@ -494,7 +504,7 @@ export default function App() {
             <div className="user-menu group relative"><button className="user-avatar" aria-label="Account menu">{(user?.email?.[0] || 'V').toUpperCase()}</button><div className="user-popover"><p className="truncate text-xs font-semibold text-slate-900">{user?.email || 'Local workspace'}</p><button onClick={reset}><RefreshCw size={13}/> New dataset</button><button><Settings size={13}/> Settings</button><button onClick={async()=>{ const sb=getSupabase(); if(sb) await sb.auth.signOut(); }}>Sign out</button></div></div>
           </div>
         </header>
-        <main className={`app-main p-4 md:p-7 max-w-[1480px] mx-auto ${access.role==='viewer'?'read-only-workspace':''}`}>{page==='overview'&&<PageOverview r={result} />}{page==='execution'&&<PageExecutionHub r={result} />}{page==='governance'&&<PageGovernanceHub r={result} />}{page==='advisor'&&<PageAdvisor r={result} />}{page==='forecast'&&<PageForecast r={result} />}{page==='scenarios'&&<PageScenarioPlanner r={result} />}{page==='analyses'&&<PageAnalyses r={result} />}{page==='customers'&&<PageCustomers r={result} />}{page==='seasonality'&&<PageSeasonality r={result} />}{page==='health'&&<PageHealth r={result} />}{page==='risks'&&<PageRisks r={result} />}{page==='recs'&&<PageRecs r={result} />}{page==='products'&&<PageProducts r={result} />}{page==='profile'&&<PageDataProfile r={result} />}{page==='connections'&&<PageConnections r={result} />}{page==='relationships'&&<PageRelationships r={result} />}{page==='alerts'&&<PageAlerts r={result} />}</main>
+        <main className={`app-main p-4 md:p-7 max-w-[1480px] mx-auto ${access.role==='viewer'?'read-only-workspace':''}`}><Suspense fallback={<PageLoadingFallback />}>{page==='overview'&&<PageOverview r={result} />}{page==='execution'&&<PageExecutionHub r={result} />}{page==='governance'&&<PageGovernanceHub r={result} />}{page==='advisor'&&<PageAdvisor r={result} />}{page==='forecast'&&<PageForecast r={result} />}{page==='scenarios'&&<PageScenarioPlanner r={result} />}{page==='analyses'&&<PageAnalyses r={result} />}{page==='customers'&&<PageCustomers r={result} />}{page==='seasonality'&&<PageSeasonality r={result} />}{page==='health'&&<PageHealth r={result} />}{page==='risks'&&<PageRisks r={result} />}{page==='recs'&&<PageRecs r={result} />}{page==='products'&&<PageProducts r={result} />}{page==='profile'&&<PageDataProfile r={result} />}{page==='connections'&&<PageConnections r={result} />}{page==='relationships'&&<PageRelationships r={result} />}{page==='alerts'&&<PageAlerts r={result} />}</Suspense></main>
       </div>
       <ProjectLibrary open={projectLibraryOpen} onClose={()=>setProjectLibraryOpen(false)} onOpen={project=>{ setResult(project.result); setCurrentProjectId(project.id); setPage('overview'); setProjectLibraryOpen(false); }} />
       <ExportDialog result={result} open={exportOpen} onClose={()=>setExportOpen(false)} />

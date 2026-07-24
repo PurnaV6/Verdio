@@ -1,5 +1,4 @@
 import Papa from "papaparse";
-import * as XLSX from "xlsx";
 import type { ParsedDataset, ParseError, RawRow } from "../../types/dataPipeline";
 
 /* ================================================================
@@ -60,6 +59,7 @@ export async function parseDataset(file: File): Promise<ParseResult> {
     let rawRows: Record<string, string>[];
 
     if (fileType === 'xlsx' || fileType === 'xls') {
+      const XLSX = await import("xlsx");
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buf), { type: 'array', cellDates: true });
       const firstSheet = wb.Sheets[wb.SheetNames[0]];
