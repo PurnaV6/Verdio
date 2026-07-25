@@ -1,3 +1,4 @@
+// Requires CRON_SECRET, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY, REPORT_FROM_EMAIL on Vercel — all configured as of 2026-07-25.
 function escapeHtml(value = '') { return String(value).replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char])); }
 function nextRun(cadence) { const date=new Date(); if(cadence==='weekly') date.setDate(date.getDate()+7); else date.setMonth(date.getMonth()+1); return date.toISOString(); }
 
