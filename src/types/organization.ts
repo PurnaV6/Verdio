@@ -24,9 +24,32 @@ export interface OrganizationRelationship {
   confirmed: boolean;
 }
 
+export interface OrganizationMetric {
+  id: string;
+  label: string;
+  value: number;
+  format: 'currency' | 'number' | 'percentage';
+  evidence: string;
+  relationshipId?: string;
+  sourceDatasetIds: string[];
+}
+
+export interface OrganizationInsight {
+  id: string;
+  title: string;
+  description: string;
+  action: string;
+  priority: 'high' | 'medium' | 'opportunity';
+  confidence: number;
+  relationshipId?: string;
+  sourceDatasetIds: string[];
+}
+
 export interface OrganizationContext {
   name: string;
   datasets: OrganizationDataset[];
   relationships: OrganizationRelationship[];
+  metrics: OrganizationMetric[];
+  insights: OrganizationInsight[];
   createdAt: string;
 }
