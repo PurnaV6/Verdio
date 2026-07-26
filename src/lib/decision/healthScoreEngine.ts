@@ -45,7 +45,7 @@ export function computeHealthScore(quality: DataQualityReport, statistics: Stati
   return {
     total,
     pillars: [
-      { name: 'Performance Trend', score: Math.round(trendScore), max: 25, color: '#16A34A' },
+      { name: 'Performance Trend', score: Math.round(trendScore), max: 25, color: '#0A66C2' },
       { name: 'Customer Strength', score: Math.round(customerScore), max: 25, color: '#DC2626' },
       { name: 'Data Quality',      score: qualityScore,             max: 25, color: '#2563EB' },
       { name: 'Stability',         score: Math.round(stabilityScore), max: 25, color: '#D97706' },

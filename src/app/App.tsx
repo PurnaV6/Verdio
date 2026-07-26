@@ -163,7 +163,7 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
         <div onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); handleFiles(Array.from(e.dataTransfer.files)); }} onClick={() => document.getElementById('fi')?.click()}
           className={`upload-zone cursor-pointer rounded-[20px] border p-8 md:p-10 transition-all ${dragging ? 'is-dragging' : ''}`}>
           <input id="fi" type="file" multiple accept=".csv,.xlsx,.xls,.tsv,.json" className="hidden" onChange={e => { handleFiles(Array.from(e.target.files || [])); e.target.value = ''; }} />
-          {loading ? <div className="flex flex-col items-center gap-3"><div className="h-9 w-9 border-2 border-slate-200 border-t-emerald-600 rounded-full animate-spin" /><p className="text-sm text-slate-700 font-medium">{stage}</p><p className="text-xs text-slate-400">This usually takes less than a minute.</p></div> :
+          {loading ? <div className="flex flex-col items-center gap-3"><div className="h-9 w-9 border-2 border-slate-200 border-t-blue-600 rounded-full animate-spin" /><p className="text-sm text-slate-700 font-medium">{stage}</p><p className="text-xs text-slate-400">This usually takes less than a minute.</p></div> :
             <><div className="upload-icon mx-auto mb-4"><UploadCloud size={22}/></div><p className="font-semibold text-slate-950 text-sm">Drop one or multiple business datasets here</p><p className="mt-1.5 text-[12px] text-slate-500">Sales, stock, customers, products or finance · CSV, XLSX, XLS, TSV, JSON</p><p className="mt-4 text-[10px] text-slate-400 font-semibold tracking-[0.12em]">YOUR DATA REMAINS PRIVATE</p></>}
         </div>
         {error && <div className="mt-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>}
@@ -232,7 +232,7 @@ function Sidebar({ page, setPage, result, onReset, open, onClose }: { page: stri
 }
 
 function MetricCard({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'green' | 'red' | 'amber' }) {
-  const toneCls = tone === 'red' ? 'bg-red-50 text-red-700 border-red-200' : tone === 'amber' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+  const toneCls = tone === 'red' ? 'bg-red-50 text-red-700 border-red-200' : tone === 'amber' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-blue-50 text-blue-700 border-blue-200';
   return (
     <div className="rounded-[14px] bg-white border border-slate-200 p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
       <p className="text-[10px] font-bold tracking-widest text-slate-500 uppercase">{label}</p>
@@ -519,7 +519,7 @@ function ExportDialog({ result, open, onClose }: { result: PipelineResult; open:
 function ViewerWorkspaceLanding({ message, onOpen }: { message: string; onOpen: (project: SavedProject) => void }) {
   const [projects,setProjects]=useState<SavedProject[]>([]);const [loading,setLoading]=useState(true);
   useEffect(()=>{listProjects().then(items=>setProjects(items.filter(item=>item.shared))).finally(()=>setLoading(false))},[]);
-  return <div className="onboarding-shell min-h-screen flex items-center justify-center p-6"><div className="elevated-panel w-full max-w-2xl rounded-[24px] p-8"><div className="text-center"><ShieldCheck className="mx-auto text-emerald-700"/><h1 className="text-2xl font-semibold mt-4">Shared organisation projects</h1><p className="text-sm text-slate-500 mt-3">Your viewer role provides secure read-only access.</p>{message&&<p className="mt-3 text-xs text-emerald-700">{message}</p>}</div><div className="viewer-projects">{loading?<p>Loading shared projects…</p>:projects.length===0?<p>No shared analyses are available yet. Ask an analyst or administrator to publish one.</p>:projects.map(project=><article key={project.id}><div><strong>{project.name}</strong><small>{project.result.source.rowCount.toLocaleString()} rows · Health {project.result.decision.health.total}/100</small></div><button onClick={()=>onOpen(project)}>Open read-only</button></article>)}</div></div></div>;
+  return <div className="onboarding-shell min-h-screen flex items-center justify-center p-6"><div className="elevated-panel w-full max-w-2xl rounded-[24px] p-8"><div className="text-center"><ShieldCheck className="mx-auto text-blue-700"/><h1 className="text-2xl font-semibold mt-4">Shared organisation projects</h1><p className="text-sm text-slate-500 mt-3">Your viewer role provides secure read-only access.</p>{message&&<p className="mt-3 text-xs text-blue-700">{message}</p>}</div><div className="viewer-projects">{loading?<p>Loading shared projects…</p>:projects.length===0?<p>No shared analyses are available yet. Ask an analyst or administrator to publish one.</p>:projects.map(project=><article key={project.id}><div><strong>{project.name}</strong><small>{project.result.source.rowCount.toLocaleString()} rows · Health {project.result.decision.health.total}/100</small></div><button onClick={()=>onOpen(project)}>Open read-only</button></article>)}</div></div></div>;
 }
 
 export default function App() {

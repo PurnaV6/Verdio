@@ -54,7 +54,7 @@ export function ChartRenderer({ chart }: { chart: ChartSpec }) {
             <XAxis dataKey={chart.xKey} tick={{ fill: TICK, fontSize: 10 }} tickLine={false} axisLine={false} />
             <YAxis tick={{ fill: TICK, fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => formatValue(v, chart.formatValue)} />
             <Tooltip formatter={tooltipFormatter} contentStyle={TOOLTIP_STYLE} cursor={{ stroke: '#9BB8D3', strokeDasharray: '3 3' }} />
-            {(chart.seriesKeys || ['value']).length > 1 && <Legend iconType="circle" iconSize={7} wrapperStyle={{ color: '#607168', fontSize: 10, paddingTop: 8 }} />}
+            {(chart.seriesKeys || ['value']).length > 1 && <Legend iconType="circle" iconSize={7} wrapperStyle={{ color: '#60758A', fontSize: 10, paddingTop: 8 }} />}
             {(chart.seriesKeys || ['value']).map((key, i) => (
               <Line key={key} type="monotone" dataKey={key} stroke={PAL[i % PAL.length]} strokeWidth={2.75}
                 strokeDasharray={key === 'forecast' ? '6 3' : undefined}
@@ -112,7 +112,7 @@ export function ChartRenderer({ chart }: { chart: ChartSpec }) {
               {chart.data.map((_, i) => <Cell key={i} fill={PAL[i % PAL.length]} />)}
             </Pie>
             <Tooltip formatter={tooltipFormatter} contentStyle={TOOLTIP_STYLE} />
-            <Legend iconType="circle" iconSize={7} wrapperStyle={{ color: '#607168', fontSize: 10 }} />
+            <Legend iconType="circle" iconSize={7} wrapperStyle={{ color: '#60758A', fontSize: 10 }} />
           </PieChart>
         </ResponsiveContainer>
       )}

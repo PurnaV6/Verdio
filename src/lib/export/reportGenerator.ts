@@ -18,7 +18,7 @@ export function generateExecutiveReportHTML(result: any): string {
   const recs = result.decision.recommendations || [];
   const modelMeta = result._modelMeta;
 
-  const healthColor = health >= 80 ? '#16A34A' : health >= 60 ? '#D97706' : '#DC2626';
+  const healthColor = health >= 80 ? '#0A66C2' : health >= 60 ? '#D97706' : '#DC2626';
   const healthLabel = health >= 80 ? 'Healthy and Stable' : health >= 60 ? 'Performing with Risks' : 'Attention Required';
 
   return `
@@ -97,7 +97,7 @@ export function generateExecutiveReportHTML(result: any): string {
         <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:10px; font-size:12px;">
           <div style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:8px; padding:8px 10px;"><div class="meta">EST. IMPACT</div><b>£${rec.financialImpact.estimatedValue.toLocaleString()}</b><div class="meta">Range £${rec.financialImpact.rangeLow.toLocaleString()}–£${rec.financialImpact.rangeHigh.toLocaleString()}</div></div>
           <div style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:8px; padding:8px 10px;"><div class="meta">CONFIDENCE & EFFORT</div><b>${Math.round((rec.confidence||0.8)*100)}% • ${rec.effortDays||5}d</b><div class="meta">${rec.effort||'medium'} effort</div></div>
-          <div style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:8px; padding:8px 10px;"><div class="meta" style="color:#16A34A;">PRIORITY SCORE</div><b style="font-size:16px; color:#16A34A;">${rec.priorityScore||''}/100</b></div>
+          <div style="background:#EAF3FF; border:1px solid #B8D7F5; border-radius:8px; padding:8px 10px;"><div class="meta" style="color:#0A66C2;">PRIORITY SCORE</div><b style="font-size:16px; color:#0A66C2;">${rec.priorityScore||''}/100</b></div>
         </div>` : ''}
       </div>
     `).join('')}

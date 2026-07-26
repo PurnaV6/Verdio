@@ -207,7 +207,7 @@ function calcHealth(
   return {
     total: Math.min(100, Math.max(0, Math.round(rs + cs + Math.round(avgQ * 0.25) + ss))),
     pillars: [
-      { name: 'Revenue Performance', score: Math.round(rs),               max: 25, color: '#16A34A' },
+      { name: 'Revenue Performance', score: Math.round(rs),               max: 25, color: '#0A66C2' },
       { name: 'Customer Strength',   score: Math.round(cs),               max: 25, color: '#DC2626' },
       { name: 'Data Quality',        score: Math.round(avgQ * 0.25),      max: 25, color: '#2563EB' },
       { name: 'Revenue Stability',   score: Math.round(ss),               max: 25, color: '#D97706' },
