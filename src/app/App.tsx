@@ -307,35 +307,69 @@ function ExecutiveSignals({ result }: { result: PipelineResult }) {
 
 function PageOverview({ r }: { r: PipelineResult }) {
   const h = r.decision.health.total; const topRisk = r.decision.risks[0]; const topRec = r.decision.recommendations[0];
-  const [greeting,setGreeting]=useState(getTimeGreeting);
-  useEffect(()=>{const timer=window.setInterval(()=>setGreeting(getTimeGreeting()),60_000);return()=>window.clearInterval(timer)},[]);
+  const [now,setNow]=useState(()=>new Date());
+  useEffect(()=>{const timer=window.setInterval(()=>setNow(new Date()),60_000);return()=>window.clearInterval(timer)},[]);
+  const greeting=getTimeGreeting(now);
+  const dateLabel=new Intl.DateTimeFormat(undefined,{weekday:'long',day:'numeric',month:'long'}).format(now);
+  const healthLabel=h>=80?'Strong':h>=60?'Monitored':'Needs attention';
+  const qualityLabel=r.quality.overallScore>=80?'Decision ready':r.quality.overallScore>=60?'Review advised':'Remediation needed';
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-1"><div><div className="eyebrow"><span className="eyebrow-dot"/> LIVE EXECUTIVE BRIEF</div><h1 className="page-title mt-2">{greeting}. Here’s what matters.</h1><p className="text-[13px] text-slate-500 mt-1">Verdio has prioritised the strongest signals in your latest data.</p></div><button className="secondary-button">View methodology <ArrowUpRight size={13}/></button></div>
-      <div className="executive-hero rounded-[22px] p-5 md:p-7 relative overflow-hidden">
-        <div className="flex flex-col md:flex-row items-start justify-between gap-6">
-          <div className="flex-1">
-            <span className={`status-pill ${h >= 80 ? 'is-good' : h >= 60 ? 'is-watch' : 'is-risk'}`}><i/>{h >= 80 ? 'Healthy and stable' : h >= 60 ? 'Performing with risks' : 'Attention required'}</span>
-            <h2 className="text-[22px] md:text-[28px] font-semibold tracking-[-0.035em] text-white leading-tight mt-4 mb-3 max-w-2xl">{topRisk ? `${topRisk.title} requires your attention.` : 'Your business signals are ready to review.'}</h2>
-            <p className="text-slate-400 text-[13px] leading-6 max-w-2xl">Verdio analysed {fmtN(r.source.rowCount)} rows across {r.profile.columnCount} columns. {topRec ? `The highest-priority action is ${topRec.title.toLowerCase()}.` : 'Your executive brief is ready.'}</p>
-          </div>
-          <div className="health-ring" style={{'--score': `${h * 3.6}deg`} as React.CSSProperties}><div><strong>{h}</strong><span>HEALTH</span></div></div>
+    <div className="executive-overview">
+      <header className="executive-heading">
+        <div>
+          <div className="eyebrow"><span className="eyebrow-dot"/> EXECUTIVE WORKSPACE</div>
+          <h1>{greeting}<span>.</span></h1>
+          <p>{dateLabel} · Your latest organisational signals are ready for review.</p>
         </div>
-      </div>
-      <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm">
-        <div className="flex items-center gap-2 mb-3"><Brain size={16} className="text-indigo-700" /><p className="text-[11px] font-bold tracking-widest text-slate-500">AI EXECUTIVE SUMMARY</p>{r.aiLoading ? <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">Generating</span> : <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">AI Generated</span>}</div>
-        {r.aiLoading ? <SkeletonBlock lines={3} /> : <p className="text-[13px] text-slate-600 leading-6">{r.aiInsights?.executiveSummary}</p>}
-      </div>
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-        <MetricCard label="Rows Analysed" value={fmtN(r.source.rowCount)} sub={`${r.profile.columnCount} columns`} />
-        <MetricCard label="Data Quality" value={`${r.quality.overallScore}/100`} sub={r.quality.overallScore >= 80 ? 'Excellent' : 'Good'} tone={r.quality.overallScore >= 80 ? 'green' : r.quality.overallScore >= 60 ? 'amber' : 'red'} />
-        <MetricCard label="Analyses Available" value={`${r.capabilities.available.length}/${r.capabilities.capabilities.length}`} sub="Capability-gated" />
-        <MetricCard label="Health Score" value={`${h}/100`} sub={h >= 80 ? 'Strong' : 'Moderate'} tone={h >= 80 ? 'green' : h >= 60 ? 'amber' : 'red'} />
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm border-l-4 border-l-indigo-900"><p className="text-[10px] font-bold tracking-widest text-indigo-900 mb-1">TOP PRIORITY</p><p className="font-bold text-slate-900 text-[14px] leading-snug">{topRec?.title || 'No recommendations'}</p><p className="text-xs text-slate-500 leading-5 mt-2">{topRec?.desc}</p></div>
-        <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm border-l-4 border-l-amber-500"><p className="text-[10px] font-bold tracking-widest text-amber-600 mb-1">HIGHEST RISK</p><p className="font-bold text-slate-900 text-[14px] leading-snug">{topRisk?.title || 'No critical risk'}</p><p className="text-xs text-slate-500 leading-5 mt-2">{topRisk?.desc}</p></div>
-      </div>
+        <button className="executive-methodology">Decision methodology <ArrowUpRight size={14}/></button>
+      </header>
+
+      <section className="executive-command-card">
+        <div className="executive-command-main">
+          <div className="executive-command-meta">
+            <span className={`status-pill ${h >= 80 ? 'is-good' : h >= 60 ? 'is-watch' : 'is-risk'}`}><i/>{h >= 80 ? 'Business performing strongly' : h >= 60 ? 'Performance requires monitoring' : 'Management attention required'}</span>
+            <span className="analysis-freshness"><Activity size={12}/> Live analysis</span>
+          </div>
+          <p className="executive-kicker">Today’s decision brief</p>
+          <h2>{topRisk ? topRisk.title : 'Your business signals are ready to review.'}</h2>
+          <p className="executive-command-copy">Verdio reviewed {fmtN(r.source.rowCount)} records across {r.profile.columnCount} classified fields. {topRec ? `The recommended next move is to ${topRec.title.toLowerCase()}.` : 'No immediate intervention has been identified.'}</p>
+          <div className="executive-ai-brief">
+            <span><BrainCircuit size={17}/></span>
+            <div>
+              <div className="executive-ai-label">Verdio intelligence {r.aiLoading?<small>Generating</small>:<small className="is-ready">Ready</small>}</div>
+              {r.aiLoading?<SkeletonBlock lines={2}/>:<p>{r.aiInsights?.executiveSummary || 'AI analysis will appear here when the executive summary is available.'}</p>}
+            </div>
+          </div>
+        </div>
+        <aside className="executive-health">
+          <div className="health-ring" style={{'--score': `${h * 3.6}deg`} as React.CSSProperties}><div><strong>{h}</strong><span>OUT OF 100</span></div></div>
+          <p>Business health</p>
+          <strong>{healthLabel}</strong>
+          <small>Combined operational, quality and risk assessment</small>
+        </aside>
+      </section>
+
+      <section className="executive-kpis" aria-label="Executive key performance indicators">
+        <article><span className="executive-kpi-icon"><Database size={16}/></span><div><p>Records assessed</p><strong>{fmtN(r.source.rowCount)}</strong><small>{r.profile.columnCount} classified fields</small></div></article>
+        <article><span className="executive-kpi-icon"><ShieldCheck size={16}/></span><div><p>Data confidence</p><strong>{r.quality.overallScore}<em>/100</em></strong><small>{qualityLabel}</small></div></article>
+        <article><span className="executive-kpi-icon"><BarChart3 size={16}/></span><div><p>Analytical coverage</p><strong>{r.capabilities.available.length}<em>/{r.capabilities.capabilities.length}</em></strong><small>Models currently available</small></div></article>
+        <article><span className="executive-kpi-icon"><Gauge size={16}/></span><div><p>Business health</p><strong>{h}<em>/100</em></strong><small>{healthLabel}</small></div></article>
+      </section>
+
+      <section className="executive-decisions">
+        <article className="executive-decision-card is-priority">
+          <div className="decision-card-heading"><span><Target size={16}/></span><p>Recommended action</p><em>Priority 01</em></div>
+          <h3>{topRec?.title || 'No immediate recommendation'}</h3>
+          <p>{topRec?.desc || 'Continue monitoring the current business signals.'}</p>
+          <footer><span>Next best action</span><ArrowUpRight size={15}/></footer>
+        </article>
+        <article className="executive-decision-card is-risk">
+          <div className="decision-card-heading"><span><ShieldAlert size={16}/></span><p>Risk requiring attention</p><em>Monitor</em></div>
+          <h3>{topRisk?.title || 'No material risk identified'}</h3>
+          <p>{topRisk?.desc || 'No critical risk is currently affecting the executive assessment.'}</p>
+          <footer><span>Review supporting evidence</span><ArrowUpRight size={15}/></footer>
+        </article>
+      </section>
       <ExecutiveSignals result={r} />
     </div>
   );
