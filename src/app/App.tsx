@@ -26,6 +26,7 @@ import { getSupabase } from "../lib/auth/supabaseClient";
 import { useOrganizationAccess } from "../lib/auth/useOrganizationAccess";
 import { createSampleBusinessFile } from "../lib/demo/sampleBusinessDataset";
 import { deleteProject, listProjects, recordProjectOpened, saveProject, type SavedProject } from "../lib/projects/projectStore";
+import { getTimeGreeting } from "../lib/time/greeting";
 import type { BusinessRole } from "../types/semantic";
 const PageAlerts = lazy(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageAlerts })));
 const PageConnections = lazy(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageConnections })));
@@ -306,9 +307,11 @@ function ExecutiveSignals({ result }: { result: PipelineResult }) {
 
 function PageOverview({ r }: { r: PipelineResult }) {
   const h = r.decision.health.total; const topRisk = r.decision.risks[0]; const topRec = r.decision.recommendations[0];
+  const [greeting,setGreeting]=useState(getTimeGreeting);
+  useEffect(()=>{const timer=window.setInterval(()=>setGreeting(getTimeGreeting()),60_000);return()=>window.clearInterval(timer)},[]);
   return (
     <div className="space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-1"><div><div className="eyebrow"><span className="eyebrow-dot"/> LIVE EXECUTIVE BRIEF</div><h1 className="page-title mt-2">Good afternoon. Here’s what matters.</h1><p className="text-[13px] text-slate-500 mt-1">Verdio has prioritised the strongest signals in your latest data.</p></div><button className="secondary-button">View methodology <ArrowUpRight size={13}/></button></div>
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-1"><div><div className="eyebrow"><span className="eyebrow-dot"/> LIVE EXECUTIVE BRIEF</div><h1 className="page-title mt-2">{greeting}. Here’s what matters.</h1><p className="text-[13px] text-slate-500 mt-1">Verdio has prioritised the strongest signals in your latest data.</p></div><button className="secondary-button">View methodology <ArrowUpRight size={13}/></button></div>
       <div className="executive-hero rounded-[22px] p-5 md:p-7 relative overflow-hidden">
         <div className="flex flex-col md:flex-row items-start justify-between gap-6">
           <div className="flex-1">
