@@ -221,8 +221,8 @@ function Sidebar({ page, setPage, result, onReset, open, onClose }: { page: stri
       </nav>
       <div className="p-3 border-t border-white/10">
         <div className="sidebar-score rounded-[14px] p-3.5">
-          <div className="flex items-center justify-between"><p className="text-[9px] font-bold text-slate-500 tracking-[0.14em]">BUSINESS HEALTH</p><span className="text-xs font-semibold text-emerald-300">{result.decision.health.total}/100</span></div>
-          <div className="mt-2.5 h-1 rounded-full bg-white/10 overflow-hidden"><div className="h-full rounded-full bg-emerald-400" style={{ width: `${result.decision.health.total}%` }} /></div>
+          <div className="flex items-center justify-between"><p className="text-[9px] font-bold text-slate-500 tracking-[0.14em]">BUSINESS HEALTH</p><span className="text-xs font-semibold text-blue-300">{result.decision.health.total}/100</span></div>
+          <div className="mt-2.5 h-1 rounded-full bg-white/10 overflow-hidden"><div className="h-full rounded-full bg-blue-400" style={{ width: `${result.decision.health.total}%` }} /></div>
           <p className="text-[10px] text-slate-500 mt-2">Data quality {result.quality.overallScore}/100</p>
         </div>
       </div>

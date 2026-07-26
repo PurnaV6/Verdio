@@ -11,14 +11,14 @@ import type { ChartSpec, ValueFormat } from "../types/analysis";
    per page. One component, six chart types.
    ================================================================ */
 
-const PAL = ['#1F7A5A', '#345E7D', '#C18A3C', '#4F8C88', '#756D91', '#8A9B70', '#A45F5A', '#667A8B'];
-const GRID = '#E8EEEA';
-const TICK = '#718078';
+const PAL = ['#0A66C2', '#4DA3F7', '#083E78', '#78B9F7', '#506D8A', '#A7CFF5', '#2E7FCB', '#7891AA'];
+const GRID = '#E4EDF6';
+const TICK = '#6B8095';
 const TOOLTIP_STYLE = {
   borderRadius: 12,
-  border: '1px solid #DCE5DF',
-  boxShadow: '0 12px 30px rgba(15, 35, 25, .10)',
-  color: '#203129',
+  border: '1px solid #D7E4F0',
+  boxShadow: '0 12px 30px rgba(6, 45, 82, .12)',
+  color: '#18334D',
   fontSize: 11,
   background: 'rgba(255, 255, 255, .97)',
 };
@@ -53,7 +53,7 @@ export function ChartRenderer({ chart }: { chart: ChartSpec }) {
             <CartesianGrid strokeDasharray="2 5" vertical={false} stroke={GRID} />
             <XAxis dataKey={chart.xKey} tick={{ fill: TICK, fontSize: 10 }} tickLine={false} axisLine={false} />
             <YAxis tick={{ fill: TICK, fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => formatValue(v, chart.formatValue)} />
-            <Tooltip formatter={tooltipFormatter} contentStyle={TOOLTIP_STYLE} cursor={{ stroke: '#A9BDB2', strokeDasharray: '3 3' }} />
+            <Tooltip formatter={tooltipFormatter} contentStyle={TOOLTIP_STYLE} cursor={{ stroke: '#9BB8D3', strokeDasharray: '3 3' }} />
             {(chart.seriesKeys || ['value']).length > 1 && <Legend iconType="circle" iconSize={7} wrapperStyle={{ color: '#607168', fontSize: 10, paddingTop: 8 }} />}
             {(chart.seriesKeys || ['value']).map((key, i) => (
               <Line key={key} type="monotone" dataKey={key} stroke={PAL[i % PAL.length]} strokeWidth={2.75}
@@ -69,11 +69,11 @@ export function ChartRenderer({ chart }: { chart: ChartSpec }) {
       {chart.chartType === 'bar' && (
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={chart.data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-            <defs><linearGradient id="verdioBar" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#2C9670"/><stop offset="100%" stopColor="#1B674D"/></linearGradient></defs>
+            <defs><linearGradient id="verdioBar" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#4DA3F7"/><stop offset="100%" stopColor="#0A66C2"/></linearGradient></defs>
             <CartesianGrid strokeDasharray="2 5" vertical={false} stroke={GRID} />
             <XAxis dataKey={chart.xKey} tick={{ fill: TICK, fontSize: 10 }} tickLine={false} axisLine={false} />
             <YAxis tick={{ fill: TICK, fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => formatValue(v, chart.formatValue)} />
-            <Tooltip formatter={tooltipFormatter} contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'rgba(31,122,90,.055)' }} />
+            <Tooltip formatter={tooltipFormatter} contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'rgba(10,102,194,.055)' }} />
             <Bar dataKey={chart.yKey || 'value'} fill="url(#verdioBar)" radius={[6, 6, 2, 2]} maxBarSize={48} />
           </BarChart>
         </ResponsiveContainer>
@@ -82,12 +82,12 @@ export function ChartRenderer({ chart }: { chart: ChartSpec }) {
       {chart.chartType === 'horizontal_bar' && (
         <ResponsiveContainer width="100%" height={Math.max(180, (chart.data.length || 1) * 34)}>
           <BarChart data={chart.data} layout="vertical" margin={{ left: 8, right: 8 }}>
-            <defs><linearGradient id="verdioHorizontalBar" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#1B674D"/><stop offset="100%" stopColor="#35A57D"/></linearGradient></defs>
+            <defs><linearGradient id="verdioHorizontalBar" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#083E78"/><stop offset="100%" stopColor="#4DA3F7"/></linearGradient></defs>
             <CartesianGrid strokeDasharray="2 5" horizontal={false} stroke={GRID} />
             <XAxis type="number" tick={{ fill: TICK, fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => formatValue(v, chart.formatValue)} />
-            <YAxis type="category" dataKey={chart.yKey} tick={{ fill: '#45594F', fontSize: 10 }} tickLine={false} axisLine={false} width={110}
+            <YAxis type="category" dataKey={chart.yKey} tick={{ fill: '#49647E', fontSize: 10 }} tickLine={false} axisLine={false} width={110}
               tickFormatter={(v: string) => (v && v.length > 16 ? v.slice(0, 16) + '…' : v)} />
-            <Tooltip formatter={tooltipFormatter} contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'rgba(31,122,90,.05)' }} />
+            <Tooltip formatter={tooltipFormatter} contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'rgba(10,102,194,.05)' }} />
             <Bar dataKey={chart.xKey || 'value'} fill="url(#verdioHorizontalBar)" radius={[0, 7, 7, 0]} maxBarSize={22} />
           </BarChart>
         </ResponsiveContainer>
@@ -99,8 +99,8 @@ export function ChartRenderer({ chart }: { chart: ChartSpec }) {
             <CartesianGrid strokeDasharray="2 5" stroke={GRID} />
             <XAxis type="number" dataKey={chart.xKey} tick={{ fill: TICK, fontSize: 10 }} tickLine={false} axisLine={false} name={chart.xKey} />
             <YAxis type="number" dataKey={chart.yKey} tick={{ fill: TICK, fontSize: 10 }} tickLine={false} axisLine={false} name={chart.yKey} />
-            <Tooltip cursor={{ stroke: '#A9BDB2', strokeDasharray: '3 3' }} contentStyle={TOOLTIP_STYLE} />
-            <Scatter data={chart.data} fill="#287E61" fillOpacity={0.68} stroke="#155B43" strokeWidth={0.5} />
+            <Tooltip cursor={{ stroke: '#9BB8D3', strokeDasharray: '3 3' }} contentStyle={TOOLTIP_STYLE} />
+            <Scatter data={chart.data} fill="#0A66C2" fillOpacity={0.68} stroke="#083E78" strokeWidth={0.5} />
           </ScatterChart>
         </ResponsiveContainer>
       )}
