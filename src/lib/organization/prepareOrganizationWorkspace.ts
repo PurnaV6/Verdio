@@ -139,6 +139,8 @@ export async function prepareOrganizationWorkspace(input: File[]): Promise<Prepa
     const left=internal[i], right=internal[j];
     const candidates: OrganizationRelationship[]=[];
     for (const a of left.dataset.columns) for (const b of right.dataset.columns) {
+      const joinEligible = RELATION_ROLES.includes(a.role) || RELATION_ROLES.includes(b.role);
+      if (!joinEligible) continue;
       const sameName = normalise(a.name) === normalise(b.name);
       const sameRole = a.role===b.role && RELATION_ROLES.includes(a.role);
       if (!sameName && !sameRole) continue;

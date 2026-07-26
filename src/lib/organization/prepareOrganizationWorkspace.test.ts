@@ -38,4 +38,13 @@ describe('prepareOrganizationWorkspace', () => {
     expect(workspace.context.metrics.some(metric=>metric.id==='inventory-demand-coverage')).toBe(false);
     expect(workspace.context.metrics.some(metric=>metric.id==='connected-revenue')).toBe(true);
   });
+
+  it('does not propose shared attributes such as currency as join keys', async () => {
+    const stock = csv('inventory.csv', 'product id,inventory,currency\nSKU-1,4,GBP\nSKU-2,20,GBP\n');
+    const finance = csv('finance.csv', 'month,gross revenue,cost,currency\n2026-01-01,100,40,GBP\n2026-02-01,120,45,GBP\n');
+
+    const workspace = await prepareOrganizationWorkspace([stock, finance]);
+
+    expect(workspace.context.relationships.some(relation=>relation.leftColumn==='currency'||relation.rightColumn==='currency')).toBe(false);
+  });
 });
