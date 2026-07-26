@@ -213,9 +213,9 @@ function Sidebar({ page, setPage, result, onReset, open, onClose }: { page: stri
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
         {groups.map(group => <div key={group} className="mb-4"><p className="px-3 mb-1.5 text-[9px] tracking-[0.18em] font-bold text-slate-600">{group}</p>{PAGES.filter(p=>p.group===group).map(({ id, label, icon: Icon, badge }) => (
           <button key={id} onClick={() => { setPage(id); onClose(); }} className={`nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-[12px] font-medium text-left ${page === id ? 'is-active' : ''}`}>
-            <Icon size={16} />
+            <span className="nav-icon"><Icon size={15} strokeWidth={1.8}/></span>
             <span className="flex-1">{label}</span>
-            {badge && <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-400/15 text-emerald-300 font-bold">{badge}</span>}
+            {badge && <span className="nav-badge">{badge}</span>}
           </button>
         ))}</div>)}
       </nav>
