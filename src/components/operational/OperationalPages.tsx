@@ -74,6 +74,8 @@ export function PageAlerts({ r }: { r: PipelineResult }) {
           if(prefs.reportCadence==='weekly') next.setDate(next.getDate()+7); else next.setMonth(next.getMonth()+1);
           await sb.from('report_schedules').upsert({user_id:user.id,dataset_key:r.source.fileName,cadence:prefs.reportCadence,recipient_email:prefs.reportEmail,active:true,next_run_at:next.toISOString(),snapshot:{health:r.decision.health.total,quality:r.quality.overallScore,risks:r.decision.risks.slice(0,3),recommendations:r.decision.recommendations.slice(0,3)},updated_at:new Date().toISOString()},{onConflict:'user_id,dataset_key'});
         }
+        const {data:membership}=await sb.from('organization_members').select('organization_id').eq('user_id',user.id).limit(1).maybeSingle();
+        if(membership)await sb.rpc('record_organization_audit',{target_organization:membership.organization_id,target_event:prefs.reportCadence==='off'?'schedule.disabled':'schedule.updated',target_entity_type:'schedule',target_entity_id:r.source.fileName,target_metadata:{cadence:prefs.reportCadence,recipient:prefs.reportEmail}});
       }
     }
     setSaved(true); window.setTimeout(()=>setSaved(false),1800);

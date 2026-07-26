@@ -25,7 +25,7 @@ import { useAuth, PasswordGateScreen } from "../lib/auth/AuthContext";
 import { getSupabase } from "../lib/auth/supabaseClient";
 import { useOrganizationAccess } from "../lib/auth/useOrganizationAccess";
 import { createSampleBusinessFile } from "../lib/demo/sampleBusinessDataset";
-import { deleteProject, listProjects, saveProject, type SavedProject } from "../lib/projects/projectStore";
+import { deleteProject, listProjects, recordProjectOpened, saveProject, type SavedProject } from "../lib/projects/projectStore";
 import type { BusinessRole } from "../types/semantic";
 const PageAlerts = lazy(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageAlerts })));
 const PageConnections = lazy(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageConnections })));
@@ -39,6 +39,7 @@ const PageApprovals = lazy(() => import("../components/governance/GovernancePage
 const PageEvidence = lazy(() => import("../components/governance/GovernancePages").then(m => ({ default: m.PageEvidence })));
 const PageModelAssurance = lazy(() => import("../components/governance/GovernancePages").then(m => ({ default: m.PageModelAssurance })));
 const PageOutcomes = lazy(() => import("../components/governance/GovernancePages").then(m => ({ default: m.PageOutcomes })));
+const PageAuditLog = lazy(() => import("../components/governance/GovernancePages").then(m => ({ default: m.PageAuditLog })));
 const PageTeamWorkspace = lazy(() => import("../components/team/TeamWorkspace").then(m => ({ default: m.PageTeamWorkspace })));
 
 const fmtN = (n: number) => Math.round(n).toLocaleString('en-GB');
@@ -438,7 +439,7 @@ function PageExecutionHub({ r }: { r: PipelineResult }) {
 }
 
 function PageGovernanceHub({ r }: { r: PipelineResult }) {
-  return <WorkspaceHub initial="evidence" tabs={[{id:'evidence',label:'Evidence',icon:ScrollText,content:<PageEvidence r={r}/>},{id:'models',label:'Models',icon:BrainCircuit,content:<PageModelAssurance r={r}/>},{id:'quality',label:'Data Quality',icon:Database,content:<PageQuality r={r}/>},{id:'team',label:'Team & Roles',icon:Users,content:<PageTeamWorkspace/>},{id:'trust',label:'Trust',icon:ShieldCheck,content:<PageTrustCenter r={r}/>}]} />;
+  return <WorkspaceHub initial="evidence" tabs={[{id:'evidence',label:'Evidence',icon:ScrollText,content:<PageEvidence r={r}/>},{id:'models',label:'Models',icon:BrainCircuit,content:<PageModelAssurance r={r}/>},{id:'quality',label:'Data Quality',icon:Database,content:<PageQuality r={r}/>},{id:'team',label:'Team & Roles',icon:Users,content:<PageTeamWorkspace/>},{id:'audit',label:'Audit Log',icon:Activity,content:<PageAuditLog/>},{id:'trust',label:'Trust',icon:ShieldCheck,content:<PageTrustCenter r={r}/>}]} />;
 }
 
 function PageAdvisor({ r }: { r: PipelineResult }) {
@@ -459,17 +460,24 @@ function PageAdvisor({ r }: { r: PipelineResult }) {
 }
 
 function ProjectLibrary({ open, onClose, onOpen }: { open: boolean; onClose: () => void; onOpen: (project: SavedProject) => void }) {
+  const access=useOrganizationAccess();
   const [projects, setProjects] = useState<SavedProject[]>([]);
   const [loading, setLoading] = useState(false);
   useEffect(() => { if (!open) return; setLoading(true); listProjects().then(setProjects).finally(()=>setLoading(false)); }, [open]);
   if (!open) return null;
-  async function remove(id: string) { await deleteProject(id); setProjects(items=>items.filter(item=>item.id!==id)); }
+  async function remove(id: string) { const project=projects.find(item=>item.id===id);if(project?.shared&&access.role==='viewer')return;await deleteProject(id);setProjects(items=>items.filter(item=>item.id!==id)); }
   return <div className="modal-shell" role="dialog" aria-modal="true" aria-label="Saved analyses"><button className="modal-scrim" onClick={onClose} aria-label="Close saved analyses"/><section className="workspace-modal"><div className="modal-heading"><div><div className="eyebrow mb-2"><span className="eyebrow-dot"/> WORKSPACE</div><h2>Saved analyses</h2><p>Return to previous decision workspaces without uploading the dataset again.</p></div><button className="header-icon flex" onClick={onClose} aria-label="Close"><X size={17}/></button></div><div className="project-list">{loading?<p className="empty-state">Loading projects…</p>:projects.length===0?<p className="empty-state">Your completed analyses will appear here automatically.</p>:projects.map(project=><article key={project.id} className="project-row"><span className="project-icon"><FolderOpen size={17}/></span><div><strong>{project.name}</strong><small>{project.result.source.rowCount.toLocaleString()} rows · Health {project.result.decision.health.total}/100 · {new Date(project.updatedAt).toLocaleDateString('en-GB')}</small></div><button onClick={()=>onOpen(project)} className="project-open">Open</button><button onClick={()=>remove(project.id)} className="project-delete" aria-label={`Delete ${project.name}`}><Trash2 size={15}/></button></article>)}</div></section></div>;
 }
 
 function ExportDialog({ result, open, onClose }: { result: PipelineResult; open: boolean; onClose: () => void }) {
   if (!open) return null;
   return <div className="modal-shell" role="dialog" aria-modal="true" aria-label="Export executive report"><button className="modal-scrim" onClick={onClose} aria-label="Close export dialog"/><section className="export-modal"><div className="modal-heading"><div><div className="eyebrow mb-2"><span className="eyebrow-dot"/> EXECUTIVE REPORTING</div><h2>Share the decision brief</h2><p>Use a board-ready report or send a concise summary through your email application.</p></div><button className="header-icon flex" onClick={onClose} aria-label="Close"><X size={17}/></button></div><div className="export-options"><button onClick={()=>openReport(result)}><span><Download size={18}/></span><div><strong>PDF-ready executive report</strong><small>Open the formatted report, then print or save it as PDF.</small></div><ChevronRight size={17}/></button><button onClick={()=>emailExecutiveSummary(result)}><span><Mail size={18}/></span><div><strong>Email executive summary</strong><small>Prepare a concise risk, health and recommended-action email.</small></div><ChevronRight size={17}/></button></div></section></div>;
+}
+
+function ViewerWorkspaceLanding({ message, onOpen }: { message: string; onOpen: (project: SavedProject) => void }) {
+  const [projects,setProjects]=useState<SavedProject[]>([]);const [loading,setLoading]=useState(true);
+  useEffect(()=>{listProjects().then(items=>setProjects(items.filter(item=>item.shared))).finally(()=>setLoading(false))},[]);
+  return <div className="onboarding-shell min-h-screen flex items-center justify-center p-6"><div className="elevated-panel w-full max-w-2xl rounded-[24px] p-8"><div className="text-center"><ShieldCheck className="mx-auto text-emerald-700"/><h1 className="text-2xl font-semibold mt-4">Shared organisation projects</h1><p className="text-sm text-slate-500 mt-3">Your viewer role provides secure read-only access.</p>{message&&<p className="mt-3 text-xs text-emerald-700">{message}</p>}</div><div className="viewer-projects">{loading?<p>Loading shared projects…</p>:projects.length===0?<p>No shared analyses are available yet. Ask an analyst or administrator to publish one.</p>:projects.map(project=><article key={project.id}><div><strong>{project.name}</strong><small>{project.result.source.rowCount.toLocaleString()} rows · Health {project.result.decision.health.total}/100</small></div><button onClick={()=>onOpen(project)}>Open read-only</button></article>)}</div></div></div>;
 }
 
 export default function App() {
@@ -490,7 +498,7 @@ export default function App() {
   useEffect(()=>{if(!user)return;const token=new URLSearchParams(window.location.search).get('invite');if(!token)return;const sb=getSupabase();if(!sb)return;void sb.rpc('accept_organization_invitation',{invitation_token:token}).then(({error})=>{setInviteMessage(error?error.message:'Invitation accepted. Your workspace role is now active.');if(!error)window.history.replaceState({},'',window.location.pathname)})},[user]);
   if (authLoading) return <div className="min-h-screen bg-[#F5F6FA] flex items-center justify-center"><div className="h-8 w-8 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" /></div>;
   if (isEnabled && !user) return <PasswordGateScreen />;
-  if (!result && access.role==='viewer') return <div className="onboarding-shell min-h-screen flex items-center justify-center p-6"><div className="elevated-panel max-w-lg rounded-[24px] p-8 text-center"><ShieldCheck className="mx-auto text-emerald-700"/><h1 className="text-2xl font-semibold mt-4">Viewer access is active</h1><p className="text-sm text-slate-500 mt-3">Your role provides read-only access. Ask an owner or administrator to share an organisation analysis with you.</p>{inviteMessage&&<p className="mt-4 text-xs text-emerald-700">{inviteMessage}</p>}</div></div>;
+  if (!result && access.role==='viewer') return <ViewerWorkspaceLanding message={inviteMessage} onOpen={project=>{void recordProjectOpened(project);setResult(project.result);setCurrentProjectId(project.id)}}/>;
   if (!result) return <UploadScreen onLoaded={r => { setCurrentProjectId(null); setResult(r); setPage('overview'); }} />;
   const titles: Record<string, string> = { overview: 'Executive Workspace', execution: 'Execution', governance: 'Governance', advisor: 'AI Advisor', forecast: 'Predictions', scenarios: 'Scenario Planning', analyses: 'Intelligence', customers: 'Customer Intelligence', seasonality: 'Seasonality', health: 'Health Detail', risks: 'Risks & Opportunities', recs: 'Decisions', products: 'Products & Markets', profile: 'Data Hub', connections: 'Connections', relationships: 'Data Relationships', alerts: 'Alerts & Reports' };
   return (
@@ -508,7 +516,7 @@ export default function App() {
         </header>
         <main className={`app-main p-4 md:p-7 max-w-[1480px] mx-auto ${access.role==='viewer'?'read-only-workspace':''}`}><Suspense fallback={<PageLoadingFallback />}>{page==='overview'&&<PageOverview r={result} />}{page==='execution'&&<PageExecutionHub r={result} />}{page==='governance'&&<PageGovernanceHub r={result} />}{page==='advisor'&&<PageAdvisor r={result} />}{page==='forecast'&&<PageForecast r={result} />}{page==='scenarios'&&<PageScenarioPlanner r={result} />}{page==='analyses'&&<PageAnalyses r={result} />}{page==='customers'&&<PageCustomers r={result} />}{page==='seasonality'&&<PageSeasonality r={result} />}{page==='health'&&<PageHealth r={result} />}{page==='risks'&&<PageRisks r={result} />}{page==='recs'&&<PageRecs r={result} />}{page==='products'&&<PageProducts r={result} />}{page==='profile'&&<PageDataProfile r={result} />}{page==='connections'&&<PageConnections r={result} />}{page==='relationships'&&<PageRelationships r={result} />}{page==='alerts'&&<PageAlerts r={result} />}</Suspense></main>
       </div>
-      <ProjectLibrary open={projectLibraryOpen} onClose={()=>setProjectLibraryOpen(false)} onOpen={project=>{ setResult(project.result); setCurrentProjectId(project.id); setPage('overview'); setProjectLibraryOpen(false); }} />
+      <ProjectLibrary open={projectLibraryOpen} onClose={()=>setProjectLibraryOpen(false)} onOpen={project=>{ void recordProjectOpened(project);setResult(project.result);setCurrentProjectId(project.id);setPage('overview');setProjectLibraryOpen(false); }} />
       <ExportDialog result={result} open={exportOpen} onClose={()=>setExportOpen(false)} />
     </div>
   );
