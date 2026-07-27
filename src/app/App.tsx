@@ -1,7 +1,28 @@
-import { useState, useCallback, useEffect, useRef, lazy, Suspense } from "react";
+import { useState, useCallback, useEffect, useRef, lazy, Suspense, type ComponentType } from "react";
 import { runDataPipeline } from "../lib/dataPipeline/runDataPipeline";
 import { generateAIInsights } from "../services/ai";
-const ChartRenderer = lazy(() => import("../components/ChartRenderer").then(m => ({ default: m.ChartRenderer })));
+
+const CHUNK_RELOAD_KEY = 'verdio_chunk_reload';
+function lazyWithReload<T extends ComponentType<any>>(loader: () => Promise<{ default: T }>) {
+  return lazy(async () => {
+    try {
+      const loaded = await loader();
+      sessionStorage.removeItem(CHUNK_RELOAD_KEY);
+      return loaded;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const staleDeploymentChunk = /failed to fetch dynamically imported module|importing a module script failed|loading chunk [\d]+ failed/i.test(message);
+      if (staleDeploymentChunk && !sessionStorage.getItem(CHUNK_RELOAD_KEY)) {
+        sessionStorage.setItem(CHUNK_RELOAD_KEY, '1');
+        window.location.reload();
+        return new Promise<{ default: T }>(() => undefined);
+      }
+      throw error;
+    }
+  });
+}
+
+const ChartRenderer = lazyWithReload(() => import("../components/ChartRenderer").then(m => ({ default: m.ChartRenderer })));
 import { computeCategoryBreakdown } from "../lib/analysis/categoryBreakdown";
 import { bestColumnOfRole, primaryMeasureColumn } from "../lib/analysis/pickColumns";
 import { buildAdvisorContext } from "../lib/analysis/factSummary";
@@ -30,20 +51,20 @@ import { deleteProject, listProjects, recordProjectOpened, saveProject, type Sav
 import { getTimeGreeting } from "../lib/time/greeting";
 import type { BusinessRole } from "../types/semantic";
 import LandingPage from "../components/marketing/LandingPage";
-const PageAlerts = lazy(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageAlerts })));
-const PageConnections = lazy(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageConnections })));
-const PageRelationships = lazy(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageRelationships })));
-const PageScenarioPlanner = lazy(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageScenarioPlanner })));
-const PageTrustCenter = lazy(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageTrustCenter })));
+const PageAlerts = lazyWithReload(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageAlerts })));
+const PageConnections = lazyWithReload(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageConnections })));
+const PageRelationships = lazyWithReload(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageRelationships })));
+const PageScenarioPlanner = lazyWithReload(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageScenarioPlanner })));
+const PageTrustCenter = lazyWithReload(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageTrustCenter })));
 import { prepareOrganizationWorkspace, type PreparedOrganizationWorkspace } from "../lib/organization/prepareOrganizationWorkspace";
-const PageActionTracker = lazy(() => import("../components/execution/ExecutionPages").then(m => ({ default: m.PageActionTracker })));
-const PageKpiTargets = lazy(() => import("../components/execution/ExecutionPages").then(m => ({ default: m.PageKpiTargets })));
-const PageApprovals = lazy(() => import("../components/governance/GovernancePages").then(m => ({ default: m.PageApprovals })));
-const PageEvidence = lazy(() => import("../components/governance/GovernancePages").then(m => ({ default: m.PageEvidence })));
-const PageModelAssurance = lazy(() => import("../components/governance/GovernancePages").then(m => ({ default: m.PageModelAssurance })));
-const PageOutcomes = lazy(() => import("../components/governance/GovernancePages").then(m => ({ default: m.PageOutcomes })));
-const PageAuditLog = lazy(() => import("../components/governance/GovernancePages").then(m => ({ default: m.PageAuditLog })));
-const PageTeamWorkspace = lazy(() => import("../components/team/TeamWorkspace").then(m => ({ default: m.PageTeamWorkspace })));
+const PageActionTracker = lazyWithReload(() => import("../components/execution/ExecutionPages").then(m => ({ default: m.PageActionTracker })));
+const PageKpiTargets = lazyWithReload(() => import("../components/execution/ExecutionPages").then(m => ({ default: m.PageKpiTargets })));
+const PageApprovals = lazyWithReload(() => import("../components/governance/GovernancePages").then(m => ({ default: m.PageApprovals })));
+const PageEvidence = lazyWithReload(() => import("../components/governance/GovernancePages").then(m => ({ default: m.PageEvidence })));
+const PageModelAssurance = lazyWithReload(() => import("../components/governance/GovernancePages").then(m => ({ default: m.PageModelAssurance })));
+const PageOutcomes = lazyWithReload(() => import("../components/governance/GovernancePages").then(m => ({ default: m.PageOutcomes })));
+const PageAuditLog = lazyWithReload(() => import("../components/governance/GovernancePages").then(m => ({ default: m.PageAuditLog })));
+const PageTeamWorkspace = lazyWithReload(() => import("../components/team/TeamWorkspace").then(m => ({ default: m.PageTeamWorkspace })));
 
 const fmtN = (n: number) => Math.round(n).toLocaleString('en-GB');
 
