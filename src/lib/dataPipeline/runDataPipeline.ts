@@ -82,8 +82,8 @@ export async function runDataPipeline(file: File, semanticOverrides: Partial<Rec
 
   /* 11. Decision engine — health, risks, recommendations + VDE v2 */
   const health = computeHealthScore(quality, statistics, ml);
-  const risks = detectRisks(engineeredRows, index, capabilities, statistics, quality, ml);
-  const recommendations = generateRecommendations(risks, capabilities, statistics, quality, ml);
+  const risks = detectRisks(engineeredRows, capabilities, statistics, quality, ml);
+  const recommendations = generateRecommendations(risks, statistics, quality, ml);
 
   const vde = buildVerdioDecisions({
     risks,

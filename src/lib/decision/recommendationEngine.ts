@@ -1,4 +1,4 @@
-import type { CapabilityReport, DataQualityReport } from "../../types/dataPipeline";
+import type { DataQualityReport } from "../../types/dataPipeline";
 import type { StatisticsResult } from "../../types/statistics";
 import type { MLResults } from "../../types/ml";
 import type { Risk, Recommendation } from "../../types/decision";
@@ -13,7 +13,6 @@ import { labelForMeasure } from "../labels";
 
 export function generateRecommendations(
   risks: Risk[],
-  capabilities: CapabilityReport,
   statistics: StatisticsResult,
   quality: DataQualityReport,
   ml: MLResults

@@ -6,7 +6,6 @@ import type { MLResults } from "../../types/ml";
 
 function quality(overallScore: number): DataQualityReport {
   return {
-    issues: [],
     overallScore,
     completenessScore: overallScore,
     validityScore: overallScore,

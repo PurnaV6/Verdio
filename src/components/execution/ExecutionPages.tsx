@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { CalendarDays, CheckCircle2, Circle, ClipboardCheck, Target, UserRound } from 'lucide-react';
 import type { PipelineResult } from '../../types/pipeline';
+import type { ModelSelection } from '../../lib/ml/modelManager';
 import type { EnrichedRecommendation } from '../../lib/decision/verdioDecisionEngine';
 import { useWorkspaceState } from '../../lib/workspace/useWorkspaceState';
 
@@ -41,7 +42,8 @@ export function PageActionTracker({ r }: { r: PipelineResult }) {
 export function PageKpiTargets({ r }: { r: PipelineResult }) {
   const defaults = useMemo<KpiTarget[]>(() => {
     const growth = Number(r.decision.health.pillars.find(item => /growth/i.test(item.name))?.score || 0);
-    const forecastConfidence = Math.round((r.ml.forecast.confidence || 0) * 100);
+    const modelMeta = (r as PipelineResult & { _modelMeta?: { forecast?: ModelSelection } })._modelMeta;
+    const forecastConfidence = Math.round((modelMeta?.forecast?.confidence || 0) * 100);
     return [
       { id: 'health', label: 'Business health', current: r.decision.health.total, target: Math.min(100, Math.max(75, r.decision.health.total + 10)), unit: '/100', direction: 'up' },
       { id: 'quality', label: 'Data quality', current: r.quality.overallScore, target: Math.min(100, Math.max(90, r.quality.overallScore + 5)), unit: '/100', direction: 'up' },
