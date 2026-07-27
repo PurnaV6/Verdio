@@ -46,7 +46,7 @@ const PageTeamWorkspace = lazy(() => import("../components/team/TeamWorkspace").
 const fmtN = (n: number) => Math.round(n).toLocaleString('en-GB');
 
 function BrandMark({ compact = false }: { compact?: boolean }) {
-  return <div className={`brand-mark ${compact ? 'h-9 w-9' : 'h-12 w-12'}`} aria-label="Verdio">
+  return <div className={`brand-mark ${compact ? 'h-9 w-9' : 'h-12 w-12'}`} aria-label="Verd.io">
     <svg viewBox="0 0 48 48" role="img" aria-hidden="true">
       <path className="brand-path" d="M10.5 13.5 22.8 34.5 36.5 10.5" />
       <path className="brand-decision" d="M22.8 34.5V24.2" />
@@ -124,8 +124,8 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
     <div className="onboarding-shell min-h-screen flex items-center justify-center p-4 md:p-8">
       <div className="onboarding-glow" />
       <div className="w-full max-w-[1040px] elevated-panel organization-review-shell rounded-[28px] p-6 md:p-9 relative">
-        <div className="organization-review-heading"><BrandMark compact /><div><div className="eyebrow mb-2"><span className="eyebrow-dot"/> CONNECTED BUSINESS INTELLIGENCE</div><h1>Build your organisational workspace</h1><p>Choose the source that should drive forecasts and executive KPIs, then confirm the governed relationships Verdio will use across supporting data.</p></div><span className="organization-count"><Files size={14}/>{organization.context.datasets.length} datasets ready</span></div>
-        <div className="primary-guidance"><Target size={18}/><div><strong>Which file should be primary?</strong><p>The primary source drives the main Business Intelligence, predictions, risks and decisions. Verdio recommends the sales file because it contains dated transactions, quantities and revenue. Stock and finance remain connected supporting sources.</p></div></div>
+        <div className="organization-review-heading"><BrandMark compact /><div><div className="eyebrow mb-2"><span className="eyebrow-dot"/> CONNECTED BUSINESS INTELLIGENCE</div><h1>Build your organisational workspace</h1><p>Choose the source that should drive forecasts and executive KPIs, then confirm the governed relationships Verd.io will use across supporting data.</p></div><span className="organization-count"><Files size={14}/>{organization.context.datasets.length} datasets ready</span></div>
+        <div className="primary-guidance"><Target size={18}/><div><strong>Which file should be primary?</strong><p>The primary source drives the main Business Intelligence, predictions, risks and decisions. Verd.io recommends the sales file because it contains dated transactions, quantities and revenue. Stock and finance remain connected supporting sources.</p></div></div>
         <div className="organization-datasets">
           {organization.context.datasets.map(dataset=>{const recommended=dataset.purpose==='sales';return <article key={dataset.id} className={dataset.primary?'is-primary':''}><div className="dataset-card-top"><div className="dataset-purpose"><Database size={16}/><span>{dataset.purpose}</span></div>{recommended&&<b>Recommended</b>}</div><strong>{dataset.fileName}</strong><p>{dataset.rowCount.toLocaleString()} rows · {dataset.columnCount} columns</p><small>{dataset.purpose==='sales'?'Best for revenue, forecasting and executive decisions':dataset.purpose==='inventory'?'Supports stock coverage and replenishment review':'Supports margin and financial reconciliation'}</small><label><input type="radio" name="primary-dataset" checked={dataset.primary} onChange={()=>setOrganization(current=>current?{...current,context:{...current.context,datasets:current.context.datasets.map(item=>({...item,primary:item.id===dataset.id}))}}:current)}/><span>{dataset.primary?'Selected as primary':'Use as primary source'}</span></label></article>})}
         </div>
@@ -140,7 +140,7 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
     <div className="onboarding-shell min-h-screen flex items-center justify-center p-4 md:p-8">
       <div className="onboarding-glow" />
       <div className="w-full max-w-[760px] elevated-panel rounded-[28px] p-6 md:p-9 relative">
-        <div className="flex items-start gap-4"><BrandMark compact /><div><div className="eyebrow mb-2"><span className="eyebrow-dot" /> DATA MAPPING</div><h1 className="text-2xl font-semibold tracking-tight text-slate-950">Confirm how Verdio should read your data</h1><p className="mt-2 text-sm text-slate-500">We detected these roles automatically. Correct anything that does not match your business before analysis.</p></div></div>
+        <div className="flex items-start gap-4"><BrandMark compact /><div><div className="eyebrow mb-2"><span className="eyebrow-dot" /> DATA MAPPING</div><h1 className="text-2xl font-semibold tracking-tight text-slate-950">Confirm how Verd.io should read your data</h1><p className="mt-2 text-sm text-slate-500">We detected these roles automatically. Correct anything that does not match your business before analysis.</p></div></div>
         <div className="mapping-list mt-6">
           {pending.result.semantics.columns.map(column => <div key={column.columnName} className="mapping-row">
             <div className="min-w-0"><strong>{column.columnName}</strong><span>{column.dataType} · {Math.round(column.confidence * 100)}% detected confidence</span></div>
@@ -159,7 +159,7 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
         <div className="mx-auto mb-6 flex justify-center"><BrandMark /></div>
         <div className="eyebrow justify-center mb-3"><span className="eyebrow-dot" /> NEW ANALYSIS</div>
         <h1 className="text-[30px] md:text-[36px] font-semibold tracking-[-0.04em] text-slate-950">Turn your data into decisions.</h1>
-        <p className="text-slate-500 text-[14px] leading-6 mt-3 mb-8 max-w-[470px] mx-auto">Upload one or more structured business datasets. Verdio will understand how they relate and surface the decisions that matter.</p>
+        <p className="text-slate-500 text-[14px] leading-6 mt-3 mb-8 max-w-[470px] mx-auto">Upload one or more structured business datasets. Verd.io will understand how they relate and surface the decisions that matter.</p>
         <div onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); handleFiles(Array.from(e.dataTransfer.files)); }} onClick={() => document.getElementById('fi')?.click()}
           className={`upload-zone cursor-pointer rounded-[20px] border p-8 md:p-10 transition-all ${dragging ? 'is-dragging' : ''}`}>
           <input id="fi" type="file" multiple accept=".csv,.xlsx,.xls,.tsv,.json" className="hidden" onChange={e => { handleFiles(Array.from(e.target.files || [])); e.target.value = ''; }} />
@@ -203,10 +203,10 @@ function Sidebar({ page, setPage, result, onReset, open, onClose }: { page: stri
   const groups = ['WORKSPACE', 'INTELLIGENCE', 'EXPLORE', 'DATA'];
   return (
     <><button aria-label="Close navigation" onClick={onClose} className={`mobile-scrim ${open ? 'is-open' : ''}`} /><aside className={`app-sidebar fixed left-0 top-0 h-screen w-[272px] flex flex-col z-50 ${open ? 'is-open' : ''}`}>
-      <div className="px-5 h-[72px] flex items-center border-b border-white/10">
+      <div className="px-5 h-[72px] flex items-center border-b border-slate-200">
         <div className="flex items-center gap-3">
           <BrandMark compact />
-          <div><div className="font-semibold text-white text-[15px] tracking-tight">Verdio</div><div className="text-[9px] text-slate-500 tracking-[0.16em] font-semibold">DECISION INTELLIGENCE</div></div>
+          <div><div className="font-semibold text-slate-950 text-[15px] tracking-tight">Verd.io</div><div className="text-[9px] text-slate-500 tracking-[0.16em] font-semibold">DECISION INTELLIGENCE</div></div>
         </div>
         <button aria-label="Close navigation" onClick={onClose} className="ml-auto text-slate-400 lg:hidden"><X size={19}/></button>
       </div>
@@ -219,10 +219,10 @@ function Sidebar({ page, setPage, result, onReset, open, onClose }: { page: stri
           </button>
         ))}</div>)}
       </nav>
-      <div className="p-3 border-t border-white/10">
+      <div className="p-3 border-t border-slate-200">
         <div className="sidebar-score rounded-[14px] p-3.5">
-          <div className="flex items-center justify-between"><p className="text-[9px] font-bold text-slate-500 tracking-[0.14em]">BUSINESS HEALTH</p><span className="text-xs font-semibold text-blue-300">{result.decision.health.total}/100</span></div>
-          <div className="mt-2.5 h-1 rounded-full bg-white/10 overflow-hidden"><div className="h-full rounded-full bg-blue-400" style={{ width: `${result.decision.health.total}%` }} /></div>
+          <div className="flex items-center justify-between"><p className="text-[9px] font-bold text-slate-500 tracking-[0.14em]">BUSINESS HEALTH</p><span className="text-xs font-semibold text-blue-700">{result.decision.health.total}/100</span></div>
+          <div className="mt-2.5 h-1 rounded-full bg-blue-100 overflow-hidden"><div className="h-full rounded-full bg-blue-500" style={{ width: `${result.decision.health.total}%` }} /></div>
           <p className="text-[10px] text-slate-500 mt-2">Data quality {result.quality.overallScore}/100</p>
         </div>
       </div>
@@ -332,11 +332,11 @@ function PageOverview({ r }: { r: PipelineResult }) {
           </div>
           <p className="executive-kicker">Today’s decision brief</p>
           <h2>{topRisk ? topRisk.title : 'Your business signals are ready to review.'}</h2>
-          <p className="executive-command-copy">Verdio reviewed {fmtN(r.source.rowCount)} records across {r.profile.columnCount} classified fields. {topRec ? `The recommended next move is to ${topRec.title.toLowerCase()}.` : 'No immediate intervention has been identified.'}</p>
+          <p className="executive-command-copy">Verd.io reviewed {fmtN(r.source.rowCount)} records across {r.profile.columnCount} classified fields. {topRec ? `The recommended next move is to ${topRec.title.toLowerCase()}.` : 'No immediate intervention has been identified.'}</p>
           <div className="executive-ai-brief">
             <span><BrainCircuit size={17}/></span>
             <div>
-              <div className="executive-ai-label">Verdio intelligence {r.aiLoading?<small>Generating</small>:<small className="is-ready">Ready</small>}</div>
+              <div className="executive-ai-label">Verd.io intelligence {r.aiLoading?<small>Generating</small>:<small className="is-ready">Ready</small>}</div>
               {r.aiLoading?<SkeletonBlock lines={2}/>:<p>{r.aiInsights?.executiveSummary || 'AI analysis will appear here when the executive summary is available.'}</p>}
             </div>
           </div>
@@ -460,7 +460,7 @@ function PageRecs({ r }: { r: PipelineResult }) {
   const vdeMeta = (r as any)._vdeMeta as VDEResult | undefined;
   return (
     <div className="space-y-4">
-      {vdeMeta && <div className="bg-indigo-900 rounded-[16px] p-5 text-white"><p className="text-[11px] tracking-widest opacity-70">VERDIO DECISION ENGINE v2 • FINANCIALLY RANKED</p><p className="text-sm mt-2 leading-6 opacity-90">{vdeMeta.summary}</p><div className="grid grid-cols-3 gap-3 mt-4"><div className="bg-white/10 rounded-xl p-3"><p className="text-[10px] opacity-60">VALUE AT RISK</p><p className="font-bold">£{vdeMeta.totalValueAtRisk?.toLocaleString()}</p></div><div className="bg-white/10 rounded-xl p-3"><p className="text-[10px] opacity-60">OPPORTUNITY</p><p className="font-bold text-amber-300">£{vdeMeta.totalOpportunityValue?.toLocaleString()}</p></div><div className="bg-white/10 rounded-xl p-3"><p className="text-[10px] opacity-60">ACTIONS</p><p className="font-bold">{recs.length}</p></div></div></div>}
+      {vdeMeta && <div className="bg-indigo-900 rounded-[16px] p-5 text-white"><p className="text-[11px] tracking-widest opacity-70">VERD.IO DECISION ENGINE v2 • FINANCIALLY RANKED</p><p className="text-sm mt-2 leading-6 opacity-90">{vdeMeta.summary}</p><div className="grid grid-cols-3 gap-3 mt-4"><div className="bg-white/10 rounded-xl p-3"><p className="text-[10px] opacity-60">VALUE AT RISK</p><p className="font-bold">£{vdeMeta.totalValueAtRisk?.toLocaleString()}</p></div><div className="bg-white/10 rounded-xl p-3"><p className="text-[10px] opacity-60">OPPORTUNITY</p><p className="font-bold text-amber-300">£{vdeMeta.totalOpportunityValue?.toLocaleString()}</p></div><div className="bg-white/10 rounded-xl p-3"><p className="text-[10px] opacity-60">ACTIONS</p><p className="font-bold">{recs.length}</p></div></div></div>}
       <div className="space-y-3">{recs.map((rec,i)=>{ const ai=findRecommendation(r.aiInsights, rec.title, i); return <article key={i} className="decision-evidence-card"><div className="flex gap-3"><div className="w-8 h-8 rounded-full bg-indigo-900 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">{i+1}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-bold text-[13px] text-slate-900">{rec.title}</p><span className="evidence-confidence">{Math.round(rec.confidence*100)}% confidence</span></div>{r.aiLoading?<SkeletonLine width="70%"/>:ai?<p className="text-xs text-slate-600 mt-1 leading-5">{ai.action}</p>:<p className="text-xs text-slate-500 mt-1 leading-5">{rec.desc}</p>}</div></div>{rec.financialImpact && <div className="evidence-grid"><div><span>Estimated impact</span><strong>£{rec.financialImpact.estimatedValue.toLocaleString()}</strong><small>Range £{rec.financialImpact.rangeLow.toLocaleString()}–£{rec.financialImpact.rangeHigh.toLocaleString()}</small></div><div><span>Calculation basis</span><p>{rec.financialImpact.basis}</p></div><div><span>Supporting data</span><p>{rec.sourceColumns.length ? rec.sourceColumns.join(', ') : 'Business-wide operating baseline'}</p></div></div>}<details className="evidence-details"><summary>View assumptions and decision evidence</summary><div><p><b>Priority:</b> {rec.priorityScore}/100 · <b>Urgency:</b> {rec.urgency.replace('_',' ')} · <b>Estimated effort:</b> {rec.effortDays} days</p><p>Confidence combines data completeness, validity and the quality of the source columns. Financial impact is an indicative planning range, not a guaranteed outcome.</p></div></details></article>; })}</div>
     </div>
   );
@@ -485,13 +485,13 @@ function PageGovernanceHub({ r }: { r: PipelineResult }) {
 }
 
 function PageAdvisor({ r }: { r: PipelineResult }) {
-  const [messages, setMessages] = useState<{ role: 'ai' | 'user'; text?: string; charts?: ChartSpec[]; sources?: string[] }[]>([{ role: 'ai', text: `Full analysis loaded — ${r.source.rowCount} rows, ${r.analyses.length} charts, health ${r.decision.health.total}/100. Choose a decision task below or ask a specific question.`, sources: [r.source.fileName, 'Verdio decision engine'] }]);
+  const [messages, setMessages] = useState<{ role: 'ai' | 'user'; text?: string; charts?: ChartSpec[]; sources?: string[] }[]>([{ role: 'ai', text: `Full analysis loaded — ${r.source.rowCount} rows, ${r.analyses.length} charts, health ${r.decision.health.total}/100. Choose a decision task below or ask a specific question.`, sources: [r.source.fileName, 'Verd.io decision engine'] }]);
   const [input, setInput] = useState(''); const [loading, setLoading] = useState(false); const PROXY = '/api/chat'; const context = buildAdvisorContext(r);
   const quickActions = ['Explain the highest risk', 'Create a 30-day action plan', 'Compare recent performance', 'Summarise for the board'];
   async function send(prompt?: string) {
     const userMsg = (prompt || input).trim(); if (!userMsg) return; setInput(''); setMessages(m => [...m, { role: 'user', text: userMsg }]); setLoading(true);
     try {
-      const groundedPrompt = `${userMsg}\n\nUse only the supplied Verdio analysis. State the supporting metric or analysis and finish with a concrete next action. Add [CHART:analysis_id] when a chart supports the answer.`;
+      const groundedPrompt = `${userMsg}\n\nUse only the supplied Verd.io analysis. State the supporting metric or analysis and finish with a concrete next action. Add [CHART:analysis_id] when a chart supports the answer.`;
       const res = await fetch(PROXY, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: [{ role: 'system', content: context }, { role: 'user', content: groundedPrompt }], max_tokens: 700 }) });
       const data = await res.json(); const txt = data.choices?.[0]?.message?.content; if (!txt) throw new Error('empty');
       const { cleanText, charts } = parseChartTagsFromAI(txt, r); setMessages(m => [...m, { role: 'ai', text: cleanText, charts, sources: [r.source.fileName, ...charts.map(c=>c.title || 'Supporting analysis')] }]);

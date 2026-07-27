@@ -1,5 +1,5 @@
 /* ================================================================
-   VERDIO — Password Auth Gate (replaces magic link)
+   VERD.IO — Password Auth Gate (replaces magic link)
    Features: Email + Password Sign in / Sign up, mandatory before upload
    Drop in: src/lib/auth/AuthContext.tsx (overwrite)
    ================================================================ */
@@ -103,7 +103,7 @@ export function PasswordGateScreen() {
           <div className="mx-auto mb-6 h-12 w-12 rounded-[13px] bg-[#0a66c2] flex items-center justify-center shadow-[0_8px_24px_rgba(10,102,194,.25)]">
             <span className="text-white font-black text-lg">V</span>
           </div>
-          <p className="text-[9px] font-bold tracking-[.18em] text-blue-700 mb-2">VERDIO DECISION INTELLIGENCE</p>
+          <p className="text-[9px] font-bold tracking-[.18em] text-blue-700 mb-2">VERD.IO DECISION INTELLIGENCE</p>
           <h1 className="text-[27px] font-semibold tracking-[-.04em] text-[#102a43]">{mode === 'signin' ? 'Welcome back' : 'Create your workspace'}</h1>
           <p className="text-sm text-slate-500 mt-2 leading-6">{mode === 'signin' ? 'Sign in to continue to your executive workspace.' : 'Turn your business data into prioritised decisions.'}</p>
         </div>
