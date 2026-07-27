@@ -1,3 +1,4 @@
 {
-  "crons": [{ "path": "/api/scheduled-reports", "schedule": "0 8 * * *" }]
+  "crons": [{ "path": "/api/scheduled-reports", "schedule": "0 8 * * *" }],
+  "rewrites": [{ "source": "/app", "destination": "/index.html" }]
 }

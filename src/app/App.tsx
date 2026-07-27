@@ -558,6 +558,7 @@ export default function App() {
     if(params.get('demo')==='1')return 'demo';
     if(params.get('auth')==='signup')return 'signup';
     if(params.get('auth')==='signin')return 'signin';
+    if(params.has('invite') || window.location.pathname.startsWith('/app'))return 'signin';
     return 'landing';
   });
   const [demoLoading,setDemoLoading]=useState(false);
@@ -565,7 +566,7 @@ export default function App() {
   const access=useOrganizationAccess();
   const reset = useCallback(() => {
     setResult(null); setPage('overview'); setCurrentProjectId(null);
-    if(publicMode==='demo'){setPublicMode('landing');window.history.replaceState({},'',window.location.pathname);}
+    if(publicMode==='demo'){setPublicMode('landing');window.history.replaceState({},'','/');}
   }, [publicMode]);
   const currentProjectIdRef = useRef(currentProjectId);
   useEffect(() => { currentProjectIdRef.current = currentProjectId; }, [currentProjectId]);
@@ -576,22 +577,24 @@ export default function App() {
   const setPublicView=(mode:'landing'|'signin'|'signup')=>{
     if(publicMode==='demo'){setResult(null);setPage('overview')}
     setPublicMode(mode);
-    const query=mode==='landing'?'':`?auth=${mode}`;
-    window.history.replaceState({},'',`${window.location.pathname}${query}`);
+    const destination=mode==='landing'?'/':`/app?auth=${mode}`;
+    window.history.replaceState({},'',destination);
   };
   const openDemo=async()=>{
     setDemoLoading(true);
     setPublicMode('demo');
-    window.history.replaceState({},'','?demo=1');
+    window.history.replaceState({},'','/app?demo=1');
     try {
       const outcome=await runDataPipeline(createSampleBusinessFile());
       if(outcome.ok){setResult(outcome.result);setPage('overview')}
-      else {setPublicMode('landing');window.history.replaceState({},'',window.location.pathname)}
+      else {setPublicMode('landing');window.history.replaceState({},'','/')}
     } finally {
       setDemoLoading(false);
     }
   };
-  if (!user && publicMode==='landing') return <LandingPage onDemo={()=>void openDemo()} onLogin={()=>setPublicView('signin')} onSignup={()=>setPublicView('signup')}/>;
+  const isPublicHomepage=window.location.pathname==='/' && publicMode==='landing';
+  if (isPublicHomepage) return <LandingPage onDemo={()=>void openDemo()} onLogin={()=>setPublicView('signin')} onSignup={()=>setPublicView('signup')}/>;
+  if (!user && publicMode==='landing') return <PasswordGateScreen onBack={()=>setPublicView('landing')}/>;
   if (!user && (publicMode==='signin'||publicMode==='signup')) return <PasswordGateScreen initialMode={publicMode} onBack={()=>setPublicView('landing')}/>;
   if (!user && publicMode==='demo' && demoLoading) return <div className="public-demo-loading"><div className="h-9 w-9 border-2 border-slate-200 border-t-blue-600 rounded-full animate-spin"/><p>Preparing the Verd.io live demo…</p></div>;
   if (!result && access.role==='viewer') return <ViewerWorkspaceLanding message={inviteMessage} onOpen={project=>{void recordProjectOpened(project);setResult(project.result);setCurrentProjectId(project.id)}}/>;
