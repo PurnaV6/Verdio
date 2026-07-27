@@ -46,7 +46,7 @@ const PageTeamWorkspace = lazy(() => import("../components/team/TeamWorkspace").
 const fmtN = (n: number) => Math.round(n).toLocaleString('en-GB');
 
 function BrandMark({ compact = false }: { compact?: boolean }) {
-  return <div className={`brand-mark ${compact ? 'h-9 w-9' : 'h-12 w-12'}`} aria-label="Verdio">
+  return <div className={`brand-mark ${compact ? 'h-9 w-9' : 'h-12 w-12'}`} aria-label="Verd.io">
     <svg viewBox="0 0 48 48" role="img" aria-hidden="true">
       <path className="brand-path" d="M10.5 13.5 22.8 34.5 36.5 10.5" />
       <path className="brand-decision" d="M22.8 34.5V24.2" />
@@ -124,8 +124,8 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
     <div className="onboarding-shell min-h-screen flex items-center justify-center p-4 md:p-8">
       <div className="onboarding-glow" />
       <div className="w-full max-w-[1040px] elevated-panel organization-review-shell rounded-[28px] p-6 md:p-9 relative">
-        <div className="organization-review-heading"><BrandMark compact /><div><div className="eyebrow mb-2"><span className="eyebrow-dot"/> CONNECTED BUSINESS INTELLIGENCE</div><h1>Build your organisational workspace</h1><p>Choose the source that should drive forecasts and executive KPIs, then confirm the governed relationships Verdio will use across supporting data.</p></div><span className="organization-count"><Files size={14}/>{organization.context.datasets.length} datasets ready</span></div>
-        <div className="primary-guidance"><Target size={18}/><div><strong>Which file should be primary?</strong><p>The primary source drives the main Business Intelligence, predictions, risks and decisions. Verdio recommends the sales file because it contains dated transactions, quantities and revenue. Stock and finance remain connected supporting sources.</p></div></div>
+        <div className="organization-review-heading"><BrandMark compact /><div><div className="eyebrow mb-2"><span className="eyebrow-dot"/> CONNECTED BUSINESS INTELLIGENCE</div><h1>Build your organisational workspace</h1><p>Choose the source that should drive forecasts and executive KPIs, then confirm the governed relationships Verd.io will use across supporting data.</p></div><span className="organization-count"><Files size={14}/>{organization.context.datasets.length} datasets ready</span></div>
+        <div className="primary-guidance"><Target size={18}/><div><strong>Which file should be primary?</strong><p>The primary source drives the main Business Intelligence, predictions, risks and decisions. Verd.io recommends the sales file because it contains dated transactions, quantities and revenue. Stock and finance remain connected supporting sources.</p></div></div>
         <div className="organization-datasets">
           {organization.context.datasets.map(dataset=>{const recommended=dataset.purpose==='sales';return <article key={dataset.id} className={dataset.primary?'is-primary':''}><div className="dataset-card-top"><div className="dataset-purpose"><Database size={16}/><span>{dataset.purpose}</span></div>{recommended&&<b>Recommended</b>}</div><strong>{dataset.fileName}</strong><p>{dataset.rowCount.toLocaleString()} rows · {dataset.columnCount} columns</p><small>{dataset.purpose==='sales'?'Best for revenue, forecasting and executive decisions':dataset.purpose==='inventory'?'Supports stock coverage and replenishment review':'Supports margin and financial reconciliation'}</small><label><input type="radio" name="primary-dataset" checked={dataset.primary} onChange={()=>setOrganization(current=>current?{...current,context:{...current.context,datasets:current.context.datasets.map(item=>({...item,primary:item.id===dataset.id}))}}:current)}/><span>{dataset.primary?'Selected as primary':'Use as primary source'}</span></label></article>})}
         </div>
@@ -140,7 +140,7 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
     <div className="onboarding-shell min-h-screen flex items-center justify-center p-4 md:p-8">
       <div className="onboarding-glow" />
       <div className="w-full max-w-[760px] elevated-panel rounded-[28px] p-6 md:p-9 relative">
-        <div className="flex items-start gap-4"><BrandMark compact /><div><div className="eyebrow mb-2"><span className="eyebrow-dot" /> DATA MAPPING</div><h1 className="text-2xl font-semibold tracking-tight text-slate-950">Confirm how Verdio should read your data</h1><p className="mt-2 text-sm text-slate-500">We detected these roles automatically. Correct anything that does not match your business before analysis.</p></div></div>
+        <div className="flex items-start gap-4"><BrandMark compact /><div><div className="eyebrow mb-2"><span className="eyebrow-dot" /> DATA MAPPING</div><h1 className="text-2xl font-semibold tracking-tight text-slate-950">Confirm how Verd.io should read your data</h1><p className="mt-2 text-sm text-slate-500">We detected these roles automatically. Correct anything that does not match your business before analysis.</p></div></div>
         <div className="mapping-list mt-6">
           {pending.result.semantics.columns.map(column => <div key={column.columnName} className="mapping-row">
             <div className="min-w-0"><strong>{column.columnName}</strong><span>{column.dataType} · {Math.round(column.confidence * 100)}% detected confidence</span></div>
@@ -159,11 +159,11 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
         <div className="mx-auto mb-6 flex justify-center"><BrandMark /></div>
         <div className="eyebrow justify-center mb-3"><span className="eyebrow-dot" /> NEW ANALYSIS</div>
         <h1 className="text-[30px] md:text-[36px] font-semibold tracking-[-0.04em] text-slate-950">Turn your data into decisions.</h1>
-        <p className="text-slate-500 text-[14px] leading-6 mt-3 mb-8 max-w-[470px] mx-auto">Upload one or more structured business datasets. Verdio will understand how they relate and surface the decisions that matter.</p>
+        <p className="text-slate-500 text-[14px] leading-6 mt-3 mb-8 max-w-[470px] mx-auto">Upload one or more structured business datasets. Verd.io will understand how they relate and surface the decisions that matter.</p>
         <div onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); handleFiles(Array.from(e.dataTransfer.files)); }} onClick={() => document.getElementById('fi')?.click()}
           className={`upload-zone cursor-pointer rounded-[20px] border p-8 md:p-10 transition-all ${dragging ? 'is-dragging' : ''}`}>
           <input id="fi" type="file" multiple accept=".csv,.xlsx,.xls,.tsv,.json" className="hidden" onChange={e => { handleFiles(Array.from(e.target.files || [])); e.target.value = ''; }} />
-          {loading ? <div className="flex flex-col items-center gap-3"><div className="h-9 w-9 border-2 border-slate-200 border-t-emerald-600 rounded-full animate-spin" /><p className="text-sm text-slate-700 font-medium">{stage}</p><p className="text-xs text-slate-400">This usually takes less than a minute.</p></div> :
+          {loading ? <div className="flex flex-col items-center gap-3"><div className="h-9 w-9 border-2 border-slate-200 border-t-blue-600 rounded-full animate-spin" /><p className="text-sm text-slate-700 font-medium">{stage}</p><p className="text-xs text-slate-400">This usually takes less than a minute.</p></div> :
             <><div className="upload-icon mx-auto mb-4"><UploadCloud size={22}/></div><p className="font-semibold text-slate-950 text-sm">Drop one or multiple business datasets here</p><p className="mt-1.5 text-[12px] text-slate-500">Sales, stock, customers, products or finance · CSV, XLSX, XLS, TSV, JSON</p><p className="mt-4 text-[10px] text-slate-400 font-semibold tracking-[0.12em]">YOUR DATA REMAINS PRIVATE</p></>}
         </div>
         {error && <div className="mt-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>}
@@ -203,26 +203,26 @@ function Sidebar({ page, setPage, result, onReset, open, onClose }: { page: stri
   const groups = ['WORKSPACE', 'INTELLIGENCE', 'EXPLORE', 'DATA'];
   return (
     <><button aria-label="Close navigation" onClick={onClose} className={`mobile-scrim ${open ? 'is-open' : ''}`} /><aside className={`app-sidebar fixed left-0 top-0 h-screen w-[272px] flex flex-col z-50 ${open ? 'is-open' : ''}`}>
-      <div className="px-5 h-[72px] flex items-center border-b border-white/10">
+      <div className="px-5 h-[72px] flex items-center border-b border-slate-200">
         <div className="flex items-center gap-3">
           <BrandMark compact />
-          <div><div className="font-semibold text-white text-[15px] tracking-tight">Verdio</div><div className="text-[9px] text-slate-500 tracking-[0.16em] font-semibold">DECISION INTELLIGENCE</div></div>
+          <div><div className="font-semibold text-slate-950 text-[15px] tracking-tight">Verd.io</div><div className="text-[9px] text-slate-500 tracking-[0.16em] font-semibold">DECISION INTELLIGENCE</div></div>
         </div>
         <button aria-label="Close navigation" onClick={onClose} className="ml-auto text-slate-400 lg:hidden"><X size={19}/></button>
       </div>
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
         {groups.map(group => <div key={group} className="mb-4"><p className="px-3 mb-1.5 text-[9px] tracking-[0.18em] font-bold text-slate-600">{group}</p>{PAGES.filter(p=>p.group===group).map(({ id, label, icon: Icon, badge }) => (
           <button key={id} onClick={() => { setPage(id); onClose(); }} className={`nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-[12px] font-medium text-left ${page === id ? 'is-active' : ''}`}>
-            <Icon size={16} />
+            <span className="nav-icon"><Icon size={15} strokeWidth={1.8}/></span>
             <span className="flex-1">{label}</span>
-            {badge && <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-400/15 text-emerald-300 font-bold">{badge}</span>}
+            {badge && <span className="nav-badge">{badge}</span>}
           </button>
         ))}</div>)}
       </nav>
-      <div className="p-3 border-t border-white/10">
+      <div className="p-3 border-t border-slate-200">
         <div className="sidebar-score rounded-[14px] p-3.5">
-          <div className="flex items-center justify-between"><p className="text-[9px] font-bold text-slate-500 tracking-[0.14em]">BUSINESS HEALTH</p><span className="text-xs font-semibold text-emerald-300">{result.decision.health.total}/100</span></div>
-          <div className="mt-2.5 h-1 rounded-full bg-white/10 overflow-hidden"><div className="h-full rounded-full bg-emerald-400" style={{ width: `${result.decision.health.total}%` }} /></div>
+          <div className="flex items-center justify-between"><p className="text-[9px] font-bold text-slate-500 tracking-[0.14em]">BUSINESS HEALTH</p><span className="text-xs font-semibold text-blue-700">{result.decision.health.total}/100</span></div>
+          <div className="mt-2.5 h-1 rounded-full bg-blue-100 overflow-hidden"><div className="h-full rounded-full bg-blue-500" style={{ width: `${result.decision.health.total}%` }} /></div>
           <p className="text-[10px] text-slate-500 mt-2">Data quality {result.quality.overallScore}/100</p>
         </div>
       </div>
@@ -232,7 +232,7 @@ function Sidebar({ page, setPage, result, onReset, open, onClose }: { page: stri
 }
 
 function MetricCard({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'green' | 'red' | 'amber' }) {
-  const toneCls = tone === 'red' ? 'bg-red-50 text-red-700 border-red-200' : tone === 'amber' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+  const toneCls = tone === 'red' ? 'bg-red-50 text-red-700 border-red-200' : tone === 'amber' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-blue-50 text-blue-700 border-blue-200';
   return (
     <div className="rounded-[14px] bg-white border border-slate-200 p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
       <p className="text-[10px] font-bold tracking-widest text-slate-500 uppercase">{label}</p>
@@ -307,35 +307,69 @@ function ExecutiveSignals({ result }: { result: PipelineResult }) {
 
 function PageOverview({ r }: { r: PipelineResult }) {
   const h = r.decision.health.total; const topRisk = r.decision.risks[0]; const topRec = r.decision.recommendations[0];
-  const [greeting,setGreeting]=useState(getTimeGreeting);
-  useEffect(()=>{const timer=window.setInterval(()=>setGreeting(getTimeGreeting()),60_000);return()=>window.clearInterval(timer)},[]);
+  const [now,setNow]=useState(()=>new Date());
+  useEffect(()=>{const timer=window.setInterval(()=>setNow(new Date()),60_000);return()=>window.clearInterval(timer)},[]);
+  const greeting=getTimeGreeting(now);
+  const dateLabel=new Intl.DateTimeFormat(undefined,{weekday:'long',day:'numeric',month:'long'}).format(now);
+  const healthLabel=h>=80?'Strong':h>=60?'Monitored':'Needs attention';
+  const qualityLabel=r.quality.overallScore>=80?'Decision ready':r.quality.overallScore>=60?'Review advised':'Remediation needed';
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-1"><div><div className="eyebrow"><span className="eyebrow-dot"/> LIVE EXECUTIVE BRIEF</div><h1 className="page-title mt-2">{greeting}. Here’s what matters.</h1><p className="text-[13px] text-slate-500 mt-1">Verdio has prioritised the strongest signals in your latest data.</p></div><button className="secondary-button">View methodology <ArrowUpRight size={13}/></button></div>
-      <div className="executive-hero rounded-[22px] p-5 md:p-7 relative overflow-hidden">
-        <div className="flex flex-col md:flex-row items-start justify-between gap-6">
-          <div className="flex-1">
-            <span className={`status-pill ${h >= 80 ? 'is-good' : h >= 60 ? 'is-watch' : 'is-risk'}`}><i/>{h >= 80 ? 'Healthy and stable' : h >= 60 ? 'Performing with risks' : 'Attention required'}</span>
-            <h2 className="text-[22px] md:text-[28px] font-semibold tracking-[-0.035em] text-white leading-tight mt-4 mb-3 max-w-2xl">{topRisk ? `${topRisk.title} requires your attention.` : 'Your business signals are ready to review.'}</h2>
-            <p className="text-slate-400 text-[13px] leading-6 max-w-2xl">Verdio analysed {fmtN(r.source.rowCount)} rows across {r.profile.columnCount} columns. {topRec ? `The highest-priority action is ${topRec.title.toLowerCase()}.` : 'Your executive brief is ready.'}</p>
-          </div>
-          <div className="health-ring" style={{'--score': `${h * 3.6}deg`} as React.CSSProperties}><div><strong>{h}</strong><span>HEALTH</span></div></div>
+    <div className="executive-overview">
+      <header className="executive-heading">
+        <div>
+          <div className="eyebrow"><span className="eyebrow-dot"/> EXECUTIVE WORKSPACE</div>
+          <h1>{greeting}<span>.</span></h1>
+          <p>{dateLabel} · Your latest organisational signals are ready for review.</p>
         </div>
-      </div>
-      <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm">
-        <div className="flex items-center gap-2 mb-3"><Brain size={16} className="text-indigo-700" /><p className="text-[11px] font-bold tracking-widest text-slate-500">AI EXECUTIVE SUMMARY</p>{r.aiLoading ? <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">Generating</span> : <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">AI Generated</span>}</div>
-        {r.aiLoading ? <SkeletonBlock lines={3} /> : <p className="text-[13px] text-slate-600 leading-6">{r.aiInsights?.executiveSummary}</p>}
-      </div>
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-        <MetricCard label="Rows Analysed" value={fmtN(r.source.rowCount)} sub={`${r.profile.columnCount} columns`} />
-        <MetricCard label="Data Quality" value={`${r.quality.overallScore}/100`} sub={r.quality.overallScore >= 80 ? 'Excellent' : 'Good'} tone={r.quality.overallScore >= 80 ? 'green' : r.quality.overallScore >= 60 ? 'amber' : 'red'} />
-        <MetricCard label="Analyses Available" value={`${r.capabilities.available.length}/${r.capabilities.capabilities.length}`} sub="Capability-gated" />
-        <MetricCard label="Health Score" value={`${h}/100`} sub={h >= 80 ? 'Strong' : 'Moderate'} tone={h >= 80 ? 'green' : h >= 60 ? 'amber' : 'red'} />
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm border-l-4 border-l-indigo-900"><p className="text-[10px] font-bold tracking-widest text-indigo-900 mb-1">TOP PRIORITY</p><p className="font-bold text-slate-900 text-[14px] leading-snug">{topRec?.title || 'No recommendations'}</p><p className="text-xs text-slate-500 leading-5 mt-2">{topRec?.desc}</p></div>
-        <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm border-l-4 border-l-amber-500"><p className="text-[10px] font-bold tracking-widest text-amber-600 mb-1">HIGHEST RISK</p><p className="font-bold text-slate-900 text-[14px] leading-snug">{topRisk?.title || 'No critical risk'}</p><p className="text-xs text-slate-500 leading-5 mt-2">{topRisk?.desc}</p></div>
-      </div>
+        <button className="executive-methodology">Decision methodology <ArrowUpRight size={14}/></button>
+      </header>
+
+      <section className="executive-command-card">
+        <div className="executive-command-main">
+          <div className="executive-command-meta">
+            <span className={`status-pill ${h >= 80 ? 'is-good' : h >= 60 ? 'is-watch' : 'is-risk'}`}><i/>{h >= 80 ? 'Business performing strongly' : h >= 60 ? 'Performance requires monitoring' : 'Management attention required'}</span>
+            <span className="analysis-freshness"><Activity size={12}/> Live analysis</span>
+          </div>
+          <p className="executive-kicker">Today’s decision brief</p>
+          <h2>{topRisk ? topRisk.title : 'Your business signals are ready to review.'}</h2>
+          <p className="executive-command-copy">Verd.io reviewed {fmtN(r.source.rowCount)} records across {r.profile.columnCount} classified fields. {topRec ? `The recommended next move is to ${topRec.title.toLowerCase()}.` : 'No immediate intervention has been identified.'}</p>
+          <div className="executive-ai-brief">
+            <span><BrainCircuit size={17}/></span>
+            <div>
+              <div className="executive-ai-label">Verd.io intelligence {r.aiLoading?<small>Generating</small>:<small className="is-ready">Ready</small>}</div>
+              {r.aiLoading?<SkeletonBlock lines={2}/>:<p>{r.aiInsights?.executiveSummary || 'AI analysis will appear here when the executive summary is available.'}</p>}
+            </div>
+          </div>
+        </div>
+        <aside className="executive-health">
+          <div className="health-ring" style={{'--score': `${h * 3.6}deg`} as React.CSSProperties}><div><strong>{h}</strong><span>OUT OF 100</span></div></div>
+          <p>Business health</p>
+          <strong>{healthLabel}</strong>
+          <small>Combined operational, quality and risk assessment</small>
+        </aside>
+      </section>
+
+      <section className="executive-kpis" aria-label="Executive key performance indicators">
+        <article><span className="executive-kpi-icon"><Database size={16}/></span><div><p>Records assessed</p><strong>{fmtN(r.source.rowCount)}</strong><small>{r.profile.columnCount} classified fields</small></div></article>
+        <article><span className="executive-kpi-icon"><ShieldCheck size={16}/></span><div><p>Data confidence</p><strong>{r.quality.overallScore}<em>/100</em></strong><small>{qualityLabel}</small></div></article>
+        <article><span className="executive-kpi-icon"><BarChart3 size={16}/></span><div><p>Analytical coverage</p><strong>{r.capabilities.available.length}<em>/{r.capabilities.capabilities.length}</em></strong><small>Models currently available</small></div></article>
+        <article><span className="executive-kpi-icon"><Gauge size={16}/></span><div><p>Business health</p><strong>{h}<em>/100</em></strong><small>{healthLabel}</small></div></article>
+      </section>
+
+      <section className="executive-decisions">
+        <article className="executive-decision-card is-priority">
+          <div className="decision-card-heading"><span><Target size={16}/></span><p>Recommended action</p><em>Priority 01</em></div>
+          <h3>{topRec?.title || 'No immediate recommendation'}</h3>
+          <p>{topRec?.desc || 'Continue monitoring the current business signals.'}</p>
+          <footer><span>Next best action</span><ArrowUpRight size={15}/></footer>
+        </article>
+        <article className="executive-decision-card is-risk">
+          <div className="decision-card-heading"><span><ShieldAlert size={16}/></span><p>Risk requiring attention</p><em>Monitor</em></div>
+          <h3>{topRisk?.title || 'No material risk identified'}</h3>
+          <p>{topRisk?.desc || 'No critical risk is currently affecting the executive assessment.'}</p>
+          <footer><span>Review supporting evidence</span><ArrowUpRight size={15}/></footer>
+        </article>
+      </section>
       <ExecutiveSignals result={r} />
     </div>
   );
@@ -426,7 +460,7 @@ function PageRecs({ r }: { r: PipelineResult }) {
   const vdeMeta = (r as any)._vdeMeta as VDEResult | undefined;
   return (
     <div className="space-y-4">
-      {vdeMeta && <div className="bg-indigo-900 rounded-[16px] p-5 text-white"><p className="text-[11px] tracking-widest opacity-70">VERDIO DECISION ENGINE v2 • FINANCIALLY RANKED</p><p className="text-sm mt-2 leading-6 opacity-90">{vdeMeta.summary}</p><div className="grid grid-cols-3 gap-3 mt-4"><div className="bg-white/10 rounded-xl p-3"><p className="text-[10px] opacity-60">VALUE AT RISK</p><p className="font-bold">£{vdeMeta.totalValueAtRisk?.toLocaleString()}</p></div><div className="bg-white/10 rounded-xl p-3"><p className="text-[10px] opacity-60">OPPORTUNITY</p><p className="font-bold text-amber-300">£{vdeMeta.totalOpportunityValue?.toLocaleString()}</p></div><div className="bg-white/10 rounded-xl p-3"><p className="text-[10px] opacity-60">ACTIONS</p><p className="font-bold">{recs.length}</p></div></div></div>}
+      {vdeMeta && <div className="bg-indigo-900 rounded-[16px] p-5 text-white"><p className="text-[11px] tracking-widest opacity-70">VERD.IO DECISION ENGINE v2 • FINANCIALLY RANKED</p><p className="text-sm mt-2 leading-6 opacity-90">{vdeMeta.summary}</p><div className="grid grid-cols-3 gap-3 mt-4"><div className="bg-white/10 rounded-xl p-3"><p className="text-[10px] opacity-60">VALUE AT RISK</p><p className="font-bold">£{vdeMeta.totalValueAtRisk?.toLocaleString()}</p></div><div className="bg-white/10 rounded-xl p-3"><p className="text-[10px] opacity-60">OPPORTUNITY</p><p className="font-bold text-amber-300">£{vdeMeta.totalOpportunityValue?.toLocaleString()}</p></div><div className="bg-white/10 rounded-xl p-3"><p className="text-[10px] opacity-60">ACTIONS</p><p className="font-bold">{recs.length}</p></div></div></div>}
       <div className="space-y-3">{recs.map((rec,i)=>{ const ai=findRecommendation(r.aiInsights, rec.title, i); return <article key={i} className="decision-evidence-card"><div className="flex gap-3"><div className="w-8 h-8 rounded-full bg-indigo-900 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">{i+1}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-bold text-[13px] text-slate-900">{rec.title}</p><span className="evidence-confidence">{Math.round(rec.confidence*100)}% confidence</span></div>{r.aiLoading?<SkeletonLine width="70%"/>:ai?<p className="text-xs text-slate-600 mt-1 leading-5">{ai.action}</p>:<p className="text-xs text-slate-500 mt-1 leading-5">{rec.desc}</p>}</div></div>{rec.financialImpact && <div className="evidence-grid"><div><span>Estimated impact</span><strong>£{rec.financialImpact.estimatedValue.toLocaleString()}</strong><small>Range £{rec.financialImpact.rangeLow.toLocaleString()}–£{rec.financialImpact.rangeHigh.toLocaleString()}</small></div><div><span>Calculation basis</span><p>{rec.financialImpact.basis}</p></div><div><span>Supporting data</span><p>{rec.sourceColumns.length ? rec.sourceColumns.join(', ') : 'Business-wide operating baseline'}</p></div></div>}<details className="evidence-details"><summary>View assumptions and decision evidence</summary><div><p><b>Priority:</b> {rec.priorityScore}/100 · <b>Urgency:</b> {rec.urgency.replace('_',' ')} · <b>Estimated effort:</b> {rec.effortDays} days</p><p>Confidence combines data completeness, validity and the quality of the source columns. Financial impact is an indicative planning range, not a guaranteed outcome.</p></div></details></article>; })}</div>
     </div>
   );
@@ -451,13 +485,13 @@ function PageGovernanceHub({ r }: { r: PipelineResult }) {
 }
 
 function PageAdvisor({ r }: { r: PipelineResult }) {
-  const [messages, setMessages] = useState<{ role: 'ai' | 'user'; text?: string; charts?: ChartSpec[]; sources?: string[] }[]>([{ role: 'ai', text: `Full analysis loaded — ${r.source.rowCount} rows, ${r.analyses.length} charts, health ${r.decision.health.total}/100. Choose a decision task below or ask a specific question.`, sources: [r.source.fileName, 'Verdio decision engine'] }]);
+  const [messages, setMessages] = useState<{ role: 'ai' | 'user'; text?: string; charts?: ChartSpec[]; sources?: string[] }[]>([{ role: 'ai', text: `Full analysis loaded — ${r.source.rowCount} rows, ${r.analyses.length} charts, health ${r.decision.health.total}/100. Choose a decision task below or ask a specific question.`, sources: [r.source.fileName, 'Verd.io decision engine'] }]);
   const [input, setInput] = useState(''); const [loading, setLoading] = useState(false); const PROXY = '/api/chat'; const context = buildAdvisorContext(r);
   const quickActions = ['Explain the highest risk', 'Create a 30-day action plan', 'Compare recent performance', 'Summarise for the board'];
   async function send(prompt?: string) {
     const userMsg = (prompt || input).trim(); if (!userMsg) return; setInput(''); setMessages(m => [...m, { role: 'user', text: userMsg }]); setLoading(true);
     try {
-      const groundedPrompt = `${userMsg}\n\nUse only the supplied Verdio analysis. State the supporting metric or analysis and finish with a concrete next action. Add [CHART:analysis_id] when a chart supports the answer.`;
+      const groundedPrompt = `${userMsg}\n\nUse only the supplied Verd.io analysis. State the supporting metric or analysis and finish with a concrete next action. Add [CHART:analysis_id] when a chart supports the answer.`;
       const res = await fetch(PROXY, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: [{ role: 'system', content: context }, { role: 'user', content: groundedPrompt }], max_tokens: 700 }) });
       const data = await res.json(); const txt = data.choices?.[0]?.message?.content; if (!txt) throw new Error('empty');
       const { cleanText, charts } = parseChartTagsFromAI(txt, r); setMessages(m => [...m, { role: 'ai', text: cleanText, charts, sources: [r.source.fileName, ...charts.map(c=>c.title || 'Supporting analysis')] }]);
@@ -485,7 +519,7 @@ function ExportDialog({ result, open, onClose }: { result: PipelineResult; open:
 function ViewerWorkspaceLanding({ message, onOpen }: { message: string; onOpen: (project: SavedProject) => void }) {
   const [projects,setProjects]=useState<SavedProject[]>([]);const [loading,setLoading]=useState(true);
   useEffect(()=>{listProjects().then(items=>setProjects(items.filter(item=>item.shared))).finally(()=>setLoading(false))},[]);
-  return <div className="onboarding-shell min-h-screen flex items-center justify-center p-6"><div className="elevated-panel w-full max-w-2xl rounded-[24px] p-8"><div className="text-center"><ShieldCheck className="mx-auto text-emerald-700"/><h1 className="text-2xl font-semibold mt-4">Shared organisation projects</h1><p className="text-sm text-slate-500 mt-3">Your viewer role provides secure read-only access.</p>{message&&<p className="mt-3 text-xs text-emerald-700">{message}</p>}</div><div className="viewer-projects">{loading?<p>Loading shared projects…</p>:projects.length===0?<p>No shared analyses are available yet. Ask an analyst or administrator to publish one.</p>:projects.map(project=><article key={project.id}><div><strong>{project.name}</strong><small>{project.result.source.rowCount.toLocaleString()} rows · Health {project.result.decision.health.total}/100</small></div><button onClick={()=>onOpen(project)}>Open read-only</button></article>)}</div></div></div>;
+  return <div className="onboarding-shell min-h-screen flex items-center justify-center p-6"><div className="elevated-panel w-full max-w-2xl rounded-[24px] p-8"><div className="text-center"><ShieldCheck className="mx-auto text-blue-700"/><h1 className="text-2xl font-semibold mt-4">Shared organisation projects</h1><p className="text-sm text-slate-500 mt-3">Your viewer role provides secure read-only access.</p>{message&&<p className="mt-3 text-xs text-blue-700">{message}</p>}</div><div className="viewer-projects">{loading?<p>Loading shared projects…</p>:projects.length===0?<p>No shared analyses are available yet. Ask an analyst or administrator to publish one.</p>:projects.map(project=><article key={project.id}><div><strong>{project.name}</strong><small>{project.result.source.rowCount.toLocaleString()} rows · Health {project.result.decision.health.total}/100</small></div><button onClick={()=>onOpen(project)}>Open read-only</button></article>)}</div></div></div>;
 }
 
 export default function App() {

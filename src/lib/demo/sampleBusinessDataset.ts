@@ -15,7 +15,7 @@ function csvCell(value: string | number) {
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
-/** A realistic two-year dataset processed by Verdio's real pipeline. */
+/** A realistic two-year dataset processed by Verd.io's real pipeline. */
 export function createSampleBusinessFile(): File {
   const random = seededRandom(20260720);
   const rows: Array<Array<string | number>> = [[
@@ -54,5 +54,5 @@ export function createSampleBusinessFile(): File {
   }
 
   const csv = rows.map(row => row.map(csvCell).join(',')).join('\n');
-  return new File([csv], 'Verdio Sample Business.csv', { type: 'text/csv' });
+  return new File([csv], 'Verd.io Sample Business.csv', { type: 'text/csv' });
 }

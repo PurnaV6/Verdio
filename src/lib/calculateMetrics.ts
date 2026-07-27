@@ -1,7 +1,7 @@
 import type { BusinessMetrics, Risk, Rec, AnomalyPoint, CustomerSegment, ForecastPoint } from "../types/metrics";
 
 /* ================================================================
-   VERDIO — FDIF ENGINE
+   VERD.IO — FDIF ENGINE
    Faithful port of Flora's streaming chunk processor.
    Column detection by index (not key name) — works on any CSV.
    
@@ -207,7 +207,7 @@ function calcHealth(
   return {
     total: Math.min(100, Math.max(0, Math.round(rs + cs + Math.round(avgQ * 0.25) + ss))),
     pillars: [
-      { name: 'Revenue Performance', score: Math.round(rs),               max: 25, color: '#16A34A' },
+      { name: 'Revenue Performance', score: Math.round(rs),               max: 25, color: '#0A66C2' },
       { name: 'Customer Strength',   score: Math.round(cs),               max: 25, color: '#DC2626' },
       { name: 'Data Quality',        score: Math.round(avgQ * 0.25),      max: 25, color: '#2563EB' },
       { name: 'Revenue Stability',   score: Math.round(ss),               max: 25, color: '#D97706' },
@@ -274,7 +274,7 @@ function detectRisks(
   if (qualityMetrics.length) {
     const avgQ = qualityMetrics.reduce((s, m) => s + m.pct, 0) / qualityMetrics.length;
     r.push(avgQ < 70
-      ? { level: 'high',   icon: '🗄️', title: 'Data Quality Risk',    desc: `Only ${Math.round(avgQ)}% data completeness. Missing fields reduce the accuracy of every insight and recommendation Verdio produces.` }
+      ? { level: 'high',   icon: '🗄️', title: 'Data Quality Risk',    desc: `Only ${Math.round(avgQ)}% data completeness. Missing fields reduce the accuracy of every insight and recommendation Verd.io produces.` }
       : avgQ < 88
       ? { level: 'medium', icon: '🗄️', title: 'Data Quality Warning', desc: `${Math.round(avgQ)}% completeness — some gaps exist. Address missing fields for more reliable analysis.` }
       : { level: 'low',    icon: '✅', title: 'Excellent Data Quality', desc: `${Math.round(avgQ)}% data completeness — analysis results are highly reliable.` }
@@ -351,7 +351,7 @@ function generateRecs(
     recs.push({ title: 'Implement automated churn prevention', desc: `ML churn risk is elevated at ${churnRisk}/100. Set up automated re-engagement emails triggered 30 days after last purchase, personalised to each customer's top product category.`, impact: 'medium' });
   }
 
-  recs.push({ title: 'Run monthly Verdio intelligence reviews', desc: 'Upload fresh data monthly. Track health score trend, compare risk changes and measure recommendation impact. Businesses that review data monthly grow 23% faster than those that review quarterly.', impact: 'medium' });
+  recs.push({ title: 'Run monthly Verd.io intelligence reviews', desc: 'Upload fresh data monthly. Track health score trend, compare risk changes and measure recommendation impact. Businesses that review data monthly grow 23% faster than those that review quarterly.', impact: 'medium' });
 
   return recs.slice(0, 6);
 }

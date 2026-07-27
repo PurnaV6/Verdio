@@ -5,7 +5,7 @@ import type { Risk, Recommendation } from "../../types/decision";
 import { labelForMeasure } from "../labels";
 
 /* ================================================================
-   VERDIO — Decision: Recommendations
+   VERD.IO — Decision: Recommendations
    Generalized from calculateMetrics.ts's generateRecs(). Reacts to
    whichever risks and ML results actually exist for this dataset
    rather than assuming revenue/product/market vocabulary.
@@ -75,7 +75,7 @@ export function generateRecommendations(
     recs.push({ title: `Investigate the ${best.columnA} ↔ ${best.columnB} relationship`, desc: `A ${best.strength.replace('_', ' ')} ${best.direction} correlation (r = ${best.coefficient}) was found — this may be worth building into pricing, forecasting or operational decisions.`, impact: 'medium', sourceColumns: [best.columnA, best.columnB] });
   }
 
-  recs.push({ title: 'Run monthly Verdio reviews', desc: 'Upload fresh data monthly to track how health score, risks and recommendations evolve — this compounds the value of the analysis over time.', impact: 'medium', sourceColumns: [] });
+  recs.push({ title: 'Run monthly Verd.io reviews', desc: 'Upload fresh data monthly to track how health score, risks and recommendations evolve — this compounds the value of the analysis over time.', impact: 'medium', sourceColumns: [] });
 
   return recs.slice(0, 6);
 }

@@ -12,7 +12,7 @@ export function buildAdvisorContext(p: PipelineResult): string {
     ? `${p.organization.datasets.map(d=>`${d.fileName}[${d.purpose},${d.rowCount} rows${d.primary?',primary':''}]`).join('; ')}; confirmed relationships: ${p.organization.relationships.filter(r=>r.confirmed).map(r=>`${r.leftColumn}<->${r.rightColumn}`).join(', ') || 'none'}; connected indicators: ${(p.organization.metrics||[]).filter(m=>!m.relationshipId||p.organization!.relationships.some(r=>r.id===m.relationshipId&&r.confirmed)).map(m=>`${m.label}=${m.value.toFixed(2)} ${m.format}`).join(', ')||'none'}; qualified recommendations: ${(p.organization.insights||[]).filter(i=>!i.relationshipId||p.organization!.relationships.some(r=>r.id===i.relationshipId&&r.confirmed)).map(i=>`${i.title} (${Math.round(i.confidence*100)}% confidence)`).join(', ')||'none'}`
     : 'single dataset';
   
-  return `You are Verdio Advisor LLM. Full analysis:
+  return `You are Verd.io Advisor LLM. Full analysis:
 Rows=${p.source.rowCount} Health=${p.decision.health.total} Quality=${p.quality.overallScore}
 ORGANISATIONAL_CONTEXT: ${organizationText}
 TIME_SERIES last 12: ${tsText}
