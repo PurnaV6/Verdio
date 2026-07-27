@@ -58,10 +58,10 @@ export function LoginButton() {
 }
 
 /* Full page password gate */
-export function PasswordGateScreen() {
+export function PasswordGateScreen({ initialMode = 'signin', onBack }: { initialMode?: 'signin' | 'signup'; onBack?: () => void } = {}) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup'>(initialMode);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
@@ -99,6 +99,7 @@ export function PasswordGateScreen() {
     <div className="auth-shell min-h-screen flex items-center justify-center p-5 md:p-8">
       <div className="auth-orbit auth-orbit-one"/><div className="auth-orbit auth-orbit-two"/>
       <div className="w-full max-w-[450px] elevated-panel rounded-[28px] p-7 md:p-10 relative">
+        {onBack&&<button onClick={onBack} className="auth-back-button">← Back to Verd.io</button>}
         <div className="text-center mb-8">
           <div className="mx-auto mb-6 h-12 w-12 rounded-[13px] bg-[#0a66c2] flex items-center justify-center shadow-[0_8px_24px_rgba(10,102,194,.25)]">
             <span className="text-white font-black text-lg">V</span>
