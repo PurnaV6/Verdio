@@ -29,6 +29,7 @@ import { createSampleBusinessFile } from "../lib/demo/sampleBusinessDataset";
 import { deleteProject, listProjects, recordProjectOpened, saveProject, type SavedProject } from "../lib/projects/projectStore";
 import { getTimeGreeting } from "../lib/time/greeting";
 import type { BusinessRole } from "../types/semantic";
+import LandingPage from "../components/marketing/LandingPage";
 const PageAlerts = lazy(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageAlerts })));
 const PageConnections = lazy(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageConnections })));
 const PageRelationships = lazy(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageRelationships })));
@@ -531,16 +532,47 @@ export default function App() {
   const [exportOpen, setExportOpen] = useState(false);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [inviteMessage,setInviteMessage]=useState('');
-  const { user, loading: authLoading, isEnabled } = useAuth();
+  const [publicMode,setPublicMode]=useState<'landing'|'signin'|'signup'|'demo'>(()=>{
+    const params=new URLSearchParams(window.location.search);
+    if(params.get('demo')==='1')return 'demo';
+    if(params.get('auth')==='signup')return 'signup';
+    if(params.get('auth')==='signin')return 'signin';
+    return 'landing';
+  });
+  const [demoLoading,setDemoLoading]=useState(false);
+  const { user, loading: authLoading } = useAuth();
   const access=useOrganizationAccess();
-  const reset = useCallback(() => { setResult(null); setPage('overview'); setCurrentProjectId(null); }, []);
+  const reset = useCallback(() => {
+    setResult(null); setPage('overview'); setCurrentProjectId(null);
+    if(publicMode==='demo'){setPublicMode('landing');window.history.replaceState({},'',window.location.pathname);}
+  }, [publicMode]);
   const currentProjectIdRef = useRef(currentProjectId);
   useEffect(() => { currentProjectIdRef.current = currentProjectId; }, [currentProjectId]);
   useEffect(() => { if (!result || !result.aiLoading) return; let cancelled=false; generateAIInsights(result).then(ai=>{ if(!cancelled) setResult(prev=>prev?{...prev, aiInsights: ai, aiLoading:false}:prev); }); return()=>{cancelled=true;}; }, [result]);
   useEffect(() => { if (!result || result.aiLoading) return; saveToHistory(result); saveProject(result, currentProjectIdRef.current || undefined).then(setCurrentProjectId).catch(e=>console.warn('Project save failed', e)); }, [result]);
   useEffect(()=>{if(!user)return;const token=new URLSearchParams(window.location.search).get('invite');if(!token)return;const sb=getSupabase();if(!sb)return;void sb.rpc('accept_organization_invitation',{invitation_token:token}).then(({error})=>{setInviteMessage(error?error.message:'Invitation accepted. Your workspace role is now active.');if(!error)window.history.replaceState({},'',window.location.pathname)})},[user]);
   if (authLoading) return <div className="min-h-screen bg-[#F5F6FA] flex items-center justify-center"><div className="h-8 w-8 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" /></div>;
-  if (isEnabled && !user) return <PasswordGateScreen />;
+  const setPublicView=(mode:'landing'|'signin'|'signup')=>{
+    if(publicMode==='demo'){setResult(null);setPage('overview')}
+    setPublicMode(mode);
+    const query=mode==='landing'?'':`?auth=${mode}`;
+    window.history.replaceState({},'',`${window.location.pathname}${query}`);
+  };
+  const openDemo=async()=>{
+    setDemoLoading(true);
+    setPublicMode('demo');
+    window.history.replaceState({},'','?demo=1');
+    try {
+      const outcome=await runDataPipeline(createSampleBusinessFile());
+      if(outcome.ok){setResult(outcome.result);setPage('overview')}
+      else {setPublicMode('landing');window.history.replaceState({},'',window.location.pathname)}
+    } finally {
+      setDemoLoading(false);
+    }
+  };
+  if (!user && publicMode==='landing') return <LandingPage onDemo={()=>void openDemo()} onLogin={()=>setPublicView('signin')} onSignup={()=>setPublicView('signup')}/>;
+  if (!user && (publicMode==='signin'||publicMode==='signup')) return <PasswordGateScreen initialMode={publicMode} onBack={()=>setPublicView('landing')}/>;
+  if (!user && publicMode==='demo' && demoLoading) return <div className="public-demo-loading"><div className="h-9 w-9 border-2 border-slate-200 border-t-blue-600 rounded-full animate-spin"/><p>Preparing the Verd.io live demo…</p></div>;
   if (!result && access.role==='viewer') return <ViewerWorkspaceLanding message={inviteMessage} onOpen={project=>{void recordProjectOpened(project);setResult(project.result);setCurrentProjectId(project.id)}}/>;
   if (!result) return <UploadScreen onLoaded={r => { setCurrentProjectId(null); setResult(r); setPage('overview'); }} />;
   const titles: Record<string, string> = { overview: 'Executive Workspace', execution: 'Execution', governance: 'Governance', advisor: 'AI Advisor', forecast: 'Predictions', scenarios: 'Scenario Planning', analyses: 'Intelligence', customers: 'Customer Intelligence', seasonality: 'Seasonality', health: 'Health Detail', risks: 'Risks & Opportunities', recs: 'Decisions', products: 'Products & Markets', profile: 'Data Hub', connections: 'Connections', relationships: 'Data Relationships', alerts: 'Alerts & Reports' };
@@ -553,7 +585,7 @@ export default function App() {
           <div className="flex items-center gap-2">
             <button onClick={() => setExportOpen(true)} className="header-action hidden md:flex"><FileText size={14}/> Export report</button>
             <button onClick={()=>setProjectLibraryOpen(true)} className="header-icon hidden sm:flex" aria-label="Analysis history"><Activity size={16}/></button>
-            <div className="user-menu group relative"><button className="user-avatar" aria-label="Account menu">{(user?.email?.[0] || 'V').toUpperCase()}</button><div className="user-popover"><p className="truncate text-xs font-semibold text-slate-900">{user?.email || 'Local workspace'}</p><button onClick={reset}><RefreshCw size={13}/> New dataset</button><button onClick={()=>setPage('governance')}><Settings size={13}/> Settings</button><button onClick={async()=>{ const sb=getSupabase(); if(sb) await sb.auth.signOut(); }}>Sign out</button></div></div>
+            {publicMode==='demo'&&!user?<button onClick={()=>setPublicView('signup')} className="header-action flex">Create free account <ArrowUpRight size={13}/></button>:<div className="user-menu group relative"><button className="user-avatar" aria-label="Account menu">{(user?.email?.[0] || 'V').toUpperCase()}</button><div className="user-popover"><p className="truncate text-xs font-semibold text-slate-900">{user?.email || 'Local workspace'}</p><button onClick={reset}><RefreshCw size={13}/> New dataset</button><button onClick={()=>setPage('governance')}><Settings size={13}/> Settings</button><button onClick={async()=>{ const sb=getSupabase(); if(sb) await sb.auth.signOut(); }}>Sign out</button></div></div>}
           </div>
         </header>
         <main className={`app-main p-4 md:p-7 max-w-[1480px] mx-auto ${access.role==='viewer'?'read-only-workspace':''}`}><ErrorBoundary key={page}><Suspense fallback={<PageLoadingFallback />}>{page==='overview'&&<PageOverview r={result} />}{page==='execution'&&<PageExecutionHub r={result} />}{page==='governance'&&<PageGovernanceHub r={result} />}{page==='advisor'&&<PageAdvisor r={result} />}{page==='forecast'&&<PageForecast r={result} />}{page==='scenarios'&&<PageScenarioPlanner r={result} />}{page==='analyses'&&<PageAnalyses r={result} />}{page==='customers'&&<PageCustomers r={result} />}{page==='seasonality'&&<PageSeasonality r={result} />}{page==='health'&&<PageHealth r={result} />}{page==='risks'&&<PageRisks r={result} />}{page==='recs'&&<PageRecs r={result} />}{page==='products'&&<PageProducts r={result} />}{page==='profile'&&<PageDataProfile r={result} />}{page==='connections'&&<PageConnections r={result} />}{page==='relationships'&&<PageRelationships r={result} />}{page==='alerts'&&<PageAlerts r={result} />}</Suspense></ErrorBoundary></main>
