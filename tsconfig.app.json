@@ -16,6 +16,10 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
+    /* strictNullChecks is required for discriminated-union narrowing
+       (e.g. `if (!result.ok) result.error`) to type-check correctly. */
+    "strictNullChecks": true,
+
     /* Linting */
     "noUnusedLocals": true,
     "noUnusedParameters": true,

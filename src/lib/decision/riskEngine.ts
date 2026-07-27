@@ -1,5 +1,4 @@
 import type { EngineeredRow } from "../../types/features";
-import type { SemanticIndex } from "../../types/semantic";
 import type { CapabilityReport, DataQualityReport } from "../../types/dataPipeline";
 import type { StatisticsResult } from "../../types/statistics";
 import type { MLResults } from "../../types/ml";
@@ -27,7 +26,6 @@ function aggregateByCategory(rows: EngineeredRow[], categoryCol: string, measure
 
 export function detectRisks(
   rows: EngineeredRow[],
-  index: SemanticIndex,
   capabilities: CapabilityReport,
   statistics: StatisticsResult,
   quality: DataQualityReport,
