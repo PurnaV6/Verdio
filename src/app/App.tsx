@@ -265,77 +265,54 @@ function MetricCard({ label, value, sub, tone }: { label: string; value: string;
   );
 }
 
-function ExecutiveSignals({ result }: { result: PipelineResult }) {
-  const health = result.decision.health.total;
-  const quality = result.quality.overallScore;
-  const signals = [
-    {
-      label: 'Dataset scale',
-      value: fmtN(result.source.rowCount),
-      unit: 'rows',
-      detail: `${result.profile.columnCount} columns assessed`,
-      icon: Database,
-      tone: 'neutral',
-    },
-    {
-      label: 'Business health',
-      value: `${health}`,
-      unit: '/100',
-      detail: health >= 80 ? 'Strong operating position' : health >= 60 ? 'Active risks to monitor' : 'Executive attention required',
-      icon: Activity,
-      tone: health >= 80 ? 'positive' : health >= 60 ? 'watch' : 'critical',
-    },
-    {
-      label: 'Data integrity',
-      value: `${quality}`,
-      unit: '/100',
-      detail: quality >= 90 ? 'Decision-grade quality' : quality >= 70 ? 'Reliable with minor gaps' : 'Quality review recommended',
-      icon: CheckCircle,
-      tone: quality >= 90 ? 'positive' : quality >= 70 ? 'watch' : 'critical',
-    },
-    {
-      label: 'Analysis coverage',
-      value: `${result.analyses.length}`,
-      unit: 'charts',
-      detail: `${result.capabilities.available.length} analytical capabilities`,
-      icon: BarChart3,
-      tone: 'insight',
-    },
-  ];
+const formatExecutiveCurrency=(value:number)=>new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP',notation:'compact',maximumFractionDigits:1}).format(value);
 
-  return (
-    <section className="signals-panel" aria-labelledby="executive-signals-title">
-      <div className="signals-heading">
-        <div>
-          <p id="executive-signals-title">Executive signals</p>
-          <span>Current decision context from the active dataset</span>
-        </div>
-        <span className="signals-live"><i /> Live analysis</span>
-      </div>
-      <div className="signals-grid">
-        {signals.map(({ label, value, unit, detail, icon: Icon, tone }) => (
-          <article key={label} className={`signal-card signal-${tone}`}>
-            <div className="signal-icon"><Icon size={17} strokeWidth={1.8} /></div>
-            <div className="signal-copy">
-              <p>{label}</p>
-              <div className="signal-value"><strong>{value}</strong><span>{unit}</span></div>
-              <small>{detail}</small>
-            </div>
-          </article>
-        ))}
-      </div>
+function getRevenueView(result: PipelineResult) {
+  const revenueColumn=bestColumnOfRole(result.semantics.columns,'revenue');
+  const connectedRevenue=result.organization?.metrics?.find(metric=>metric.id==='connected-revenue')?.value;
+  const total=connectedRevenue??(revenueColumn?result.engineeredRows.reduce((sum,row)=>sum+(Number(row[revenueColumn])||0),0):0);
+  const series=result.statistics.timeSeries.find(item=>item.measureColumn===revenueColumn)
+    ?? result.statistics.timeSeries.find(item=>/revenue|sales|amount/i.test(item.measureColumn));
+  const latest=series?.points.at(-1)?.value ?? 0;
+  const previous=series?.points.at(-2)?.value ?? 0;
+  const changePct=previous?((latest-previous)/Math.abs(previous))*100:0;
+  const revenueForecast=result.ml.forecast && (!revenueColumn || result.ml.forecast.measureColumn===revenueColumn) ? result.ml.forecast : null;
+  return {revenueColumn,connectedRevenue,total,series,latest,changePct,revenueForecast};
+}
+
+function ExecutiveRevenue({ result }: { result: PipelineResult }) {
+  const revenue=getRevenueView(result);
+  if(!revenue.revenueColumn&&!revenue.connectedRevenue)return <section className="executive-revenue-empty"><CircleDollarSign size={23}/><div><h2>Revenue data is not available</h2><p>Map a numeric sales or revenue field in Data Hub to activate this executive view.</p></div></section>;
+  const chartData=[
+    ...(revenue.series?.points.map(point=>({period:point.label,revenue:point.value,forecast:null}))??[]),
+    ...(revenue.revenueForecast?.points.map(point=>({period:point.periodLabel,revenue:null,forecast:point.value}))??[]),
+  ];
+  const projected=revenue.revenueForecast?.holtNextPeriod??0;
+  return <div className="executive-revenue-view">
+    <section className="revenue-hero-card">
+      <div><span>Recognised revenue</span><strong>{formatExecutiveCurrency(revenue.total)}</strong><p>{revenue.connectedRevenue!==undefined?'Reconciled across the connected sales source':`Calculated from ${revenue.revenueColumn}`}</p></div>
+      <div className={`revenue-movement ${revenue.changePct>=0?'is-positive':'is-negative'}`}><TrendingUp size={17}/><span>{revenue.changePct>=0?'+':''}{revenue.changePct.toFixed(1)}%</span><small>latest period movement</small></div>
     </section>
-  );
+    <section className="revenue-support-kpis">
+      <article><span>Latest period</span><strong>{revenue.latest?formatExecutiveCurrency(revenue.latest):'Not available'}</strong><small>{revenue.series?.points.at(-1)?.label??'No dated revenue series'}</small></article>
+      <article><span>Next-period outlook</span><strong>{projected?formatExecutiveCurrency(projected):'Not available'}</strong><small>{revenue.revenueForecast?'Holt-smoothed base forecast':'More history is required'}</small></article>
+      <article><span>Revenue history</span><strong>{revenue.series?.points.length??0}<em> periods</em></strong><small>{revenue.series?'Available for trend review':'A date field was not detected'}</small></article>
+    </section>
+    {chartData.length>0?<section className="revenue-chart-panel"><div><span>Revenue performance</span><h2>Historical trend and forward outlook</h2><p>Actual recognised revenue is shown alongside the current modelled forecast.</p></div><ChartRenderer chart={{chartType:'line',title:'',xKey:'period',seriesKeys:['revenue','forecast'],data:chartData,formatValue:'currency'} as ChartSpec}/></section>:null}
+    <section className="revenue-evidence"><ShieldCheck size={17}/><div><strong>Revenue evidence</strong><p>Values are derived from the active mapped revenue field. Forecasts are planning estimates and should be reviewed alongside pipeline, pricing and operational context.</p></div></section>
+  </div>;
 }
 
 function PageOverview({ r }: { r: PipelineResult }) {
   const h = r.decision.health.total; const topRisk = r.decision.risks[0]; const topRec = r.decision.recommendations[0];
+  const [section,setSection]=useState<'overview'|'revenue'>('overview');
   const [now,setNow]=useState(()=>new Date());
   useEffect(()=>{const timer=window.setInterval(()=>setNow(new Date()),60_000);return()=>window.clearInterval(timer)},[]);
   const greeting=getTimeGreeting(now);
   const dateLabel=new Intl.DateTimeFormat(undefined,{weekday:'long',day:'numeric',month:'long'}).format(now);
   const healthLabel=h>=80?'Strong':h>=60?'Monitored':'Needs attention';
-  const qualityLabel=r.quality.overallScore>=80?'Decision ready':r.quality.overallScore>=60?'Review advised':'Remediation needed';
+  const revenue=getRevenueView(r);
+  const nextPeriod=revenue.revenueForecast?.holtNextPeriod??0;
   return (
     <div className="executive-overview">
       <header className="executive-heading">
@@ -346,7 +323,12 @@ function PageOverview({ r }: { r: PipelineResult }) {
         </div>
         <button className="executive-methodology">Decision methodology <ArrowUpRight size={14}/></button>
       </header>
+      <nav className="executive-view-tabs" aria-label="Executive workspace views">
+        <button className={section==='overview'?'is-active':''} onClick={()=>setSection('overview')}><Gauge size={14}/>Overview</button>
+        <button className={section==='revenue'?'is-active':''} onClick={()=>setSection('revenue')}><CircleDollarSign size={14}/>Revenue</button>
+      </nav>
 
+      {section==='revenue'?<ExecutiveRevenue result={r}/>:<>
       <section className="executive-command-card">
         <div className="executive-command-main">
           <div className="executive-command-meta">
@@ -373,10 +355,10 @@ function PageOverview({ r }: { r: PipelineResult }) {
       </section>
 
       <section className="executive-kpis" aria-label="Executive key performance indicators">
-        <article><span className="executive-kpi-icon"><Database size={16}/></span><div><p>Records assessed</p><strong>{fmtN(r.source.rowCount)}</strong><small>{r.profile.columnCount} classified fields</small></div></article>
-        <article><span className="executive-kpi-icon"><ShieldCheck size={16}/></span><div><p>Data confidence</p><strong>{r.quality.overallScore}<em>/100</em></strong><small>{qualityLabel}</small></div></article>
-        <article><span className="executive-kpi-icon"><BarChart3 size={16}/></span><div><p>Analytical coverage</p><strong>{r.capabilities.available.length}<em>/{r.capabilities.capabilities.length}</em></strong><small>Models currently available</small></div></article>
-        <article><span className="executive-kpi-icon"><Gauge size={16}/></span><div><p>Business health</p><strong>{h}<em>/100</em></strong><small>{healthLabel}</small></div></article>
+        <article><span className="executive-kpi-icon"><CircleDollarSign size={16}/></span><div><p>Recognised revenue</p><strong>{revenue.total?formatExecutiveCurrency(revenue.total):'—'}</strong><small>{revenue.revenueColumn?'Mapped revenue evidence':'Revenue field not detected'}</small></div></article>
+        <article><span className="executive-kpi-icon"><TrendingUp size={16}/></span><div><p>Revenue momentum</p><strong>{revenue.series?`${revenue.changePct>=0?'+':''}${revenue.changePct.toFixed(1)}%`:'—'}</strong><small>Latest period movement</small></div></article>
+        <article><span className="executive-kpi-icon"><BrainCircuit size={16}/></span><div><p>Next-period outlook</p><strong>{nextPeriod?formatExecutiveCurrency(nextPeriod):'—'}</strong><small>{nextPeriod?'Modelled base forecast':'Forecast not available'}</small></div></article>
+        <article><span className="executive-kpi-icon"><ShieldAlert size={16}/></span><div><p>Active risks</p><strong>{r.decision.risks.length}</strong><small>{r.decision.risks.filter(risk=>risk.level==='high').length} high-priority signals</small></div></article>
       </section>
 
       <section className="executive-decisions">
@@ -393,7 +375,7 @@ function PageOverview({ r }: { r: PipelineResult }) {
           <footer><span>Review supporting evidence</span><ArrowUpRight size={15}/></footer>
         </article>
       </section>
-      <ExecutiveSignals result={r} />
+      </>}
     </div>
   );
 }
