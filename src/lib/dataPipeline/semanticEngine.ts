@@ -19,13 +19,30 @@ function normaliseHeader(h: string): string {
   return h.toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+const ENTITY_ROLES: BusinessRole[] = ['customer', 'product', 'employee'];
+const KEY_TOKENS = ['id', 'no', 'number', 'key', 'code', 'ref'];
+
+/* Short hints ("id", "qty", "age") must match a whole word, otherwise "paid",
+   "valid" or "width" are mistaken for an identifier. Longer hints stay substring matches. */
+function hintMatches(norm: string, tokens: string[], hint: string): boolean {
+  return hint.length <= 3 ? tokens.includes(hint) : norm.includes(hint);
+}
+
 function nameMatchEvidence(header: string, role: BusinessRole): EvidenceItem | null {
   const norm = normaliseHeader(header);
+  const tokens = norm.split(' ');
   const hints = NAME_HINTS[role];
   const exact = hints.find(h => norm === h);
   if (exact) return { source: 'name_match', weight: 0.55, detail: `Column name "${header}" exactly matches known ${role} term "${exact}".` };
-  const partial = hints.find(h => norm.includes(h));
-  if (partial) return { source: 'name_match', weight: 0.4, detail: `Column name "${header}" contains known ${role} term "${partial}".` };
+  const partial = hints.find(h => hintMatches(norm, tokens, h));
+  if (partial) {
+    /* "customer_id" / "product code" identify an entity, so they belong to that entity's role
+       rather than tying with the generic identifier role. */
+    if (ENTITY_ROLES.includes(role) && tokens.some(t => KEY_TOKENS.includes(t))) {
+      return { source: 'name_match', weight: 0.55, detail: `Column name "${header}" is a key for a known ${role} term "${partial}".` };
+    }
+    return { source: 'name_match', weight: 0.4, detail: `Column name "${header}" contains known ${role} term "${partial}".` };
+  }
   return null;
 }
 
