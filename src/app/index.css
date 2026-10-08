@@ -501,8 +501,8 @@ button { cursor: pointer; }
   color-scheme: light dark;
 }
 .v2-site *, .v2-site *::before, .v2-site *::after { box-sizing: border-box; }
-.v2-site h1, .v2-site h2, .v2-site h3, .v2-site p, .v2-site ul, .v2-site ol { margin: 0; padding: 0; }
-.v2-site ul, .v2-site ol { list-style: none; }
+:where(.v2-site) :is(h1, h2, h3, p, ul, ol) { margin: 0; padding: 0; }
+:where(.v2-site) :is(ul, ol) { list-style: none; }
 .v2-site a { color: inherit; }
 .v2-site :focus-visible { outline: 2px solid var(--v-tide); outline-offset: 3px; border-radius: 2px; }
 .v2-wrap { width: min(1120px, calc(100% - 48px)); margin: 0 auto; }
