@@ -44,19 +44,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() { return useContext(Ctx); }
 
-// Small header badge / user pill (kept for header)
-export function LoginButton() {
-  const { user, isEnabled, signOut } = useAuth();
-  if (!isEnabled) return <span className="text-[10px] px-2 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200 font-bold">Auth: Local Mode</span>;
-  if (!user) return null;
-  return (
-    <div className="flex items-center gap-2 text-xs">
-      <span className="text-slate-500 truncate max-w-[140px] hidden md:block">{user.email}</span>
-      <button onClick={signOut} className="px-3 py-1.5 rounded-full border border-slate-200 font-bold hover:bg-slate-50">Sign out</button>
-    </div>
-  );
-}
-
 /* Full page password gate */
 export function PasswordGateScreen({ initialMode = 'signin', onBack }: { initialMode?: 'signin' | 'signup'; onBack?: () => void } = {}) {
   const [email, setEmail] = useState('');
