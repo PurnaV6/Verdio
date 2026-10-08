@@ -1,14 +1,13 @@
 import { useMemo } from 'react';
 import type { PipelineResult } from '../../types/pipeline';
-import type { ModelSelection } from '../../lib/ml/modelManager';
 import type { EnrichedRecommendation } from '../../lib/decision/verdioDecisionEngine';
 import { useWorkspaceState } from '../../lib/workspace/useWorkspaceState';
 import { StateMark } from '../workspace/StateMark';
 import { Figure, Figures, IdleMark, InlineEmpty, PageHead } from '../pages/PageParts';
+import { buildKpiTargets, mergeSavedTargets, type KpiTarget } from './kpiTargets';
 
 type ActionStatus = 'planned' | 'in_progress' | 'complete';
 interface TrackedAction { id: string; title: string; owner: string; dueDate: string; status: ActionStatus; impact: string; }
-interface KpiTarget { id: string; label: string; current: number; target: number; unit: string; direction: 'up' | 'down'; }
 
 const dueDate = (days: number) => { const date = new Date(); date.setDate(date.getDate() + days); return date.toISOString().slice(0, 10); };
 
@@ -42,18 +41,9 @@ export function PageActionTracker({ r }: { r: PipelineResult }) {
 }
 
 export function PageKpiTargets({ r }: { r: PipelineResult }) {
-  const defaults = useMemo<KpiTarget[]>(() => {
-    const growth = Number(r.decision.health.pillars.find(item => /growth/i.test(item.name))?.score || 0);
-    const modelMeta = (r as PipelineResult & { _modelMeta?: { forecast?: ModelSelection } })._modelMeta;
-    const forecastConfidence = Math.round((modelMeta?.forecast?.confidence || 0) * 100);
-    return [
-      { id: 'health', label: 'Business health', current: r.decision.health.total, target: Math.min(100, Math.max(75, r.decision.health.total + 10)), unit: '/100', direction: 'up' },
-      { id: 'quality', label: 'Data quality', current: r.quality.overallScore, target: Math.min(100, Math.max(90, r.quality.overallScore + 5)), unit: '/100', direction: 'up' },
-      { id: 'growth', label: 'Growth pillar', current: growth, target: Math.min(25, Math.max(18, growth + 4)), unit: '/25', direction: 'up' },
-      { id: 'confidence', label: 'Forecast confidence', current: forecastConfidence, target: Math.min(100, Math.max(80, forecastConfidence + 8)), unit: '%', direction: 'up' },
-    ];
-  }, [r]);
-  const { value: targets, save, mode } = useWorkspaceState('targets', r.source.fileName, defaults);
+  const defaults = useMemo(() => buildKpiTargets(r), [r]);
+  const { value: saved, save, mode } = useWorkspaceState<KpiTarget[]>('targets', r.source.fileName, defaults);
+  const targets = useMemo(() => mergeSavedTargets(defaults, saved), [defaults, saved]);
   const updateTarget = (id: string, target: number) => save(targets.map(item => item.id === id ? { ...item, target } : item));
   const onTrack = targets.filter(item => item.direction === 'up' ? item.current >= item.target : item.current <= item.target).length;
   const overallProgress = Math.round(targets.reduce((sum,item)=>sum+Math.min(100,(item.current/(item.target || 1))*100),0)/(targets.length || 1));
@@ -62,7 +52,7 @@ export function PageKpiTargets({ r }: { r: PipelineResult }) {
     <div className="v2-table-wrap" role="region" aria-label="KPI targets" tabIndex={0}><table className="v2-table"><caption className="sr-only">Current value, editable target and progress for each KPI</caption>
       <thead><tr><th scope="col">Measure</th><th scope="col" className="num">Current</th><th scope="col">Target value</th><th scope="col">Progress</th></tr></thead>
       <tbody>{targets.map(item => { const progress = Math.min(100, Math.max(0, (item.current / (item.target || 1)) * 100)); const achieved = item.current >= item.target; return <tr key={item.id}>
-        <th scope="row">{item.label}</th>
+        <th scope="row">{item.label}{item.hint&&<span className="v2-tag v2-op-sub">{item.hint}</span>}</th>
         <td className="num">{item.current}{item.unit}</td>
         <td><label className="v2-op-inline"><span className="sr-only">Target value for {item.label}</span><input className="v2-op-input is-num is-short" type="number" min="0" max="100" value={item.target} onChange={event => updateTarget(item.id, Number(event.target.value))}/><span className="v2-unit">{item.unit}</span></label></td>
         <td className="read"><span className="v2-bar" aria-hidden="true"><i style={{ width: `${progress}%` }}/></span>{achieved ? <StateMark tone="ok" label="Target achieved"/> : <StateMark tone="watch" label="Gap to target"/>}</td>
