@@ -1,30 +1,50 @@
 import type { PipelineResult } from "../types/pipeline";
 import type { AIInsights } from "../types/aiInsights";
 import { buildAdvisorContext } from "../lib/analysis/factSummary";
+import { getSupabase } from "../lib/auth/supabaseClient";
 
 const PROXY = '/api/chat';
+const CONTEXT_LIMIT = 12000;
+const CONTEXT_LINE_LIMIT = 1500;
 
-const SYSTEM_PROMPT = `You are Verd.io's analysis narrator. You have the FULL analysis payload from all engines in your system context. Your ONLY job is to answer using those numbers.
+export type AssistantOutcome =
+  | { ok: true; result: string }
+  | { ok: false; reason: 'no-session' | 'limit' | 'busy' | 'error' };
 
-FORBIDDEN PHRASES - NEVER USE: "not shown", "not available", "check the Analyses page", "go to", "you would need to access the original file", "refer to", "I don't have access". If the number is in TIME_SERIES or SEASONALITY, you MUST state it.
+/** Short plain notices shown next to the built-in answer when the assistant cannot be used. */
+export const ASSISTANT_NOTICES = {
+  limit: 'The AI assistant limit has been reached for now, so this is a built-in answer.',
+  busy: 'The AI assistant is busy right now, so this is a built-in answer.',
+} as const;
 
-If user asks for March, find 2023-03, 2024-03 in TIME_SERIES and March in SEASONALITY and give both.
-If user asks for revenue analysis, give: total, monthly trend direction, best/worst month, forecast, top product/market, using real numbers.
-If user asks for chart, say "Generating [chart name] with [1-sentence insight]" - frontend will render chart.
-
-Return valid JSON only, with this exact shape:
-{
-  "executiveSummary": "4-8 concise sentences with specific numbers in UK English",
-  "riskExplanations": [{"title":"string","impact":"string","action":"string"}],
-  "recommendations": [{"title":"string","action":"string","impactEstimate":"string","timeline":"string","priority":"high|medium|low"}],
-  "keyInsights": ["string"],
-  "analysisNarratives": [{"analysisId":"string","title":"string","narrative":"string"}]
+// Same per-line and total caps as the server, so a long line cannot push the risks and charts out of the request.
+function fitContext(context: string): string {
+  return context.split('\n').map(line => line.slice(0, CONTEXT_LINE_LIMIT)).join('\n').slice(0, CONTEXT_LIMIT);
 }
-Do not use markdown fences or add commentary outside the JSON object.`;
 
-function buildPrompt(p: PipelineResult): string {
-  // buildAdvisorContext now contains everything, so we just reuse it as user content
-  return buildAdvisorContext(p) + "\n\nUser question will follow in next message. Answer using payload above.";
+/**
+ * Calls the hardened /api/chat route with the signed-in user's access token.
+ * Without a session (the no-login demo) nothing is sent: callers use their built-in behaviour.
+ * On 401/403/429/503 the call is not repeated.
+ */
+export async function askAssistant(task: 'advisor' | 'insights', context: string, question?: string): Promise<AssistantOutcome> {
+  try {
+    const sb = getSupabase();
+    const token = sb ? (await sb.auth.getSession()).data.session?.access_token : undefined;
+    if (!token) return { ok: false, reason: 'no-session' };
+    const res = await fetch(PROXY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ task, ...(question ? { question } : {}), history: [], context: fitContext(context) }),
+    });
+    if (res.status === 429) return { ok: false, reason: 'limit' };
+    if (res.status === 503) return { ok: false, reason: 'busy' };
+    if (!res.ok) return { ok: false, reason: 'error' };
+    const data = await res.json();
+    return typeof data?.result === 'string' && data.result.trim() ? { ok: true, result: data.result } : { ok: false, reason: 'error' };
+  } catch {
+    return { ok: false, reason: 'error' };
+  }
 }
 
 function fallback(p: PipelineResult): AIInsights {
@@ -39,22 +59,11 @@ function fallback(p: PipelineResult): AIInsights {
 
 export async function generateAIInsights(p: PipelineResult): Promise<AIInsights> {
   try {
-    const res = await fetch(PROXY, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        max_tokens: 2500,
-        messages: [
-          { role:'system', content: SYSTEM_PROMPT },
-          { role:'user', content: buildPrompt(p) }
-        ]
-      })
-    });
-    if(!res.ok) throw new Error('proxy');
-    const data = await res.json();
-    const raw = (data.choices?.[0]?.message?.content||'').trim().replace(/^```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
+    const outcome = await askAssistant('insights', buildAdvisorContext(p));
+    if(!outcome.ok) throw new Error(outcome.reason);
+    const raw = outcome.result.trim().replace(/^```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
     let parsed:any;
-    try{ parsed=JSON.parse(raw); } catch { 
+    try{ parsed=JSON.parse(raw); } catch {
       // Try to repair truncated
       const lastBrace = raw.lastIndexOf('}');
       if(lastBrace>0) { try{ parsed=JSON.parse(raw.slice(0,lastBrace+1)); }catch{ parsed=null; } }

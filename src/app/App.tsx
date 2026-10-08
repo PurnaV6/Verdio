@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef, lazy, Suspense, type ComponentType } from "react";
 import { runDataPipeline } from "../lib/dataPipeline/runDataPipeline";
-import { generateAIInsights } from "../services/ai";
+import { generateAIInsights, askAssistant, ASSISTANT_NOTICES } from "../services/ai";
 
 const CHUNK_RELOAD_KEY = 'verdio_chunk_reload';
 function lazyWithReload<T extends ComponentType<any>>(loader: () => Promise<{ default: T }>) {
@@ -491,16 +491,14 @@ function PageGovernanceHub({ r }: { r: PipelineResult }) {
 
 function PageAdvisor({ r }: { r: PipelineResult }) {
   const [messages, setMessages] = useState<{ role: 'ai' | 'user'; text?: string; charts?: ChartSpec[]; sources?: string[] }[]>([{ role: 'ai', text: `Full analysis loaded — ${r.source.rowCount} rows, ${r.analyses.length} charts, health ${r.decision.health.total}/100. Choose a decision task below or ask a specific question.`, sources: [r.source.fileName, 'Verd.io decision engine'] }]);
-  const [input, setInput] = useState(''); const [loading, setLoading] = useState(false); const PROXY = '/api/chat'; const context = buildAdvisorContext(r);
+  const [input, setInput] = useState(''); const [loading, setLoading] = useState(false); const context = buildAdvisorContext(r);
   const quickActions = ['Explain the highest risk', 'Create a 30-day action plan', 'Compare recent performance', 'Summarise for the board'];
   async function send(prompt?: string) {
     const userMsg = (prompt || input).trim(); if (!userMsg) return; setInput(''); setMessages(m => [...m, { role: 'user', text: userMsg }]); setLoading(true);
     try {
-      const groundedPrompt = `${userMsg}\n\nUse only the supplied Verd.io analysis. State the supporting metric or analysis and finish with a concrete next action. Add [CHART:analysis_id] when a chart supports the answer.`;
-      const res = await fetch(PROXY, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: [{ role: 'system', content: context }, { role: 'user', content: groundedPrompt }], max_tokens: 700 }) });
-      const data = await res.json(); const txt = data.choices?.[0]?.message?.content; if (!txt) throw new Error('empty');
-      const { cleanText, charts } = parseChartTagsFromAI(txt, r); setMessages(m => [...m, { role: 'ai', text: cleanText, charts, sources: [r.source.fileName, ...charts.map(c=>c.title || 'Supporting analysis')] }]);
-    } catch { const fb = localAnalysisFallback(userMsg, r); setMessages(m => [...m, { role: 'ai', text: fb.text, charts: fb.charts, sources: [r.source.fileName, 'Local analysis fallback'] }]); }
+      const outcome = await askAssistant('advisor', context, userMsg); if (!outcome.ok) throw outcome.reason;
+      const { cleanText, charts } = parseChartTagsFromAI(outcome.result, r); setMessages(m => [...m, { role: 'ai', text: cleanText, charts, sources: [r.source.fileName, ...charts.map(c=>c.title || 'Supporting analysis')] }]);
+    } catch (reason) { const fb = localAnalysisFallback(userMsg, r); const notice = reason === 'limit' ? ASSISTANT_NOTICES.limit : reason === 'busy' ? ASSISTANT_NOTICES.busy : ''; setMessages(m => [...m, { role: 'ai', text: notice ? `${notice} ${fb.text}` : fb.text, charts: fb.charts, sources: [r.source.fileName, 'Local analysis fallback'] }]); }
     setLoading(false);
   }
   return <div className="advisor-workspace"><div className="advisor-actions"><div><strong>Decision tasks</strong><span>Grounded in {r.source.fileName}</span></div>{quickActions.map(action=><button key={action} disabled={loading} onClick={()=>send(action)}>{action}<ChevronRight size={13}/></button>)}</div><div className="advisor-conversation"><div className="advisor-messages">{messages.map((msg,i)=><div key={i} className={`flex ${msg.role==='user'?'justify-end':''}`}><div className={`advisor-message ${msg.role==='user'?'is-user':'is-ai'}`}>{msg.text}{msg.charts?.map((c,j)=><div key={j} className="mt-3 bg-white border rounded-xl p-2"><ChartRenderer chart={c} /></div>)}{msg.sources&&<div className="advisor-sources"><span>Evidence</span>{msg.sources.map(source=><small key={source}>{source}</small>)}</div>}</div></div>)}{loading && <div className="advisor-thinking"><Sparkles size={13}/> Analysing the supporting evidence…</div>}</div><div className="advisor-input"><input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&send()} placeholder="Ask about a risk, forecast, customer segment or decision…" /><button disabled={loading} onClick={()=>send()}>Send</button></div></div></div>;
