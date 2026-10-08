@@ -1048,3 +1048,15 @@ button { cursor: pointer; }
 @media (max-width: 480px) {
   .v2-auth-panel { padding: 22px 18px 18px; }
 }
+
+/* ---------- Error boundary fallback (v2) ---------- */
+/* Prefixed v2-boundary-. It renders inside .app-shell, which pins the light palette. */
+.v2-boundary { display: flex; align-items: flex-start; gap: 16px; max-width: 1120px; margin: 24px auto 0; padding: 22px 0; border-top: 1px solid var(--v-ink); border-bottom: 1px solid var(--v-rule); color: var(--v-ink); font-family: var(--v-font-body); font-size: 15px; line-height: 1.55; }
+.v2-boundary-icon { flex: none; margin-top: 4px; color: var(--v-oxide); }
+.v2-boundary-copy { min-width: 0; }
+.v2-boundary-title { font: 500 24px/1.2 var(--v-font-display); }
+.v2-boundary-detail { max-width: 72ch; margin: 6px 0 16px; font: 400 13px/1.5 var(--v-font-data); color: var(--v-muted); overflow-wrap: anywhere; }
+.v2-boundary :focus-visible { outline: 2px solid var(--v-tide); outline-offset: 2px; border-radius: 2px; }
+
+/* Hub tab strip: .v2-hub-tabs zeroes its margin (and, being unlayered, beats the space-y utility), so give the hub its own gap. */
+.v2-op-hub > .v2-hub-tabs { margin-bottom: 24px; }
