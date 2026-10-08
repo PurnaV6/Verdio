@@ -18,3 +18,13 @@ export function Figure({ label, value, unit, sub, tone, toneLabel }: { label: st
 export function Figures({ label, children }: { label: string; children: ReactNode }) {
   return <dl className="v2-figs" aria-label={label}>{children}</dl>;
 }
+
+// Neutral counterpart of StateMark for "not started / not connected / pending" states: still a word plus a shape.
+export function IdleMark({ label }: { label: string }) {
+  return <span className="v2-state is-idle"><span aria-hidden="true">○</span> {label}</span>;
+}
+
+// Empty or loading message that sits inside an existing .v2-view (PageEmpty wraps its own).
+export function InlineEmpty({ message }: { message: string }) {
+  return <section className="v2-empty" role="status"><div><h2>{message}</h2></div></section>;
+}

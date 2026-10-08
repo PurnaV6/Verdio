@@ -166,7 +166,7 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
 
 function PageLoadingFallback() { return <div role="status" aria-live="polite" className="v2-loading"><div className="v2-spinner" aria-hidden="true" /><span className="v2-tag">Loading…</span></div>; }
 
-function WorkspaceHub({ tabs, initial }: { tabs: { id: string; label: string; icon: typeof ClipboardCheck; content: React.ReactNode }[]; initial: string }) {
+function WorkspaceHub({ tabs, initial, label: ariaLabel }: { tabs: { id: string; label: string; icon: typeof ClipboardCheck; content: React.ReactNode }[]; initial: string; label: string }) {
   const [active, setActive] = useState(initial);
   function onTabKeyDown(e: React.KeyboardEvent<HTMLButtonElement>) {
     const i=tabs.findIndex(tab=>tab.id===active);
@@ -175,15 +175,15 @@ function WorkspaceHub({ tabs, initial }: { tabs: { id: string; label: string; ic
     e.preventDefault(); setActive(next.id);
     document.getElementById(`hub-tab-${next.id}`)?.focus();
   }
-  return <div className="space-y-5"><div className="v2-tabs v2-hub-tabs" role="tablist" aria-label="Workspace sections">{tabs.map(({id,label,icon:Icon})=><button key={id} type="button" role="tab" id={`hub-tab-${id}`} aria-selected={active===id} aria-controls={`hub-panel-${id}`} tabIndex={active===id?0:-1} onKeyDown={onTabKeyDown} onClick={()=>setActive(id)}><Icon size={14} aria-hidden="true"/>{label}</button>)}</div><div role="tabpanel" id={`hub-panel-${active}`} aria-labelledby={`hub-tab-${active}`}><ErrorBoundary><Suspense fallback={<PageLoadingFallback />}>{tabs.find(tab=>tab.id===active)?.content}</Suspense></ErrorBoundary></div></div>;
+  return <div className="v2-op-hub space-y-5"><div className="v2-tabs v2-hub-tabs" role="tablist" aria-label={ariaLabel}>{tabs.map(({id,label,icon:Icon})=><button key={id} type="button" role="tab" id={`hub-tab-${id}`} aria-selected={active===id} aria-controls={`hub-panel-${id}`} tabIndex={active===id?0:-1} onKeyDown={onTabKeyDown} onClick={()=>setActive(id)}><Icon size={14} aria-hidden="true"/>{label}</button>)}</div><div role="tabpanel" id={`hub-panel-${active}`} aria-labelledby={`hub-tab-${active}`}><ErrorBoundary><Suspense fallback={<PageLoadingFallback />}>{tabs.find(tab=>tab.id===active)?.content}</Suspense></ErrorBoundary></div></div>;
 }
 
 function PageExecutionHub({ r }: { r: PipelineResult }) {
-  return <WorkspaceHub initial="actions" tabs={[{id:'actions',label:'Actions',icon:ClipboardCheck,content:<PageActionTracker r={r}/>},{id:'targets',label:'KPI Targets',icon:Target,content:<PageKpiTargets r={r}/>},{id:'outcomes',label:'Outcomes',icon:Gauge,content:<PageOutcomes r={r}/>},{id:'approvals',label:'Approvals',icon:Stamp,content:<PageApprovals r={r}/>}]} />;
+  return <WorkspaceHub initial="actions" label="Execution sections" tabs={[{id:'actions',label:'Actions',icon:ClipboardCheck,content:<PageActionTracker r={r}/>},{id:'targets',label:'KPI Targets',icon:Target,content:<PageKpiTargets r={r}/>},{id:'outcomes',label:'Outcomes',icon:Gauge,content:<PageOutcomes r={r}/>},{id:'approvals',label:'Approvals',icon:Stamp,content:<PageApprovals r={r}/>}]} />;
 }
 
 function PageGovernanceHub({ r }: { r: PipelineResult }) {
-  return <WorkspaceHub initial="evidence" tabs={[{id:'evidence',label:'Evidence',icon:ScrollText,content:<PageEvidence r={r}/>},{id:'models',label:'Models',icon:BrainCircuit,content:<PageModelAssurance r={r}/>},{id:'quality',label:'Data Quality',icon:Database,content:<PageQuality r={r}/>},{id:'team',label:'Team & Roles',icon:Users,content:<PageTeamWorkspace/>},{id:'audit',label:'Audit Log',icon:Activity,content:<PageAuditLog/>},{id:'trust',label:'Trust',icon:ShieldCheck,content:<PageTrustCenter r={r}/>}]} />;
+  return <WorkspaceHub initial="evidence" label="Governance sections" tabs={[{id:'evidence',label:'Evidence',icon:ScrollText,content:<PageEvidence r={r}/>},{id:'models',label:'Models',icon:BrainCircuit,content:<PageModelAssurance r={r}/>},{id:'quality',label:'Data Quality',icon:Database,content:<PageQuality r={r}/>},{id:'team',label:'Team & Roles',icon:Users,content:<PageTeamWorkspace/>},{id:'audit',label:'Audit Log',icon:Activity,content:<PageAuditLog/>},{id:'trust',label:'Trust',icon:ShieldCheck,content:<PageTrustCenter r={r}/>}]} />;
 }
 
 function ProjectLibrary({ open, onClose, onOpen }: { open: boolean; onClose: () => void; onOpen: (project: SavedProject) => void }) {
