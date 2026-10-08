@@ -1,5 +1,6 @@
 import type { RawRow } from "../../types/dataPipeline";
 import type { SemanticIndex } from "../../types/semantic";
+import { parseStrictDate, dayOfWeek } from "./dateParsing";
 import type { EngineeredRow, EngineeredDataset, FeatureDefinition } from "../../types/features";
 
 /* ================================================================
@@ -36,14 +37,14 @@ export function engineerFeatures(rows: RawRow[], index: SemanticIndex): Engineer
     let converted = 0;
     for (const row of working) {
       const raw = String(row[dateCol.columnName] ?? '');
-      const d = raw ? new Date(raw) : null;
-      if (!d || Number.isNaN(d.getTime())) continue;
-      row['__year']       = d.getFullYear();
-      row['__month']      = d.getMonth() + 1;
-      row['__monthLabel'] = `${MONTH_LABELS[d.getMonth()]} ${String(d.getFullYear()).slice(-2)}`;
-      row['__dayOfWeek']  = d.getDay();
-      row['__quarter']    = Math.floor(d.getMonth() / 3) + 1;
-      row['__monthKey']   = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const d = raw ? parseStrictDate(raw) : null;
+      if (!d) continue;
+      row['__year']       = d.year;
+      row['__month']      = d.month;
+      row['__monthLabel'] = `${MONTH_LABELS[d.month - 1]} ${String(d.year).slice(-2)}`;
+      row['__dayOfWeek']  = dayOfWeek(d);
+      row['__quarter']    = Math.floor((d.month - 1) / 3) + 1;
+      row['__monthKey']   = `${d.year}-${String(d.month).padStart(2, '0')}`;
       converted++;
     }
     if (converted > 0) {

@@ -1,6 +1,7 @@
 import type { RawRow, DatasetProfile, ColumnProfile } from "../../types/dataPipeline";
 import type { BusinessRole, ColumnSemantics, SemanticResult, SemanticType, EvidenceItem, SemanticIndex } from "../../types/semantic";
 import { NAME_HINTS, NUMERIC_ROLES, VALUE_PATTERNS, REVIEW_THRESHOLD } from "../../config/semanticDictionary";
+import { isStrictDate } from "./dateParsing";
 
 /* ================================================================
    VERDIO — Stage 4: Semantic Column Detection
@@ -52,7 +53,7 @@ function valuePatternEvidence(role: BusinessRole, col: ColumnProfile, sample: st
 
   switch (role) {
     case 'date': {
-      const f = frac(v => VALUE_PATTERNS.isoDateLike.test(v) || VALUE_PATTERNS.slashDateLike.test(v));
+      const f = frac(isStrictDate);
       return f >= 0.5 ? { source: 'value_pattern', weight: 0.3 * f, detail: `${Math.round(f * 100)}% of sampled values look like dates.` } : null;
     }
     case 'price': case 'cost': case 'revenue': {
