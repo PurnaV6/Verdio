@@ -1,4 +1,5 @@
 import type { RawRow, ColumnProfile, DatasetProfile, InferredType } from "../../types/dataPipeline";
+import { isStrictDate, parseStrictDate } from "./dateParsing";
 
 /* ================================================================
    VERDIO — Stage 2: Data Profiling
@@ -28,14 +29,7 @@ export function looksNumeric(v: string): number | null {
 }
 
 export function looksDate(v: string): boolean {
-  const s = v.trim();
-  if (!s || /^-?\d+(\.\d+)?$/.test(s)) return false; // pure numbers aren't dates
-  if (/^\d{4}-\d{1,2}-\d{1,2}/.test(s)) return true;
-  if (/^\d{1,2}[/.]\d{1,2}[/.]\d{2,4}$/.test(s)) return true;
-  if (/^\d{1,2}\s+[A-Za-z]{3,9}\s+\d{2,4}$/.test(s)) return true; // "5 March 2024"
-  if (/^[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{2,4}$/.test(s)) return true; // "March 5, 2024"
-  const t = Date.parse(s);
-  return !Number.isNaN(t);
+  return isStrictDate(v);
 }
 
 function looksBoolean(v: string): boolean {
@@ -104,13 +98,14 @@ function profileColumn(name: string, values: string[]): ColumnProfile {
   }
 
   if (inferredType === 'date') {
-    const parsed = nonEmptyValues.map(v => new Date(v)).filter(d => !Number.isNaN(d.getTime()));
+    const parsed = nonEmptyValues.map(parseStrictDate).filter((d): d is NonNullable<typeof d> => d !== null);
     if (parsed.length) {
-      const times = parsed.map(d => d.getTime());
-      const months = new Set(parsed.map(d => `${d.getFullYear()}-${d.getMonth()}`));
+      const keys = parsed.map(d => d.year * 10000 + d.month * 100 + d.day);
+      const iso = (k: number) => `${String(Math.floor(k / 10000)).padStart(4, '0')}-${String(Math.floor(k / 100) % 100).padStart(2, '0')}-${String(k % 100).padStart(2, '0')}`;
+      const months = new Set(parsed.map(d => `${d.year}-${d.month - 1}`));
       profile.dateStats = {
-        min: new Date(Math.min(...times)).toISOString().slice(0, 10),
-        max: new Date(Math.max(...times)).toISOString().slice(0, 10),
+        min: iso(Math.min(...keys)),
+        max: iso(Math.max(...keys)),
         distinctMonths: months.size,
       };
     }

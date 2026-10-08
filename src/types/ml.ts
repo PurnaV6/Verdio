@@ -34,6 +34,7 @@ export interface CustomerSegment {
   id:       string;
   monetary: number;
   frequency: number;
+  recencyMonths: number;   // whole months from the customer's last activity to the end of the data
   segment:  CustomerSegmentLabel;
   rfmScore: number;
 }

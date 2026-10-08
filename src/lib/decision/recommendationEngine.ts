@@ -53,20 +53,26 @@ export function generateRecommendations(
   }
 
   if (ml.segmentation) {
-    const atRisk = ml.segmentation.segments.filter(s => s.segment === 'atRisk' || s.segment === 'lost').length;
+    const quiet = ml.segmentation.segments.filter(s => s.segment === 'atRisk' || s.segment === 'lost');
+    const atRisk = quiet.length;
     if (atRisk > 0) {
-      recs.push({ title: `Re-engage ${atRisk} at-risk/lapsed customers`, desc: `RFM segmentation identified ${atRisk} customers who were previously active but have gone quiet. A targeted win-back offer typically recovers 20–30% of this group.`, impact: 'high', sourceColumns: [ml.segmentation.customerColumn] });
+      const atRiskOnly = quiet.filter(s => s.segment === 'atRisk').length;
+      const minMonths = Math.min(...quiet.map(s => s.recencyMonths));
+      const monthsText = `${minMonths} month${minMonths === 1 ? '' : 's'}`;
+      recs.push({ title: `Re-engage ${atRisk} at-risk/lapsed customers`, desc: `${atRisk} customers (${atRiskOnly} at risk, ${atRisk - atRiskOnly} lapsed) have not been active for at least ${monthsText} before the end of the data, putting them among the least recently active customers. The at-risk group has the stronger purchase history, so start there.`, impact: 'high', sourceColumns: [ml.segmentation.customerColumn] });
     }
     if (ml.segmentation.churnRiskScore >= 40) {
       recs.push({ title: 'Implement automated churn prevention', desc: `Churn risk is elevated at ${ml.segmentation.churnRiskScore}/100. Set up re-engagement triggers 30 days after a customer's last purchase.`, impact: 'medium', sourceColumns: [ml.segmentation.customerColumn] });
     }
     if (ml.segmentation.segments.length > 0 && ml.segmentation.segments.length < 100) {
-      recs.push({ title: 'Build a loyalty/retention programme', desc: `With ${ml.segmentation.segments.length} customers, every retention matters. Even a 15% retention improvement compounds significantly over 12 months.`, impact: 'medium', sourceColumns: [ml.segmentation.customerColumn] });
+      const total = ml.segmentation.segments.length;
+      const repeatPct = Math.round((ml.segmentation.segments.filter(s => s.frequency > 1).length / total) * 100);
+      recs.push({ title: 'Build a loyalty/retention programme', desc: `With ${total} customers, each customer who leaves is a visible share of revenue. ${repeatPct}% of them have bought more than once, which is the base a retention programme would build on.`, impact: 'medium', sourceColumns: [ml.segmentation.customerColumn] });
     }
   }
 
   if (quality.overallScore < 80) {
-    recs.push({ title: 'Improve data collection', desc: `Data quality scores ${quality.overallScore}/100. Tightening capture of the flagged fields (see Data Quality page) will improve the accuracy of every future analysis.`, impact: 'medium', sourceColumns: [] });
+    recs.push({ title: 'Improve data collection', desc: `Data quality scores ${quality.overallScore}/100. Tightening capture of the flagged fields (see Data Quality page) can improve the accuracy of future analyses.`, impact: 'medium', sourceColumns: [] });
   }
 
   if (statistics.correlations.some(c => c.strength === 'strong' || c.strength === 'very_strong')) {
@@ -74,7 +80,7 @@ export function generateRecommendations(
     recs.push({ title: `Investigate the ${best.columnA} ↔ ${best.columnB} relationship`, desc: `A ${best.strength.replace('_', ' ')} ${best.direction} correlation (r = ${best.coefficient}) was found — this may be worth building into pricing, forecasting or operational decisions.`, impact: 'medium', sourceColumns: [best.columnA, best.columnB] });
   }
 
-  recs.push({ title: 'Run monthly Verd.io reviews', desc: 'Upload fresh data monthly to track how health score, risks and recommendations evolve — this compounds the value of the analysis over time.', impact: 'medium', sourceColumns: [] });
+  recs.push({ title: 'Run monthly Verd.io reviews', desc: 'Upload fresh data monthly to track how health score, risks and recommendations change from one upload to the next.', impact: 'medium', sourceColumns: [] });
 
   return recs.slice(0, 6);
 }

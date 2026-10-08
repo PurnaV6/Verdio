@@ -29,9 +29,9 @@ export function PageOutcomes({ r }: { r: PipelineResult }) {
   const expectedTotal = records.reduce((sum, item) => sum + item.expected, 0);
   const validated = records.filter(item => item.status === 'validated').length;
   return <div className="v2-view"><PageHead eyebrow="Value realisation" title="Decision outcomes">Track what happened after a recommendation was approved and compare realised value with Verd.io's original estimate.</PageHead>
-    <Figures label="Outcome summary"><Figure label="Expected value" value={`£${expectedTotal.toLocaleString()}`}/><Figure label="Recorded outcome" value={`£${actualTotal.toLocaleString()}`}/><Figure label="Validated decisions" value={`${validated}/${records.length}`}/></Figures>
+    <Figures label="Outcome summary"><Figure label="Planning estimate" value={`£${expectedTotal.toLocaleString()}`} sub="Verd.io's original estimate"/><Figure label="Recorded outcome" value={`£${actualTotal.toLocaleString()}`}/><Figure label="Validated decisions" value={`${validated}/${records.length}`}/></Figures>
     <div className="v2-table-wrap" role="region" aria-label="Decision outcomes" tabIndex={0}><table className="v2-table v2-op-table-wide"><caption className="sr-only">Expected and realised value, review status and evidence for each decision</caption>
-      <thead><tr><th scope="col">Decision</th><th scope="col" className="num">Expected</th><th scope="col">Realised</th><th scope="col">Review status</th><th scope="col">Outcome evidence</th></tr></thead>
+      <thead><tr><th scope="col">Decision</th><th scope="col" className="num">Planning estimate</th><th scope="col">Realised</th><th scope="col">Review status</th><th scope="col">Outcome evidence</th></tr></thead>
       <tbody>{records.map(record => <tr key={record.id}>
         <th scope="row"><strong>{record.decision}</strong><span className="v2-tag v2-op-sub">Based on current analysis</span></th>
         <td className="num">£{record.expected.toLocaleString()}</td>

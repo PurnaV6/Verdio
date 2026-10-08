@@ -1,5 +1,6 @@
 import type { RawRow, DatasetProfile, CleaningAction, CleanedDataset } from "../../types/dataPipeline";
-import { isMissingValue, looksNumeric, looksDate } from "./profileDataset";
+import { isMissingValue, looksNumeric } from "./profileDataset";
+import { toIsoDateString } from "./dateParsing";
 
 /* ================================================================
    VERDIO — Stage 3: Data Cleaning
@@ -21,12 +22,6 @@ import { isMissingValue, looksNumeric, looksDate } from "./profileDataset";
 
 const IMPUTE_MAX_MISSING_PCT = 40;
 const HIGH_UNIQUENESS_SKIP = 0.8; // uniquenessRatio above this => treat as identifier-like, don't impute
-
-function toISODate(v: string): string | null {
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString().slice(0, 10);
-}
 
 function median(nums: number[]): number {
   const s = [...nums].sort((a, b) => a - b);
@@ -123,8 +118,8 @@ export function cleanDataset(rows: RawRow[], profile: DatasetProfile): CleanedDa
       let converted = 0;
       working = working.map(row => {
         const v = row[h];
-        if (v === '' || !looksDate(v)) return row;
-        const iso = toISODate(v);
+        if (v === '') return row;
+        const iso = toIsoDateString(v);
         if (!iso || iso === v) return row;
         converted++;
         return { ...row, [h]: iso };

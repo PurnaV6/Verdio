@@ -5,11 +5,11 @@ import { StateMark } from "./StateMark";
 import { healthReading } from "./status";
 
 export function Sidebar({ page, setPage, result, onReset, open, onClose }: { page: string; setPage: (p: string) => void; result: PipelineResult; onReset: () => void; open: boolean; onClose: () => void }) {
-  const groups = ['WORKSPACE', 'INTELLIGENCE', 'EXPLORE', 'DATA'];
+  const groups = ['Decide', 'Predict', 'Explore', 'Data'];
   const health = result.decision.health.total;
   const reading = healthReading(health);
   return (
-    <><button aria-label="Close navigation" onClick={onClose} className={`mobile-scrim ${open ? 'is-open' : ''}`} /><aside aria-label="Workspace" className={`app-sidebar v2-rail fixed left-0 top-0 h-screen w-[272px] flex flex-col z-50 ${open ? 'is-open' : ''}`}>
+    <><button aria-label="Close navigation" onClick={onClose} className={`mobile-scrim ${open ? 'is-open' : ''}`} /><aside aria-label="Workspace" className={`app-sidebar v2-rail fixed left-0 top-0 h-screen w-[184px] flex flex-col z-50 ${open ? 'is-open' : ''}`}>
       <div className="v2-rail-top">
         <span className="v2-rail-mark">Verd<i>.</i>io</span>
         <button aria-label="Close navigation" onClick={onClose} className="v2-rail-close lg:hidden"><X size={19}/></button>

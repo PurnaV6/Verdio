@@ -89,7 +89,9 @@ function scoreFinancialImpact(
     return {
       estimatedValue: Math.round(revenueAtRisk),
       currency: 'GBP',
-      basis: `RFM segmentation shows ${ml.segmentation?.segments.filter(s=>s.segment==='atRisk' || s.segment==='lost').length || 0} at-risk customers, churn score ${ml.segmentation?.churnRiskScore || 0}/100`,
+      basis: ml.segmentation?.revenueAtRisk
+        ? `RFM segmentation shows ${ml.segmentation.segments.filter(s=>s.segment==='atRisk' || s.segment==='lost').length} at-risk customers, churn score ${ml.segmentation.churnRiskScore}/100`
+        : `No customer segmentation result was available, so 15% of total ${measureLabel} (£${Math.round(total).toLocaleString()}) is assumed to be at risk. This is a fixed planning assumption, not measured from your data`,
       rangeLow: Math.round(revenueAtRisk*0.5),
       rangeHigh: Math.round(revenueAtRisk*1.2)
     };
@@ -115,7 +117,7 @@ function scoreFinancialImpact(
     return {
       estimatedValue: Math.round(growthOpp),
       currency: 'GBP',
-      basis: `12% growth target on current base of £${Math.round(total).toLocaleString()} ${measureLabel}`,
+      basis: `12% growth target on current base of £${Math.round(total).toLocaleString()} ${measureLabel}. The 12% is a fixed planning assumption, not derived from your data`,
       rangeLow: Math.round(growthOpp*0.6),
       rangeHigh: Math.round(growthOpp*1.5)
     };
@@ -125,7 +127,7 @@ function scoreFinancialImpact(
   return {
     estimatedValue: Math.round(total * 0.05),
     currency: 'GBP',
-    basis: `Conservative 5% improvement in decision accuracy from better data on £${Math.round(total).toLocaleString()} base`,
+    basis: `5% of the £${Math.round(total).toLocaleString()} ${measureLabel} base. The 5% is a fixed planning assumption for the value of better data, not derived from your data`,
     rangeLow: Math.round(total*0.02),
     rangeHigh: Math.round(total*0.08)
   };
@@ -213,7 +215,7 @@ export function buildVerdioDecisions(params: {
 
   const top = ranked[0];
   const summary = top
-    ? `Top priority is "${top.title}" with £${top.financialImpact.estimatedValue.toLocaleString()} estimated impact, ${top.confidence*100}% confidence, ${top.effortDays} day effort. Total value at risk across all actions is £${totalValueAtRisk.toLocaleString()}.`
+    ? `Top priority is "${top.title}" with a planning estimate of £${top.financialImpact.estimatedValue.toLocaleString()}, ${Math.round(top.confidence*100)}% confidence, ${top.effortDays} day effort. Total value at risk across all actions is a planning estimate of £${totalValueAtRisk.toLocaleString()}.`
     : 'No prioritised actions generated. Upload a dataset with monetary and date columns for full decision ranking.';
 
   return {

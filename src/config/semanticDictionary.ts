@@ -84,8 +84,6 @@ export const VALUE_PATTERNS = {
   currencySymbol: /[£$€]/,
   email:          /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
   percentSign:    /%\s*$/,
-  isoDateLike:    /^\d{4}-\d{1,2}-\d{1,2}/,
-  slashDateLike:  /^\d{1,2}[/.]\d{1,2}[/.]\d{2,4}$/,
   postcodeLike:   /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i,   // UK postcode
   skuLike:        /^[A-Z0-9]{4,12}$/,
   booleanLike:    /^(true|false|yes|no|y|n|0|1)$/i,

@@ -28,11 +28,11 @@ describe('getRevenueView', () => {
     expect(view.revenueForecast).toBe(result.ml.forecast);
   });
 
-  it('still reports a 0 change when the previous period is 0 (the story engine does not rely on it)', async () => {
+  it('reports no change (null) when the previous period is 0; the story engine computes its own change anyway', async () => {
     const result = structuredClone(await demoResult());
     const series = getRevenueView(result).series!;
     series.points[series.points.length - 2].value = 0;
-    expect(getRevenueView(result).changePct).toBe(0);
+    expect(getRevenueView(result).changePct).toBeNull();
   });
 
   it('prefers connected revenue for the total when an organisation provides it', async () => {

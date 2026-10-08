@@ -5,6 +5,7 @@ import type { PipelineResult } from "../../types/pipeline";
 import { ChartRenderer } from "../workspace/lazy";
 import { MetricCard } from "./MetricCard";
 import { Figures, PageEmpty, PageHead } from "./PageParts";
+import { pageLabel } from "../workspace/navigation";
 
 export function PageForecast({ r }: { r: PipelineResult }) {
   const [scenario, setScenario] = useState<'base' | 'optimistic' | 'conservative'>('base');
@@ -15,7 +16,7 @@ export function PageForecast({ r }: { r: PipelineResult }) {
   const chartData = [...(ts?.points.map(p => ({ period: p.label, historical: p.value, forecast: null })) || []), ...forecast.points.map(p => ({ period: p.periodLabel, historical: null, forecast: p.value }))];
   return (
     <div className="v2-view">
-      <PageHead eyebrow="Predictions" title={`${measureLabel} forecast`}>Linear + Holt smoothing</PageHead>
+      <PageHead eyebrow={`${measureLabel} forecast`} title={pageLabel('forecast')}>Linear + Holt smoothing</PageHead>
       <div className="v2-seg" role="group" aria-label="Forecast scenario">{(['base', 'optimistic', 'conservative'] as const).map(s => <button key={s} type="button" aria-pressed={scenario === s} onClick={() => setScenario(s)}>{s}</button>)}</div>
       <section className="v2-panel" aria-label={`${measureLabel} forecast chart`}>
         <ChartRenderer chart={{ chartType: 'line', title: '', xKey: 'period', seriesKeys: ['historical', 'forecast'], data: chartData, formatValue: 'currency' } as any} />

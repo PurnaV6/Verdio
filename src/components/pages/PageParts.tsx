@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { StateMark } from "../workspace/StateMark";
 import type { Tone } from "../workspace/status";
 
-// Shared page furniture for the insight pages (v2 language: serif heading, ruled sections, mono figures).
+// Shared page furniture for the insight pages (v2 language: semibold heading, ruled sections, mono figures).
 export function PageHead({ eyebrow, title, children }: { eyebrow: string; title: string; children?: ReactNode }) {
   return <header className="v2-view-head"><p className="v2-eyebrow">{eyebrow}</p><h1>{title}</h1>{children&&<p>{children}</p>}</header>;
 }
