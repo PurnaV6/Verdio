@@ -1023,3 +1023,28 @@ button { cursor: pointer; }
   .v2-dlg-row { grid-template-columns: 20px minmax(0, 1fr) auto; gap: 10px; }
   .v2-dlg-delete { grid-column: 3; }
 }
+
+/* ---------- Sign-in and sign-up (v2) ---------- */
+/* Prefixed v2-auth-; the page also uses the v2-entry- shell, column, mark, title and lede rules above. */
+.v2-entry-col.is-auth { max-width: 460px; }
+.v2-auth-back { display: inline-flex; align-items: center; min-height: 40px; margin-bottom: 16px; padding: 0; border: 0; color: var(--v-muted); background: transparent; font: 500 14px/1.2 var(--v-font-body); }
+.v2-auth-back:hover { color: var(--v-ink); text-decoration: underline; text-underline-offset: 4px; }
+.v2-auth-panel { padding: 28px 28px 22px; border: 1px solid var(--v-ink); border-radius: 2px; background: var(--v-sheet); }
+.v2-auth-head { margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--v-rule); }
+.v2-auth-form { display: grid; gap: 18px; }
+.v2-auth-field { display: grid; gap: 6px; }
+.v2-auth-field label { font: 600 14px/1.3 var(--v-font-body); }
+.v2-auth-input { width: 100%; padding: 11px 12px; border: 1px solid var(--v-muted); border-radius: 4px; color: var(--v-ink); background: var(--v-paper); font: 400 16px/1.4 var(--v-font-body); }
+.v2-auth-input::placeholder { color: var(--v-muted); opacity: 1; }
+.v2-auth-input:focus { background: var(--v-sheet); border-color: var(--v-ink); }
+.v2-auth-msg { display: flex; gap: 10px; padding: 11px 14px; border: 1px solid var(--v-rule); border-left-width: 4px; border-radius: 2px; font-size: 14.5px; overflow-wrap: anywhere; }
+.v2-auth-msg::before { flex: none; font-size: 12px; line-height: 1.9; }
+.v2-auth-msg.is-error { border-color: var(--v-oxide); color: var(--v-oxide); background: color-mix(in srgb, var(--v-oxide) 7%, var(--v-sheet)); }
+.v2-auth-msg.is-error::before { content: "\25B2"; }
+.v2-auth-msg.is-info { border-color: var(--v-verd); color: var(--v-verd); background: color-mix(in srgb, var(--v-verd) 7%, var(--v-sheet)); }
+.v2-auth-msg.is-info::before { content: "\2713"; }
+.v2-auth-switch { text-align: center; }
+.v2-auth-foot { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--v-rule); letter-spacing: .06em; }
+@media (max-width: 480px) {
+  .v2-auth-panel { padding: 22px 18px 18px; }
+}
