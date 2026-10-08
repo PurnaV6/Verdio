@@ -8,7 +8,7 @@ import {
   RefreshCw, Users, Activity,
   ArrowUpRight, FileText, Menu, Settings, X, UploadCloud, PlayCircle, Building2,
   Trash2, FolderOpen, Mail, Download, ChevronRight,
-  ShieldCheck, Network, Files, ClipboardCheck, Target, Gauge, ScrollText, Stamp, BrainCircuit
+  ShieldCheck, Network, Files, ClipboardCheck, Target, Gauge, ScrollText, Stamp, BrainCircuit, AlertTriangle
 } from "lucide-react";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { saveToHistory } from "../lib/history/historyStore";
@@ -20,7 +20,6 @@ import { createSampleBusinessFile } from "../lib/demo/sampleBusinessDataset";
 import { deleteProject, listProjects, recordProjectOpened, saveProject, type SavedProject } from "../lib/projects/projectStore";
 import type { BusinessRole } from "../types/semantic";
 import LandingPage from "../components/marketing/LandingPage";
-import { BrandMark } from "../components/workspace/BrandMark";
 import { fmtN } from "../components/workspace/format";
 import { lazyWithReload } from "../components/workspace/lazy";
 import { PageAnalyses } from "../components/pages/PageAnalyses";
@@ -106,60 +105,61 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
   ];
 
   if (organization) return (
-    <div className="onboarding-shell min-h-screen flex items-center justify-center p-4 md:p-8">
-      <div className="onboarding-glow" />
-      <div className="w-full max-w-[1040px] elevated-panel organization-review-shell rounded-[28px] p-6 md:p-9 relative">
-        <div className="organization-review-heading"><BrandMark compact /><div><div className="eyebrow mb-2"><span className="eyebrow-dot"/> CONNECTED BUSINESS INTELLIGENCE</div><h1>Build your organisational workspace</h1><p>Choose the source that should drive forecasts and executive KPIs, then confirm the governed relationships Verd.io will use across supporting data.</p></div><span className="organization-count"><Files size={14}/>{organization.context.datasets.length} datasets ready</span></div>
-        <div className="primary-guidance"><Target size={18}/><div><strong>Which file should be primary?</strong><p>The primary source drives the main Business Intelligence, predictions, risks and decisions. Verd.io recommends the sales file because it contains dated transactions, quantities and revenue. Stock and finance remain connected supporting sources.</p></div></div>
-        <div className="organization-datasets">
-          {organization.context.datasets.map(dataset=>{const recommended=dataset.purpose==='sales';return <article key={dataset.id} className={dataset.primary?'is-primary':''}><div className="dataset-card-top"><div className="dataset-purpose"><Database size={16}/><span>{dataset.purpose}</span></div>{recommended&&<b>Recommended</b>}</div><strong>{dataset.fileName}</strong><p>{dataset.rowCount.toLocaleString()} rows · {dataset.columnCount} columns</p><small>{dataset.purpose==='sales'?'Best for revenue, forecasting and executive decisions':dataset.purpose==='inventory'?'Supports stock coverage and replenishment review':'Supports margin and financial reconciliation'}</small><label><input type="radio" name="primary-dataset" checked={dataset.primary} onChange={()=>setOrganization(current=>current?{...current,context:{...current.context,datasets:current.context.datasets.map(item=>({...item,primary:item.id===dataset.id}))}}:current)}/><span>{dataset.primary?'Selected as primary':'Use as primary source'}</span></label></article>})}
+    <div className="v2-entry-shell">
+      <main className="v2-entry-col is-wide">
+        <p className="v2-entry-mark">Verd<i>.</i>io</p>
+        <header className="v2-entry-head is-split">
+          <div><p className="v2-eyebrow">CONNECTED BUSINESS INTELLIGENCE</p><h1 className="v2-entry-title is-compact">Build your organisational workspace</h1><p className="v2-entry-lede">Choose the source that should drive forecasts and executive KPIs, then confirm the governed relationships Verd.io will use across supporting data.</p></div>
+          <span className="v2-entry-count"><Files size={14} aria-hidden="true"/>{organization.context.datasets.length} datasets ready</span>
+        </header>
+        <div className="v2-entry-guide"><Target size={18} aria-hidden="true"/><div><strong>Which file should be primary?</strong><p>The primary source drives the main Business Intelligence, predictions, risks and decisions. Verd.io recommends the sales file because it contains dated transactions, quantities and revenue. Stock and finance remain connected supporting sources.</p></div></div>
+        <div className="v2-entry-datasets" role="radiogroup" aria-label="Primary source">
+          {organization.context.datasets.map(dataset=>{const recommended=dataset.purpose==='sales';return <article key={dataset.id} className={`v2-entry-ds${dataset.primary?' is-primary':''}`}><div className="v2-entry-ds-top"><span className="v2-entry-ds-purpose"><Database size={16} aria-hidden="true"/>{dataset.purpose}</span>{recommended&&<b className="v2-entry-ds-flag">Recommended</b>}</div><strong className="v2-entry-ds-name">{dataset.fileName}</strong><p className="v2-tag">{dataset.rowCount.toLocaleString()} rows · {dataset.columnCount} columns</p><p className="v2-entry-ds-note">{dataset.purpose==='sales'?'Best for revenue, forecasting and executive decisions':dataset.purpose==='inventory'?'Supports stock coverage and replenishment review':'Supports margin and financial reconciliation'}</p><label className="v2-entry-ds-pick"><input type="radio" name="primary-dataset" checked={dataset.primary} onChange={()=>setOrganization(current=>current?{...current,context:{...current.context,datasets:current.context.datasets.map(item=>({...item,primary:item.id===dataset.id}))}}:current)}/><span>{dataset.primary?'Selected as primary':'Use as primary source'}</span></label></article>})}
         </div>
-        <section className="relationship-panel"><div className="relationship-title"><div><Network size={17}/><span><strong>Proposed relationships</strong><small>Confirmed relationships form the governed organisational model.</small></span></div><b>{organization.context.relationships.filter(item=>item.confirmed).length} confirmed</b></div>{organization.context.relationships.length===0?<div className="relationship-empty">No reliable shared keys were detected. Rename shared identifiers consistently—for example, Product ID or Customer ID—and try again.</div>:<div className="relationship-list">{organization.context.relationships.map(relation=>{const left=organization.context.datasets.find(item=>item.id===relation.leftDatasetId)!;const right=organization.context.datasets.find(item=>item.id===relation.rightDatasetId)!;return <label key={relation.id}><input type="checkbox" checked={relation.confirmed} onChange={e=>setOrganization(current=>current?{...current,context:{...current.context,relationships:current.context.relationships.map(item=>item.id===relation.id?{...item,confirmed:e.target.checked}:item)}}:current)}/><span className="relationship-route"><b>{left.fileName}</b><small>{relation.leftColumn}</small></span><i><Network size={14}/><em>{Math.round(relation.confidence*100)}%</em></i><span className="relationship-route"><b>{right.fileName}</b><small>{relation.rightColumn} · {relation.overlapPct}% overlap</small></span></label>})}</div>}</section>
-        {error&&<div className="mt-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>}
-        <div className="organization-footer"><button onClick={()=>setOrganization(null)} className="secondary-button justify-center">Choose different files</button><div><span>{organization.context.relationships.filter(item=>item.confirmed).length} relationships will be retained</span><button disabled={loading} onClick={confirmOrganization} className="primary-action justify-center">{loading?stage:'Create organisational workspace'}<ChevronRight size={15}/></button></div></div>
-      </div>
+        <section className="v2-entry-rel"><div className="v2-entry-rel-head"><div><h2><Network size={16} aria-hidden="true"/>Proposed relationships</h2><p>Confirmed relationships form the governed organisational model.</p></div><b className="v2-tag">{organization.context.relationships.filter(item=>item.confirmed).length} confirmed</b></div>{organization.context.relationships.length===0?<div className="v2-entry-rel-empty">No reliable shared keys were detected. Rename shared identifiers consistently—for example, Product ID or Customer ID—and try again.</div>:<div className="v2-entry-rel-list">{organization.context.relationships.map(relation=>{const left=organization.context.datasets.find(item=>item.id===relation.leftDatasetId)!;const right=organization.context.datasets.find(item=>item.id===relation.rightDatasetId)!;return <label key={relation.id}><input type="checkbox" checked={relation.confirmed} onChange={e=>setOrganization(current=>current?{...current,context:{...current.context,relationships:current.context.relationships.map(item=>item.id===relation.id?{...item,confirmed:e.target.checked}:item)}}:current)}/><span className="v2-entry-rel-route"><b>{left.fileName}</b><small>{relation.leftColumn}</small></span><span className="v2-entry-rel-conf"><Network size={14} aria-hidden="true"/><em>{Math.round(relation.confidence*100)}%</em></span><span className="v2-entry-rel-route"><b>{right.fileName}</b><small>{relation.rightColumn} · {relation.overlapPct}% overlap</small></span></label>})}</div>}</section>
+        {error&&<div role="alert" className="v2-entry-error"><AlertTriangle size={16} aria-hidden="true"/><span>{error}</span></div>}
+        <div className="v2-entry-foot"><button type="button" onClick={()=>setOrganization(null)} className="v2-btn is-quiet">Choose different files</button><div><span className="v2-tag">{organization.context.relationships.filter(item=>item.confirmed).length} relationships will be retained</span><button type="button" disabled={loading} onClick={confirmOrganization} className="v2-btn">{loading?stage:'Create organisational workspace'}<ChevronRight size={15} aria-hidden="true"/></button></div></div>
+      </main>
     </div>
   );
 
   if (pending) return (
-    <div className="onboarding-shell min-h-screen flex items-center justify-center p-4 md:p-8">
-      <div className="onboarding-glow" />
-      <div className="w-full max-w-[760px] elevated-panel rounded-[28px] p-6 md:p-9 relative">
-        <div className="flex items-start gap-4"><BrandMark compact /><div><div className="eyebrow mb-2"><span className="eyebrow-dot" /> DATA MAPPING</div><h1 className="text-2xl font-semibold tracking-tight text-slate-950">Confirm how Verd.io should read your data</h1><p className="mt-2 text-sm text-slate-500">We detected these roles automatically. Correct anything that does not match your business before analysis.</p></div></div>
-        <div className="mapping-list mt-6">
-          {pending.result.semantics.columns.map(column => <div key={column.columnName} className="mapping-row">
-            <div className="min-w-0"><strong>{column.columnName}</strong><span>{column.dataType} · {Math.round(column.confidence * 100)}% detected confidence</span></div>
-            <select aria-label={`Role for ${column.columnName}`} value={roleOverrides[column.columnName]} onChange={e=>setRoleOverrides(v=>({...v,[column.columnName]:e.target.value as BusinessRole}))}>{roleOptions.map(role=><option key={role.value} value={role.value}>{role.label}</option>)}</select>
+    <div className="v2-entry-shell">
+      <main className="v2-entry-col is-mid">
+        <p className="v2-entry-mark">Verd<i>.</i>io</p>
+        <header className="v2-entry-head"><p className="v2-eyebrow">DATA MAPPING</p><h1 className="v2-entry-title is-compact">Confirm how Verd.io should read your data</h1><p className="v2-entry-lede">We detected these roles automatically. Correct anything that does not match your business before analysis.</p></header>
+        <div className="v2-entry-map">
+          {pending.result.semantics.columns.map(column => <div key={column.columnName} className="v2-entry-map-row">
+            <div className="min-w-0"><strong>{column.columnName}</strong><span className="v2-tag">{column.dataType} · {Math.round(column.confidence * 100)}% detected confidence</span></div>
+            <select className="v2-entry-select" aria-label={`Role for ${column.columnName}`} value={roleOverrides[column.columnName]} onChange={e=>setRoleOverrides(v=>({...v,[column.columnName]:e.target.value as BusinessRole}))}>{roleOptions.map(role=><option key={role.value} value={role.value}>{role.label}</option>)}</select>
           </div>)}
         </div>
-        {error && <div className="mt-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>}
-        <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-between gap-3"><button onClick={()=>setPending(null)} className="secondary-button justify-center">Choose another file</button><button disabled={loading} onClick={confirmMapping} className="primary-action justify-center">{loading ? stage : 'Confirm mapping and analyse'} <ChevronRight size={15}/></button></div>
-      </div>
+        {error && <div role="alert" className="v2-entry-error"><AlertTriangle size={16} aria-hidden="true"/><span>{error}</span></div>}
+        <div className="v2-entry-foot"><button type="button" onClick={()=>setPending(null)} className="v2-btn is-quiet">Choose another file</button><button type="button" disabled={loading} onClick={confirmMapping} className="v2-btn">{loading ? stage : 'Confirm mapping and analyse'} <ChevronRight size={15} aria-hidden="true"/></button></div>
+      </main>
     </div>
   );
   return (
-    <div className="onboarding-shell min-h-screen flex items-center justify-center p-5 md:p-8">
-      <div className="onboarding-glow" />
-      <div className="w-full max-w-[620px] elevated-panel rounded-[28px] p-7 md:p-11 text-center relative">
-        <div className="mx-auto mb-6 flex justify-center"><BrandMark /></div>
-        <div className="eyebrow justify-center mb-3"><span className="eyebrow-dot" /> NEW ANALYSIS</div>
-        <h1 className="text-[30px] md:text-[36px] font-semibold tracking-[-0.04em] text-slate-950">Turn your data into decisions.</h1>
-        <p className="text-slate-500 text-[14px] leading-6 mt-3 mb-8 max-w-[470px] mx-auto">Upload one or more structured business datasets. Verd.io will understand how they relate and surface the decisions that matter.</p>
+    <div className="v2-entry-shell">
+      <main className="v2-entry-col">
+        <p className="v2-entry-mark">Verd<i>.</i>io</p>
+        <header className="v2-entry-head"><p className="v2-eyebrow">NEW ANALYSIS</p><h1 className="v2-entry-title">Turn your data into <em>decisions.</em></h1><p className="v2-entry-lede">Upload one or more structured business datasets. Verd.io will understand how they relate and surface the decisions that matter.</p></header>
         <div onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); handleFiles(Array.from(e.dataTransfer.files)); }} onClick={() => document.getElementById('fi')?.click()}
-          className={`upload-zone cursor-pointer rounded-[20px] border p-8 md:p-10 transition-all ${dragging ? 'is-dragging' : ''}`}>
+          role="button" tabIndex={0} aria-busy={loading} onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); document.getElementById('fi')?.click(); } }}
+          className={`v2-entry-drop${dragging ? ' is-dragging' : ''}`}>
           <input id="fi" type="file" multiple accept=".csv,.xlsx,.xls,.tsv,.json" className="hidden" onChange={e => { handleFiles(Array.from(e.target.files || [])); e.target.value = ''; }} />
-          {loading ? <div className="flex flex-col items-center gap-3"><div className="h-9 w-9 border-2 border-slate-200 border-t-blue-600 rounded-full animate-spin" /><p className="text-sm text-slate-700 font-medium">{stage}</p><p className="text-xs text-slate-400">This usually takes less than a minute.</p></div> :
-            <><div className="upload-icon mx-auto mb-4"><UploadCloud size={22}/></div><p className="font-semibold text-slate-950 text-sm">Drop one or multiple business datasets here</p><p className="mt-1.5 text-[12px] text-slate-500">Sales, stock, customers, products or finance · CSV, XLSX, XLS, TSV, JSON</p><p className="mt-4 text-[10px] text-slate-400 font-semibold tracking-[0.12em]">YOUR DATA REMAINS PRIVATE</p></>}
+          {loading ? <div className="v2-entry-drop-busy" role="status" aria-live="polite"><div className="v2-spinner" aria-hidden="true" /><p className="v2-entry-drop-title">{stage}</p><p className="v2-tag">This usually takes less than a minute.</p></div> :
+            <><UploadCloud className="v2-entry-drop-icon" size={28} aria-hidden="true"/><p className="v2-entry-drop-title">Drop one or multiple business datasets here</p><p className="v2-entry-drop-types">Sales, stock, customers, products or finance · CSV, XLSX, XLS, TSV, JSON</p><p className="v2-entry-drop-private">YOUR DATA REMAINS PRIVATE</p></>}
         </div>
-        {error && <div className="mt-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>}
-        <div className="demo-divider"><span>or explore before uploading</span></div>
-        <button type="button" disabled={loading} onClick={() => handleFile(createSampleBusinessFile(), true)} className="demo-entry group">
-          <span className="demo-entry-icon"><Building2 size={18} /></span>
-          <span className="demo-entry-copy"><strong>Explore a sample business</strong><small>See forecasts, risks and recommended decisions using 24 months of realistic operating data.</small></span>
-          <PlayCircle className="demo-entry-arrow" size={21} />
+        {error && <div role="alert" className="v2-entry-error"><AlertTriangle size={16} aria-hidden="true"/><span>{error}</span></div>}
+        <div className="v2-entry-or"><span>or explore before uploading</span></div>
+        <button type="button" disabled={loading} onClick={() => handleFile(createSampleBusinessFile(), true)} className="v2-entry-demo">
+          <Building2 className="v2-entry-demo-icon" size={22} aria-hidden="true" />
+          <span className="v2-entry-demo-copy"><strong>Explore a sample business</strong><small>See forecasts, risks and recommended decisions using 24 months of realistic operating data.</small></span>
+          <PlayCircle className="v2-entry-demo-arrow" size={22} aria-hidden="true" />
         </button>
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[11px] text-slate-400"><span>Automatic cleaning</span><span className="hidden sm:inline">•</span><span>Adaptive analysis</span><span className="hidden sm:inline">•</span><span>Explainable decisions</span></div>
-      </div>
+        <div className="v2-entry-assure"><span>Automatic cleaning</span><span className="hidden sm:inline" aria-hidden="true">•</span><span>Adaptive analysis</span><span className="hidden sm:inline" aria-hidden="true">•</span><span>Explainable decisions</span></div>
+      </main>
     </div>
   );
 }
@@ -235,7 +235,7 @@ export default function App() {
   useEffect(() => { if (!result || !result.aiLoading) return; let cancelled=false; generateAIInsights(result).then(ai=>{ if(!cancelled) setResult(prev=>prev?{...prev, aiInsights: ai, aiLoading:false}:prev); }); return()=>{cancelled=true;}; }, [result]);
   useEffect(() => { if (!result || result.aiLoading) return; saveToHistory(result); saveProject(result, currentProjectIdRef.current || undefined).then(setCurrentProjectId).catch(e=>console.warn('Project save failed', e)); }, [result]);
   useEffect(()=>{if(!user)return;const token=new URLSearchParams(window.location.search).get('invite');if(!token)return;const sb=getSupabase();if(!sb)return;void sb.rpc('accept_organization_invitation',{invitation_token:token}).then(({error})=>{setInviteMessage(error?error.message:'Invitation accepted. Your workspace role is now active.');if(!error)window.history.replaceState({},'',window.location.pathname)})},[user]);
-  if (authLoading) return <div className="min-h-screen bg-[#F5F6FA] flex items-center justify-center"><div className="h-8 w-8 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" /></div>;
+  if (authLoading) return <div role="status" aria-live="polite" className="v2-entry-shell is-wait"><div className="v2-spinner" aria-hidden="true" /><span className="v2-tag">Loading…</span></div>;
   const setPublicView=(mode:'landing'|'signin'|'signup')=>{
     if(publicMode==='demo'){setResult(null);setPage('overview')}
     setPublicMode(mode);
@@ -258,7 +258,7 @@ export default function App() {
   if (isPublicHomepage) return <LandingPage onDemo={()=>void openDemo()} onLogin={()=>setPublicView('signin')} onSignup={()=>setPublicView('signup')}/>;
   if (!user && publicMode==='landing') return <PasswordGateScreen onBack={()=>setPublicView('landing')}/>;
   if (!user && (publicMode==='signin'||publicMode==='signup')) return <PasswordGateScreen initialMode={publicMode} onBack={()=>setPublicView('landing')}/>;
-  if (!user && publicMode==='demo' && demoLoading) return <div className="public-demo-loading"><div className="h-9 w-9 border-2 border-slate-200 border-t-blue-600 rounded-full animate-spin"/><p>Preparing the Verd.io live demo…</p></div>;
+  if (!user && publicMode==='demo' && demoLoading) return <div role="status" aria-live="polite" className="v2-entry-shell is-wait"><div className="v2-spinner" aria-hidden="true"/><p className="v2-tag">Preparing the Verd.io live demo…</p></div>;
   if (!result && access.role==='viewer') return <ViewerWorkspaceLanding message={inviteMessage} onOpen={project=>{void recordProjectOpened(project);setResult(project.result);setCurrentProjectId(project.id)}}/>;
   if (!result) return <UploadScreen onLoaded={r => { setCurrentProjectId(null); setResult(r); setPage('overview'); }} />;
   const titles: Record<string, string> = { overview: 'Executive Workspace', execution: 'Execution', governance: 'Governance', advisor: 'AI Advisor', forecast: 'Predictions', scenarios: 'Scenario Planning', analyses: 'Intelligence', customers: 'Customer Intelligence', seasonality: 'Seasonality', health: 'Health Detail', risks: 'Risks & Opportunities', recs: 'Decisions', products: 'Products & Markets', profile: 'Data Hub', connections: 'Connections', relationships: 'Data Relationships', alerts: 'Alerts & Reports' };
