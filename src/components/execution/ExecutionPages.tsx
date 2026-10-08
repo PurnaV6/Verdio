@@ -19,10 +19,11 @@ export function PageActionTracker({ r }: { r: PipelineResult }) {
   const initial = useMemo<TrackedAction[]>(() => recommendations.slice(0, 5).map((item, index) => ({
     id: `${index}-${item.title}`, title: item.title, owner: index === 0 ? 'Workspace owner' : 'Unassigned',
     dueDate: dueDate(item.urgency === 'immediate' ? 7 : item.urgency === 'this_month' ? 30 : 60),
-    status: index === 0 ? 'in_progress' : 'planned', impact: item.financialImpact ? `£${item.financialImpact.estimatedValue.toLocaleString()} estimated` : `${item.impact} impact`,
+    status: index === 0 ? 'in_progress' : 'planned', impact: item.financialImpact ? `£${item.financialImpact.estimatedValue.toLocaleString()} planning estimate` : `${item.impact} impact`,
   })), [recommendations]);
   const { value: actions, save, mode } = useWorkspaceState('actions', r.source.fileName, initial);
   const update = (id: string, changes: Partial<TrackedAction>) => save(actions.map(item => item.id === id ? { ...item, ...changes } : item));
+  const liveImpact = (action: TrackedAction) => recommendations.find(item => item.title === action.title)?.financialImpact;
   const completed = actions.filter(item => item.status === 'complete').length;
 
   return <div className="v2-view"><PageHead eyebrow="Decision execution" title="Action tracker">Convert Verd.io recommendations into accountable work with clear ownership, deadlines and delivery status.</PageHead>
@@ -30,7 +31,7 @@ export function PageActionTracker({ r }: { r: PipelineResult }) {
     {actions.length === 0 ? <InlineEmpty message="No recommended actions are available for this dataset."/> : <div className="v2-table-wrap" role="region" aria-label="Priority actions" tabIndex={0}><table className="v2-table v2-op-table-wide"><caption className="sr-only">Priority actions with progress, owner, due date and status</caption>
       <thead><tr><th scope="col">Action</th><th scope="col">Progress</th><th scope="col">Owner</th><th scope="col">Due date</th><th scope="col">Status</th></tr></thead>
       <tbody>{actions.map(action => <tr key={action.id}>
-        <th scope="row"><strong>{action.title}</strong><span className="v2-tag v2-op-sub">{action.impact}</span></th>
+        <th scope="row"><strong>{action.title}</strong><span className="v2-tag v2-op-sub">{liveImpact(action) ? `£${liveImpact(action)!.estimatedValue.toLocaleString()} planning estimate` : action.impact}</span>{liveImpact(action) && <span className="v2-tag v2-op-sub">Basis: {liveImpact(action)!.basis}</span>}</th>
         <td><button type="button" className="v2-op-state-btn" onClick={() => update(action.id, { status: action.status === 'planned' ? 'in_progress' : action.status === 'in_progress' ? 'complete' : 'planned' })}>{statusMark(action.status)}<span className="sr-only">: change status for {action.title}</span></button></td>
         <td><label><span className="sr-only">Owner for {action.title}</span><input className="v2-op-input" value={action.owner} onChange={event => update(action.id, { owner: event.target.value })}/></label></td>
         <td><label><span className="sr-only">Due date for {action.title}</span><input className="v2-op-input is-num" type="date" value={action.dueDate} onChange={event => update(action.id, { dueDate: event.target.value })}/></label></td>
