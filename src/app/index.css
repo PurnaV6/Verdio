@@ -70,7 +70,8 @@
   --surface: #ffffff;
   --canvas: #f3f7fb;
   --line: #dce6f0;
-  /* Verd.io v2 design tokens (additive; used by the public landing page) */
+  /* Verd.io v2 design tokens. The whole product is light-only for now (no dark override).
+     Dark mode can be added app-wide later by overriding these --v-* tokens in one place. */
   --v-paper: #EDF0EA;
   --v-sheet: #F7F9F5;
   --v-ink: #1A2B2F;
@@ -84,21 +85,6 @@
   --v-font-display: "Newsreader", Georgia, "Times New Roman", serif;
   --v-font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --v-font-data: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --v-paper: #101716;
-    --v-sheet: #172120;
-    --v-ink: #E3EBE6;
-    --v-muted: #92A39C;
-    --v-rule: #2A3836;
-    --v-verd: #5FB894;
-    --v-verd-ink: #0C1714;
-    --v-tide: #7FB4CE;
-    --v-brass: #D9B25A;
-    --v-oxide: #E58A7E;
-  }
 }
 
 * {
@@ -149,7 +135,7 @@ button { cursor: pointer; }
   font-family: var(--v-font-body);
   font-size: 15px;
   line-height: 1.55;
-  color-scheme: light dark;
+  color-scheme: light;
 }
 .v2-site *, .v2-site *::before, .v2-site *::after { box-sizing: border-box; }
 :where(.v2-site) :is(h1, h2, h3, p, ul, ol) { margin: 0; padding: 0; }
