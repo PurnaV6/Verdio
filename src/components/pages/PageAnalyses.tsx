@@ -4,6 +4,7 @@ import { ChartRenderer } from "../workspace/lazy";
 import { SkeletonLine } from "../workspace/Skeleton";
 import { findNarrative } from "./aiLookup";
 import { Figure, Figures, PageHead } from "./PageParts";
+import { pageLabel } from "../workspace/navigation";
 
 export function PageAnalyses({ r }: { r: PipelineResult }) {
   const filtered = r.analyses.filter(a => !['comparison', 'concentration_analysis', 'segmentation'].includes(a.capability));
@@ -13,7 +14,7 @@ export function PageAnalyses({ r }: { r: PipelineResult }) {
   const inventoryCoverage=r.organization?.metrics?.find(metric=>metric.id==='inventory-demand-coverage');
   const stockReview=r.organization?.metrics?.find(metric=>metric.id==='products-requiring-review');
   return <div className="v2-view">
-    <PageHead eyebrow="Business intelligence" title="Commercial performance">Decision-ready KPIs and analytical evidence from the active organisational workspace.{r.organization&&<> <span className="v2-tag">{r.organization.datasets.length} connected sources</span></>}</PageHead>
+    <PageHead eyebrow="Commercial performance" title={pageLabel('analyses')}>Decision-ready KPIs and analytical evidence from the active organisational workspace.{r.organization&&<> <span className="v2-tag">{r.organization.datasets.length} connected sources</span></>}</PageHead>
     <Figures label="Key figures">
       <Figure label="Recognised revenue" value={revenue?new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP',maximumFractionDigits:0}).format(revenue):'Not available'} sub={connectedRevenue!==undefined?'Connected sales source · reconciled organisational context':revenueColumn?<>Calculated from <b>{revenueColumn}</b></>:'A revenue measure was not detected'}/>
       <Figure label={inventoryCoverage?'Inventory coverage':'Transactions analysed'} value={inventoryCoverage?`${inventoryCoverage.value.toFixed(1)}%`:r.source.rowCount.toLocaleString('en-GB')} sub={inventoryCoverage?'Against demand represented in the sales period':`${r.profile.columnCount} classified columns`}/>

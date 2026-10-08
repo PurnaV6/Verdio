@@ -2,13 +2,14 @@ import type { PipelineResult } from "../../types/pipeline";
 import { StateMark } from "../workspace/StateMark";
 import { healthReading } from "../workspace/status";
 import { PageHead } from "./PageParts";
+import { pageLabel } from "../workspace/navigation";
 
 export function PageHealth({ r }: { r: PipelineResult }) {
   const h = r.decision.health;
   const reading = healthReading(h.total);
   return (
     <div className="v2-view">
-      <PageHead eyebrow="Health detail" title="Business health" />
+      <PageHead eyebrow="Business health" title={pageLabel('health')} />
       <section className="v2-rev-hero" aria-label="Overall health score">
         <div>
           <p className="v2-eyebrow">Overall score</p>

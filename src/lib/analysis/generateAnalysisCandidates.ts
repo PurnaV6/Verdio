@@ -191,10 +191,10 @@ export function generateMLAnalysisCandidates(capabilities: CapabilityReport, ml:
     out.push({
       id: 'anomalies', capability: 'anomaly_detection',
       title: `${anomalyLabel} Anomalies`,
-      explanation: `${flagged.length} period(s) deviate more than 1.8 standard deviations from the expected trend.`,
+      explanation: `${flagged.length} period(s) deviate more than 1.8 standard deviations from the average.`,
       score: Math.round(anomaly.confidence * 100),
       chart: buildTable(`${anomalyLabel} Anomalies`, flagged.map(p => ({ period: p.periodLabel, actual: p.actual, expected: p.expected, zScore: p.zScore })),
-        [{ key: 'period', label: 'Period' }, { key: 'actual', label: 'Actual', format: 'currency' }, { key: 'expected', label: 'Expected', format: 'currency' }, { key: 'zScore', label: 'Z-Score' }]),
+        [{ key: 'period', label: 'Period' }, { key: 'actual', label: 'Actual', format: 'currency' }, { key: 'expected', label: 'Average', format: 'currency' }, { key: 'zScore', label: 'Z-Score' }]),
     });
   }
 

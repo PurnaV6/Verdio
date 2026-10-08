@@ -3,8 +3,11 @@ import { Database, FileSpreadsheet, Link2 } from 'lucide-react';
 import type { PipelineResult } from '../../types/pipeline';
 import { primaryMeasureColumn } from '../../lib/analysis/pickColumns';
 import { getSupabase } from '../../lib/auth/supabaseClient';
+import { useOrganizationAccess } from '../../lib/auth/useOrganizationAccess';
+import { accessLevelLabel, projectStorageLabel } from '../../lib/auth/accessLabels';
 import { StateMark } from '../workspace/StateMark';
 import { Figure, Figures, IdleMark, PageHead } from '../pages/PageParts';
+import { pageLabel } from "../workspace/navigation";
 
 const PREFS_KEY = 'verdio_operational_preferences_v1';
 
@@ -40,7 +43,7 @@ export function PageConnections({ r }: { r: PipelineResult }) {
     { name: 'QuickBooks / Xero', detail: 'Accounting and cash-flow data', icon: Database, status: 'Requires provider credentials' },
     { name: 'PostgreSQL / Supabase', detail: 'Read-only database synchronisation', icon: Database, status: 'Requires connection secret' },
   ];
-  return <div className="v2-view"><PageHead eyebrow="Data operations" title="Connections and refresh">Manage how information enters this workspace. External sources are not yet available and will open here once their OAuth or database integration ships.</PageHead>
+  return <div className="v2-view"><PageHead eyebrow="Connections and refresh" title={pageLabel('connections')}>Manage how information enters this workspace. External sources are not yet available and will open here once their OAuth or database integration ships.</PageHead>
     <Figures label="Active source"><Figure label="Active source" value={r.source.rowCount.toLocaleString()} unit=" rows" tone="ok" toneLabel="Ready" sub={r.source.fileName}/></Figures>
     <div className="v2-table-wrap" role="region" aria-label="Available connectors" tabIndex={0}><table className="v2-table v2-op-table-wide"><caption>Available connectors</caption>
       <thead><tr><th scope="col">Connector</th><th scope="col">Use</th><th scope="col">Requirement</th><th scope="col">Availability</th></tr></thead>
@@ -51,12 +54,12 @@ export function PageConnections({ r }: { r: PipelineResult }) {
 
 export function PageRelationships({ r }: { r: PipelineResult }) {
   const organization=r.organization;
-  if(!organization) return <div className="v2-view"><PageHead eyebrow="Organisational model" title="Dataset relationships">Upload two or more datasets together to create a governed organisational data model.</PageHead><section className="v2-empty" role="status"><div><h2>No organisational model is active</h2><p>Start a new analysis and select sales, stock, customer, product or finance files together.</p></div></section></div>;
+  if(!organization) return <div className="v2-view"><PageHead eyebrow="Dataset relationships" title={pageLabel('relationships')}>Upload two or more datasets together to create a governed organisational data model.</PageHead><section className="v2-empty" role="status"><div><h2>No organisational model is active</h2><p>Start a new analysis and select sales, stock, customer, product or finance files together.</p></div></section></div>;
   const confirmed=organization.relationships.filter(item=>item.confirmed);
   const metrics=(organization.metrics||[]).filter(item=>!item.relationshipId||confirmed.some(relation=>relation.id===item.relationshipId));
   const insights=(organization.insights||[]).filter(item=>!item.relationshipId||confirmed.some(relation=>relation.id===item.relationshipId));
   const formatMetric=(value:number,format:string)=>format==='currency'?new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP',maximumFractionDigits:0}).format(value):format==='percentage'?`${value.toFixed(1)}%`:Math.round(value).toLocaleString('en-GB');
-  return <div className="v2-view"><PageHead eyebrow="Organisational model" title="Dataset relationships">Review connected sources, governed relationships and the operational signals supported by them.</PageHead>
+  return <div className="v2-view"><PageHead eyebrow="Dataset relationships" title={pageLabel('relationships')}>Review connected sources, governed relationships and the operational signals supported by them.</PageHead>
     <div className="v2-table-wrap" role="region" aria-label="Connected datasets" tabIndex={0}><table className="v2-table"><caption>Connected datasets</caption>
       <thead><tr><th scope="col">Dataset</th><th scope="col">Purpose</th><th scope="col" className="num">Rows</th><th scope="col" className="num">Columns</th><th scope="col">Role</th></tr></thead>
       <tbody>{organization.datasets.map(dataset=><tr key={dataset.id} aria-current={dataset.primary?'true':undefined}><th scope="row" className="v2-op-wrap">{dataset.fileName}</th><td>{dataset.purpose}</td><td className="num">{dataset.rowCount.toLocaleString()}</td><td className="num">{dataset.columnCount}</td><td>{dataset.primary?<StateMark tone="ok" label="Primary executive analysis"/>:<span className="v2-none">Supporting source</span>}</td></tr>)}</tbody></table></div>
@@ -102,7 +105,7 @@ export function PageAlerts({ r }: { r: PipelineResult }) {
     {key:'qualityAlert' as const,label:'Data quality degradation',desc:'Flag incomplete or unreliable incoming data.',threshold:'qualityThreshold' as const},
     {key:'revenueDropAlert' as const,label:'Material revenue movement',desc:'Flag significant negative changes or elevated variability.'},
   ];
-  return <div className="v2-view"><PageHead eyebrow="Monitoring" title="Alerts and scheduled briefs">Define which operating signals should demand attention and how often an executive brief should be prepared.</PageHead>
+  return <div className="v2-view"><PageHead eyebrow="Alerts and scheduled briefs" title={pageLabel('alerts')}>Define which operating signals should demand attention and how often an executive brief should be prepared.</PageHead>
     <section className="v2-op-verdict" role="status">{activeSignals.length?<StateMark tone="risk" label="Rules triggered"/>:<StateMark tone="ok" label="Within thresholds"/>}<h2>{activeSignals.length ? `${activeSignals.length} rule${activeSignals.length===1?'':'s'} triggered` : 'No configured thresholds are currently breached'}</h2><p>{activeSignals.length ? activeSignals.join(' · ') : 'Rules are evaluated whenever the active analysis is refreshed.'}</p></section>
     <section className="v2-op-sect"><h2>Alert rules</h2>
       <ul className="v2-op-rules">{rules.map(rule=><li key={rule.key}><label className="v2-op-check"><input type="checkbox" checked={prefs[rule.key]} onChange={e=>update(rule.key,e.target.checked)}/><span><strong>{rule.label}</strong><small>{rule.desc}</small></span></label>{rule.threshold&&<div className="v2-op-threshold"><label className="sr-only" htmlFor={`${rule.key}-threshold`}>{rule.label} threshold</label><input id={`${rule.key}-threshold`} className="v2-op-input is-num is-short" type="number" min="1" max="100" value={prefs[rule.threshold]} onChange={e=>update(rule.threshold,Number(e.target.value))}/><span>/100</span></div>}</li>)}</ul></section>
@@ -122,7 +125,7 @@ export function PageScenarioPlanner({ r }: { r: PipelineResult }) {
   const projectedCost = baselineCost * (1+volume/100) * (1+cost/100);
   const baselineProfit = baselineRevenue-baselineCost; const projectedProfit=projectedRevenue-projectedCost;
   const levers = [{label:'Price change',value:price,set:setPrice,min:-20,max:30},{label:'Volume / demand',value:volume,set:setVolume,min:-30,max:50},{label:'Unit cost change',value:cost,set:setCost,min:-25,max:30},{label:'Retention improvement',value:retention,set:setRetention,min:0,max:30}];
-  return <div className="v2-view"><PageHead eyebrow="Scenario planning" title="Model commercial decisions">Adjust key assumptions and compare the resulting operating position against the current dataset baseline.</PageHead>
+  return <div className="v2-view"><PageHead eyebrow="Model commercial decisions" title={pageLabel('scenarios')}>Adjust key assumptions and compare the resulting operating position against the current dataset baseline.</PageHead>
     <div className="v2-op-scenario">
       <section aria-labelledby="scenario-levers-heading"><h2 id="scenario-levers-heading" className="v2-op-h2">Decision levers</h2><p className="v2-muted">Changes are illustrative and update instantly.</p>
         {levers.map(lever=>{const id=`scenario-lever-${lever.label.toLowerCase().replace(/[^a-z0-9]+/g,'-')}`;return <div className="v2-op-lever" key={lever.label}><div className="v2-op-lever-top"><label htmlFor={id}>{lever.label}</label><strong className="v2-op-lever-val">{lever.value>0?'+':''}{lever.value}%</strong></div><input id={id} className="v2-op-range" type="range" min={lever.min} max={lever.max} value={lever.value} aria-valuetext={`${lever.value>0?'+':''}${lever.value} percent`} onChange={e=>lever.set(Number(e.target.value))}/><div className="v2-op-lever-ends" aria-hidden="true"><span>{lever.min}%</span><span>{lever.max}%</span></div></div>})}
@@ -136,12 +139,13 @@ export function PageScenarioPlanner({ r }: { r: PipelineResult }) {
 
 export function PageTrustCenter({ r }: { r: PipelineResult }) {
   const [cleared,setCleared]=useState(false);
+  const access=useOrganizationAccess();
   function clearPreferences(){ localStorage.removeItem(PREFS_KEY); setCleared(true); }
   const controls=[
-    {title:'In-browser data processing',detail:'Uploaded datasets are analysed in the browser. Only derived context is sent to the configured AI endpoint when AI features are used.',status:'Active',tone:'ok' as const},
+    {title:'In-browser data processing',detail:'Uploaded datasets are analysed in the browser. Only derived context is sent to the configured AI endpoint when AI features are used. When you are signed in, saved projects (for organisation members) and your action, target and outcome records can also be stored in the cloud; see Current workspace below.',status:'Active',tone:'ok' as const},
     {title:'AI provider boundary',detail:'The server selects Groq or OpenAI from protected deployment variables. API credentials are never exposed to the browser.',status:'Active',tone:'ok' as const},
     {title:'Authentication',detail:'Supabase authentication is enforced when deployment credentials are configured.',status:'Environment controlled',tone:'watch' as const},
-    {title:'Role-based access and SSO',detail:'Enterprise roles and SSO require organisation tables, policies and an identity-provider configuration.',status:'Backend setup required',tone:'watch' as const},
+    {title:'Role-based access and SSO',detail:'Owner, admin, analyst and viewer roles apply to members of an organisation, and need organisation tables and policies in the deployment. Single sign-on also needs an identity-provider configuration.',status:'Backend setup required',tone:'watch' as const},
   ];
   const activity=[
     {event:'Analysis generated',detail:`${r.source.rowCount.toLocaleString()} rows processed from ${r.source.fileName}`,when:'Current session'},
@@ -153,7 +157,7 @@ export function PageTrustCenter({ r }: { r: PipelineResult }) {
       <thead><tr><th scope="col">Control</th><th scope="col">What it does</th><th scope="col">Status</th></tr></thead>
       <tbody>{controls.map(c=><tr key={c.title}><th scope="row">{c.title}</th><td>{c.detail}</td><td className="read"><StateMark tone={c.tone} label={c.status}/></td></tr>)}</tbody></table></div>
     <section className="v2-op-sect"><h2>Current workspace</h2>
-      <dl className="v2-op-kv"><div><dt>Active dataset</dt><dd>{r.source.fileName}</dd></div><div><dt>Local project retention</dt><dd>IndexedDB on this device</dd></div><div><dt>Current access level</dt><dd>Workspace owner</dd></div></dl>
+      <dl className="v2-op-kv"><div><dt>Active dataset</dt><dd>{r.source.fileName}</dd></div><div><dt>Saved project storage</dt><dd>{projectStorageLabel(access.role,access.loading)}</dd></div><div><dt>Current access level</dt><dd>{accessLevelLabel(access.role,access.loading)}</dd></div></dl>
       <div className="v2-op-form-foot"><p><strong>Clear operational preferences.</strong> Removes alert and report preferences stored by this browser. Saved analyses are managed separately in Analysis history.</p><button type="button" className="v2-op-btn is-danger" onClick={clearPreferences}>{cleared?'Preferences cleared':'Clear preferences'}</button></div></section>
     <section className="v2-op-sect"><h2>Activity and audit readiness</h2>
       <div className="v2-table-wrap" role="region" aria-label="Activity and audit readiness" tabIndex={0}><table className="v2-table"><caption className="sr-only">Recent activity relevant to audit readiness</caption>

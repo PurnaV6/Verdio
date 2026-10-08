@@ -19,3 +19,8 @@ export const PAGES: NavPage[] = [
   { id: 'governance', label: 'Governance', group: 'Data' },
   { id: 'alerts', label: 'Alerts & Reports', group: 'Data' },
 ];
+
+/** The canonical visible name for a page: the header title, the navigation label and the page heading all use this. */
+export function pageLabel(id: string): string {
+  return PAGES.find(page => page.id === id)?.label ?? id;
+}

@@ -89,7 +89,7 @@ export function detectRisks(
   if (ml.anomalies) {
     const negative = ml.anomalies.points.filter(p => p.isAnomaly && p.actual < p.expected);
     if (negative.length >= 2) {
-      risks.push({ level: 'medium', icon: '🔍', title: 'Unexplained Revenue Drops', desc: `${negative.length} period(s) came in well below what the trend would predict, including ${negative[0].periodLabel}. Worth investigating what happened then — a one-off event, a stockout, or a genuine problem worth fixing.`, sourceColumns: [ml.anomalies.measureColumn] });
+      risks.push({ level: 'medium', icon: '🔍', title: 'Unexplained Revenue Drops', desc: `${negative.length} period(s) came in well below the average for the whole period, including ${negative[0].periodLabel}. Worth investigating what happened then — a one-off event, a stockout, or a genuine problem worth fixing.`, sourceColumns: [ml.anomalies.measureColumn] });
     }
   }
 

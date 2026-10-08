@@ -1,14 +1,13 @@
 import { useMemo } from 'react';
 import type { PipelineResult } from '../../types/pipeline';
-import type { ModelSelection } from '../../lib/ml/modelManager';
 import type { EnrichedRecommendation } from '../../lib/decision/verdioDecisionEngine';
 import { useWorkspaceState } from '../../lib/workspace/useWorkspaceState';
 import { StateMark } from '../workspace/StateMark';
 import { Figure, Figures, IdleMark, InlineEmpty, PageHead } from '../pages/PageParts';
+import { buildKpiTargets, mergeSavedTargets, type KpiTarget } from './kpiTargets';
 
 type ActionStatus = 'planned' | 'in_progress' | 'complete';
 interface TrackedAction { id: string; title: string; owner: string; dueDate: string; status: ActionStatus; impact: string; }
-interface KpiTarget { id: string; label: string; current: number; target: number; unit: string; direction: 'up' | 'down'; }
 
 const dueDate = (days: number) => { const date = new Date(); date.setDate(date.getDate() + days); return date.toISOString().slice(0, 10); };
 
@@ -20,10 +19,11 @@ export function PageActionTracker({ r }: { r: PipelineResult }) {
   const initial = useMemo<TrackedAction[]>(() => recommendations.slice(0, 5).map((item, index) => ({
     id: `${index}-${item.title}`, title: item.title, owner: index === 0 ? 'Workspace owner' : 'Unassigned',
     dueDate: dueDate(item.urgency === 'immediate' ? 7 : item.urgency === 'this_month' ? 30 : 60),
-    status: index === 0 ? 'in_progress' : 'planned', impact: item.financialImpact ? `£${item.financialImpact.estimatedValue.toLocaleString()} estimated` : `${item.impact} impact`,
+    status: index === 0 ? 'in_progress' : 'planned', impact: item.financialImpact ? `£${item.financialImpact.estimatedValue.toLocaleString()} planning estimate` : `${item.impact} impact`,
   })), [recommendations]);
   const { value: actions, save, mode } = useWorkspaceState('actions', r.source.fileName, initial);
   const update = (id: string, changes: Partial<TrackedAction>) => save(actions.map(item => item.id === id ? { ...item, ...changes } : item));
+  const liveImpact = (action: TrackedAction) => recommendations.find(item => item.title === action.title)?.financialImpact;
   const completed = actions.filter(item => item.status === 'complete').length;
 
   return <div className="v2-view"><PageHead eyebrow="Decision execution" title="Action tracker">Convert Verd.io recommendations into accountable work with clear ownership, deadlines and delivery status.</PageHead>
@@ -31,7 +31,7 @@ export function PageActionTracker({ r }: { r: PipelineResult }) {
     {actions.length === 0 ? <InlineEmpty message="No recommended actions are available for this dataset."/> : <div className="v2-table-wrap" role="region" aria-label="Priority actions" tabIndex={0}><table className="v2-table v2-op-table-wide"><caption className="sr-only">Priority actions with progress, owner, due date and status</caption>
       <thead><tr><th scope="col">Action</th><th scope="col">Progress</th><th scope="col">Owner</th><th scope="col">Due date</th><th scope="col">Status</th></tr></thead>
       <tbody>{actions.map(action => <tr key={action.id}>
-        <th scope="row"><strong>{action.title}</strong><span className="v2-tag v2-op-sub">{action.impact}</span></th>
+        <th scope="row"><strong>{action.title}</strong><span className="v2-tag v2-op-sub">{liveImpact(action) ? `£${liveImpact(action)!.estimatedValue.toLocaleString()} planning estimate` : action.impact}</span>{liveImpact(action) && <span className="v2-tag v2-op-sub">Basis: {liveImpact(action)!.basis}</span>}</th>
         <td><button type="button" className="v2-op-state-btn" onClick={() => update(action.id, { status: action.status === 'planned' ? 'in_progress' : action.status === 'in_progress' ? 'complete' : 'planned' })}>{statusMark(action.status)}<span className="sr-only">: change status for {action.title}</span></button></td>
         <td><label><span className="sr-only">Owner for {action.title}</span><input className="v2-op-input" value={action.owner} onChange={event => update(action.id, { owner: event.target.value })}/></label></td>
         <td><label><span className="sr-only">Due date for {action.title}</span><input className="v2-op-input is-num" type="date" value={action.dueDate} onChange={event => update(action.id, { dueDate: event.target.value })}/></label></td>
@@ -42,18 +42,9 @@ export function PageActionTracker({ r }: { r: PipelineResult }) {
 }
 
 export function PageKpiTargets({ r }: { r: PipelineResult }) {
-  const defaults = useMemo<KpiTarget[]>(() => {
-    const growth = Number(r.decision.health.pillars.find(item => /growth/i.test(item.name))?.score || 0);
-    const modelMeta = (r as PipelineResult & { _modelMeta?: { forecast?: ModelSelection } })._modelMeta;
-    const forecastConfidence = Math.round((modelMeta?.forecast?.confidence || 0) * 100);
-    return [
-      { id: 'health', label: 'Business health', current: r.decision.health.total, target: Math.min(100, Math.max(75, r.decision.health.total + 10)), unit: '/100', direction: 'up' },
-      { id: 'quality', label: 'Data quality', current: r.quality.overallScore, target: Math.min(100, Math.max(90, r.quality.overallScore + 5)), unit: '/100', direction: 'up' },
-      { id: 'growth', label: 'Growth pillar', current: growth, target: Math.min(25, Math.max(18, growth + 4)), unit: '/25', direction: 'up' },
-      { id: 'confidence', label: 'Forecast confidence', current: forecastConfidence, target: Math.min(100, Math.max(80, forecastConfidence + 8)), unit: '%', direction: 'up' },
-    ];
-  }, [r]);
-  const { value: targets, save, mode } = useWorkspaceState('targets', r.source.fileName, defaults);
+  const defaults = useMemo(() => buildKpiTargets(r), [r]);
+  const { value: saved, save, mode } = useWorkspaceState<KpiTarget[]>('targets', r.source.fileName, defaults);
+  const targets = useMemo(() => mergeSavedTargets(defaults, saved), [defaults, saved]);
   const updateTarget = (id: string, target: number) => save(targets.map(item => item.id === id ? { ...item, target } : item));
   const onTrack = targets.filter(item => item.direction === 'up' ? item.current >= item.target : item.current <= item.target).length;
   const overallProgress = Math.round(targets.reduce((sum,item)=>sum+Math.min(100,(item.current/(item.target || 1))*100),0)/(targets.length || 1));
@@ -62,7 +53,7 @@ export function PageKpiTargets({ r }: { r: PipelineResult }) {
     <div className="v2-table-wrap" role="region" aria-label="KPI targets" tabIndex={0}><table className="v2-table"><caption className="sr-only">Current value, editable target and progress for each KPI</caption>
       <thead><tr><th scope="col">Measure</th><th scope="col" className="num">Current</th><th scope="col">Target value</th><th scope="col">Progress</th></tr></thead>
       <tbody>{targets.map(item => { const progress = Math.min(100, Math.max(0, (item.current / (item.target || 1)) * 100)); const achieved = item.current >= item.target; return <tr key={item.id}>
-        <th scope="row">{item.label}</th>
+        <th scope="row">{item.label}{item.hint&&<span className="v2-tag v2-op-sub">{item.hint}</span>}</th>
         <td className="num">{item.current}{item.unit}</td>
         <td><label className="v2-op-inline"><span className="sr-only">Target value for {item.label}</span><input className="v2-op-input is-num is-short" type="number" min="0" max="100" value={item.target} onChange={event => updateTarget(item.id, Number(event.target.value))}/><span className="v2-unit">{item.unit}</span></label></td>
         <td className="read"><span className="v2-bar" aria-hidden="true"><i style={{ width: `${progress}%` }}/></span>{achieved ? <StateMark tone="ok" label="Target achieved"/> : <StateMark tone="watch" label="Gap to target"/>}</td>
