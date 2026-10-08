@@ -18,7 +18,7 @@ export function Sidebar({ page, setPage, result, onReset, open, onClose }: { pag
         {groups.map(group => <div key={group}><p className="v2-rail-group">{group}</p>{PAGES.filter(p=>p.group===group).map(({ id, label, badge }) => (
           <button key={id} type="button" aria-current={page === id ? 'page' : undefined} onClick={() => { setPage(id); onClose(); }} className={`v2-rail-link ${page === id ? 'is-active' : ''}`}>
             <span>{label}</span>
-            {badge && <span className="v2-rail-badge">{badge}</span>}
+            {badge && <span className="v2-rail-badge" aria-hidden="true">{badge}</span>}
           </button>
         ))}</div>)}
       </nav>
