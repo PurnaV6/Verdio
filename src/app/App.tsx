@@ -1,44 +1,14 @@
-import { useState, useCallback, useEffect, useRef, lazy, Suspense, type ComponentType } from "react";
+import { useState, useCallback, useEffect, useRef, Suspense } from "react";
 import { runDataPipeline } from "../lib/dataPipeline/runDataPipeline";
 import { generateAIInsights } from "../services/ai";
 
-const CHUNK_RELOAD_KEY = 'verdio_chunk_reload';
-function lazyWithReload<T extends ComponentType<any>>(loader: () => Promise<{ default: T }>) {
-  return lazy(async () => {
-    try {
-      const loaded = await loader();
-      sessionStorage.removeItem(CHUNK_RELOAD_KEY);
-      return loaded;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const staleDeploymentChunk = /failed to fetch dynamically imported module|importing a module script failed|loading chunk [\d]+ failed/i.test(message);
-      if (staleDeploymentChunk && !sessionStorage.getItem(CHUNK_RELOAD_KEY)) {
-        sessionStorage.setItem(CHUNK_RELOAD_KEY, '1');
-        window.location.reload();
-        return new Promise<{ default: T }>(() => undefined);
-      }
-      throw error;
-    }
-  });
-}
-
-const ChartRenderer = lazyWithReload(() => import("../components/ChartRenderer").then(m => ({ default: m.ChartRenderer })));
-import { computeCategoryBreakdown } from "../lib/analysis/categoryBreakdown";
-import { bestColumnOfRole, primaryMeasureColumn } from "../lib/analysis/pickColumns";
-import { buildAdvisorContext } from "../lib/analysis/factSummary";
-import { parseChartTagsFromAI, localAnalysisFallback } from "../lib/analysis/chatChartIntent";
-import type { ChartSpec } from "../types/analysis";
-import { runForecast } from "../lib/ml/forecastEngine";
-import { labelForMeasure } from "../lib/labels";
 import type { PipelineResult } from "../types/pipeline";
-import type { EnrichedRecommendation as EnrichedRec, VDEResult } from "../lib/decision/verdioDecisionEngine";
-import type { AIInsights } from "../types/aiInsights";
 import {
-  Home, Sparkles, BarChart3, ShieldAlert, Brain, Database,
-  RefreshCw, CheckCircle, Layers, TrendingUp, Users, Package, Activity,
+  Database,
+  RefreshCw, Users, Activity,
   ArrowUpRight, FileText, Menu, Settings, X, UploadCloud, PlayCircle, Building2,
   Trash2, FolderOpen, Mail, Download, ChevronRight,
-  Plug, Bell, SlidersHorizontal, ShieldCheck, Network, Files, ClipboardCheck, Target, Gauge, ScrollText, Stamp, BrainCircuit, CircleDollarSign
+  ShieldCheck, Network, Files, ClipboardCheck, Target, Gauge, ScrollText, Stamp, BrainCircuit, AlertTriangle
 } from "lucide-react";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { saveToHistory } from "../lib/history/historyStore";
@@ -48,9 +18,24 @@ import { getSupabase } from "../lib/auth/supabaseClient";
 import { useOrganizationAccess } from "../lib/auth/useOrganizationAccess";
 import { createSampleBusinessFile } from "../lib/demo/sampleBusinessDataset";
 import { deleteProject, listProjects, recordProjectOpened, saveProject, type SavedProject } from "../lib/projects/projectStore";
-import { getTimeGreeting } from "../lib/time/greeting";
 import type { BusinessRole } from "../types/semantic";
 import LandingPage from "../components/marketing/LandingPage";
+import { fmtN } from "../components/workspace/format";
+import { lazyWithReload } from "../components/workspace/lazy";
+import { useDialogBehaviour } from "../components/workspace/useDialogBehaviour";
+import { PageAnalyses } from "../components/pages/PageAnalyses";
+import { PageForecast } from "../components/pages/PageForecast";
+import { PageCustomers } from "../components/pages/PageCustomers";
+import { PageSeasonality } from "../components/pages/PageSeasonality";
+import { PageHealth } from "../components/pages/PageHealth";
+import { PageProducts } from "../components/pages/PageProducts";
+import { PageRisks } from "../components/pages/PageRisks";
+import { PageRecs } from "../components/pages/PageRecs";
+import { PageDataProfile } from "../components/pages/PageDataProfile";
+import { PageQuality } from "../components/pages/PageQuality";
+import { PageAdvisor } from "../components/pages/PageAdvisor";
+import { Sidebar } from "../components/workspace/Sidebar";
+import { PageOverview } from "../components/workspace/PageOverview";
 const PageAlerts = lazyWithReload(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageAlerts })));
 const PageConnections = lazyWithReload(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageConnections })));
 const PageRelationships = lazyWithReload(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageRelationships })));
@@ -65,29 +50,6 @@ const PageModelAssurance = lazyWithReload(() => import("../components/governance
 const PageOutcomes = lazyWithReload(() => import("../components/governance/GovernancePages").then(m => ({ default: m.PageOutcomes })));
 const PageAuditLog = lazyWithReload(() => import("../components/governance/GovernancePages").then(m => ({ default: m.PageAuditLog })));
 const PageTeamWorkspace = lazyWithReload(() => import("../components/team/TeamWorkspace").then(m => ({ default: m.PageTeamWorkspace })));
-
-const fmtN = (n: number) => Math.round(n).toLocaleString('en-GB');
-
-function BrandMark({ compact = false }: { compact?: boolean }) {
-  return <div className={`brand-mark ${compact ? 'h-9 w-9' : 'h-12 w-12'}`} aria-label="Verd.io">
-    <svg viewBox="0 0 48 48" role="img" aria-hidden="true">
-      <path className="brand-path" d="M10.5 13.5 22.8 34.5 36.5 10.5" />
-      <path className="brand-decision" d="M22.8 34.5V24.2" />
-      <circle className="brand-node" cx="10.5" cy="13.5" r="2.4" />
-      <circle className="brand-node" cx="36.5" cy="10.5" r="2.4" />
-      <circle className="brand-focus" cx="22.8" cy="34.5" r="3.1" />
-    </svg>
-  </div>;
-}
-
-function SkeletonLine({ width = '100%' }: { width?: string }) { return <div className="h-3 animate-pulse bg-slate-200 rounded" style={{ width }} />; }
-function SkeletonBlock({ lines = 3 }: { lines?: number }) {
-  const widths = ['100%', '92%', '68%', '80%', '55%'];
-  return <div className="space-y-2">{Array.from({ length: lines }).map((_, i) => <SkeletonLine key={i} width={widths[i % widths.length]} />)}</div>;
-}
-function findRiskExplanation(ai: AIInsights | null, title: string, idx: number) { if (!ai) return null; return ai.riskExplanations[idx] || ai.riskExplanations.find(r => r.title === title) || null; }
-function findRecommendation(ai: AIInsights | null, title: string, idx: number) { if (!ai) return null; return ai.recommendations[idx] || ai.recommendations.find(r => r.title === title) || null; }
-function findNarrative(ai: AIInsights | null, id: string, idx: number) { if (!ai) return null; return ai.analysisNarratives[idx] || ai.analysisNarratives.find(n => n.analysisId === id) || null; }
 
 function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
   const [dragging, setDragging] = useState(false);
@@ -144,366 +106,85 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
   ];
 
   if (organization) return (
-    <div className="onboarding-shell min-h-screen flex items-center justify-center p-4 md:p-8">
-      <div className="onboarding-glow" />
-      <div className="w-full max-w-[1040px] elevated-panel organization-review-shell rounded-[28px] p-6 md:p-9 relative">
-        <div className="organization-review-heading"><BrandMark compact /><div><div className="eyebrow mb-2"><span className="eyebrow-dot"/> CONNECTED BUSINESS INTELLIGENCE</div><h1>Build your organisational workspace</h1><p>Choose the source that should drive forecasts and executive KPIs, then confirm the governed relationships Verd.io will use across supporting data.</p></div><span className="organization-count"><Files size={14}/>{organization.context.datasets.length} datasets ready</span></div>
-        <div className="primary-guidance"><Target size={18}/><div><strong>Which file should be primary?</strong><p>The primary source drives the main Business Intelligence, predictions, risks and decisions. Verd.io recommends the sales file because it contains dated transactions, quantities and revenue. Stock and finance remain connected supporting sources.</p></div></div>
-        <div className="organization-datasets">
-          {organization.context.datasets.map(dataset=>{const recommended=dataset.purpose==='sales';return <article key={dataset.id} className={dataset.primary?'is-primary':''}><div className="dataset-card-top"><div className="dataset-purpose"><Database size={16}/><span>{dataset.purpose}</span></div>{recommended&&<b>Recommended</b>}</div><strong>{dataset.fileName}</strong><p>{dataset.rowCount.toLocaleString()} rows · {dataset.columnCount} columns</p><small>{dataset.purpose==='sales'?'Best for revenue, forecasting and executive decisions':dataset.purpose==='inventory'?'Supports stock coverage and replenishment review':'Supports margin and financial reconciliation'}</small><label><input type="radio" name="primary-dataset" checked={dataset.primary} onChange={()=>setOrganization(current=>current?{...current,context:{...current.context,datasets:current.context.datasets.map(item=>({...item,primary:item.id===dataset.id}))}}:current)}/><span>{dataset.primary?'Selected as primary':'Use as primary source'}</span></label></article>})}
+    <div className="v2-entry-shell">
+      <main className="v2-entry-col is-wide">
+        <p className="v2-entry-mark">Verd<i>.</i>io</p>
+        <header className="v2-entry-head is-split">
+          <div><p className="v2-eyebrow">CONNECTED BUSINESS INTELLIGENCE</p><h1 className="v2-entry-title is-compact">Build your organisational workspace</h1><p className="v2-entry-lede">Choose the source that should drive forecasts and executive KPIs, then confirm the governed relationships Verd.io will use across supporting data.</p></div>
+          <span className="v2-entry-count"><Files size={14} aria-hidden="true"/>{organization.context.datasets.length} datasets ready</span>
+        </header>
+        <div className="v2-entry-guide"><Target size={18} aria-hidden="true"/><div><strong>Which file should be primary?</strong><p>The primary source drives the main Business Intelligence, predictions, risks and decisions. Verd.io recommends the sales file because it contains dated transactions, quantities and revenue. Stock and finance remain connected supporting sources.</p></div></div>
+        <div className="v2-entry-datasets" role="radiogroup" aria-label="Primary source">
+          {organization.context.datasets.map(dataset=>{const recommended=dataset.purpose==='sales';return <article key={dataset.id} className={`v2-entry-ds${dataset.primary?' is-primary':''}`}><div className="v2-entry-ds-top"><span className="v2-entry-ds-purpose"><Database size={16} aria-hidden="true"/>{dataset.purpose}</span>{recommended&&<b className="v2-entry-ds-flag">Recommended</b>}</div><strong className="v2-entry-ds-name">{dataset.fileName}</strong><p className="v2-tag">{dataset.rowCount.toLocaleString()} rows · {dataset.columnCount} columns</p><p className="v2-entry-ds-note">{dataset.purpose==='sales'?'Best for revenue, forecasting and executive decisions':dataset.purpose==='inventory'?'Supports stock coverage and replenishment review':'Supports margin and financial reconciliation'}</p><label className="v2-entry-ds-pick"><input type="radio" name="primary-dataset" checked={dataset.primary} onChange={()=>setOrganization(current=>current?{...current,context:{...current.context,datasets:current.context.datasets.map(item=>({...item,primary:item.id===dataset.id}))}}:current)}/><span>{dataset.primary?'Selected as primary':'Use as primary source'}</span></label></article>})}
         </div>
-        <section className="relationship-panel"><div className="relationship-title"><div><Network size={17}/><span><strong>Proposed relationships</strong><small>Confirmed relationships form the governed organisational model.</small></span></div><b>{organization.context.relationships.filter(item=>item.confirmed).length} confirmed</b></div>{organization.context.relationships.length===0?<div className="relationship-empty">No reliable shared keys were detected. Rename shared identifiers consistently—for example, Product ID or Customer ID—and try again.</div>:<div className="relationship-list">{organization.context.relationships.map(relation=>{const left=organization.context.datasets.find(item=>item.id===relation.leftDatasetId)!;const right=organization.context.datasets.find(item=>item.id===relation.rightDatasetId)!;return <label key={relation.id}><input type="checkbox" checked={relation.confirmed} onChange={e=>setOrganization(current=>current?{...current,context:{...current.context,relationships:current.context.relationships.map(item=>item.id===relation.id?{...item,confirmed:e.target.checked}:item)}}:current)}/><span className="relationship-route"><b>{left.fileName}</b><small>{relation.leftColumn}</small></span><i><Network size={14}/><em>{Math.round(relation.confidence*100)}%</em></i><span className="relationship-route"><b>{right.fileName}</b><small>{relation.rightColumn} · {relation.overlapPct}% overlap</small></span></label>})}</div>}</section>
-        {error&&<div className="mt-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>}
-        <div className="organization-footer"><button onClick={()=>setOrganization(null)} className="secondary-button justify-center">Choose different files</button><div><span>{organization.context.relationships.filter(item=>item.confirmed).length} relationships will be retained</span><button disabled={loading} onClick={confirmOrganization} className="primary-action justify-center">{loading?stage:'Create organisational workspace'}<ChevronRight size={15}/></button></div></div>
-      </div>
+        <section className="v2-entry-rel"><div className="v2-entry-rel-head"><div><h2><Network size={16} aria-hidden="true"/>Proposed relationships</h2><p>Confirmed relationships form the governed organisational model.</p></div><b className="v2-tag">{organization.context.relationships.filter(item=>item.confirmed).length} confirmed</b></div>{organization.context.relationships.length===0?<div className="v2-entry-rel-empty">No reliable shared keys were detected. Rename shared identifiers consistently—for example, Product ID or Customer ID—and try again.</div>:<div className="v2-entry-rel-list">{organization.context.relationships.map(relation=>{const left=organization.context.datasets.find(item=>item.id===relation.leftDatasetId)!;const right=organization.context.datasets.find(item=>item.id===relation.rightDatasetId)!;return <label key={relation.id}><input type="checkbox" checked={relation.confirmed} onChange={e=>setOrganization(current=>current?{...current,context:{...current.context,relationships:current.context.relationships.map(item=>item.id===relation.id?{...item,confirmed:e.target.checked}:item)}}:current)}/><span className="v2-entry-rel-route"><b>{left.fileName}</b><small>{relation.leftColumn}</small></span><span className="v2-entry-rel-conf"><Network size={14} aria-hidden="true"/><em>{Math.round(relation.confidence*100)}%</em></span><span className="v2-entry-rel-route"><b>{right.fileName}</b><small>{relation.rightColumn} · {relation.overlapPct}% overlap</small></span></label>})}</div>}</section>
+        {error&&<div role="alert" className="v2-entry-error"><AlertTriangle size={16} aria-hidden="true"/><span>{error}</span></div>}
+        <div className="v2-entry-foot"><button type="button" onClick={()=>setOrganization(null)} className="v2-btn is-quiet">Choose different files</button><div><span className="v2-tag">{organization.context.relationships.filter(item=>item.confirmed).length} relationships will be retained</span><button type="button" disabled={loading} onClick={confirmOrganization} className="v2-btn">{loading?stage:'Create organisational workspace'}<ChevronRight size={15} aria-hidden="true"/></button></div></div>
+      </main>
     </div>
   );
 
   if (pending) return (
-    <div className="onboarding-shell min-h-screen flex items-center justify-center p-4 md:p-8">
-      <div className="onboarding-glow" />
-      <div className="w-full max-w-[760px] elevated-panel rounded-[28px] p-6 md:p-9 relative">
-        <div className="flex items-start gap-4"><BrandMark compact /><div><div className="eyebrow mb-2"><span className="eyebrow-dot" /> DATA MAPPING</div><h1 className="text-2xl font-semibold tracking-tight text-slate-950">Confirm how Verd.io should read your data</h1><p className="mt-2 text-sm text-slate-500">We detected these roles automatically. Correct anything that does not match your business before analysis.</p></div></div>
-        <div className="mapping-list mt-6">
-          {pending.result.semantics.columns.map(column => <div key={column.columnName} className="mapping-row">
-            <div className="min-w-0"><strong>{column.columnName}</strong><span>{column.dataType} · {Math.round(column.confidence * 100)}% detected confidence</span></div>
-            <select aria-label={`Role for ${column.columnName}`} value={roleOverrides[column.columnName]} onChange={e=>setRoleOverrides(v=>({...v,[column.columnName]:e.target.value as BusinessRole}))}>{roleOptions.map(role=><option key={role.value} value={role.value}>{role.label}</option>)}</select>
+    <div className="v2-entry-shell">
+      <main className="v2-entry-col is-mid">
+        <p className="v2-entry-mark">Verd<i>.</i>io</p>
+        <header className="v2-entry-head"><p className="v2-eyebrow">DATA MAPPING</p><h1 className="v2-entry-title is-compact">Confirm how Verd.io should read your data</h1><p className="v2-entry-lede">We detected these roles automatically. Correct anything that does not match your business before analysis.</p></header>
+        <div className="v2-entry-map">
+          {pending.result.semantics.columns.map(column => <div key={column.columnName} className="v2-entry-map-row">
+            <div className="min-w-0"><strong>{column.columnName}</strong><span className="v2-tag">{column.dataType} · {Math.round(column.confidence * 100)}% detected confidence</span></div>
+            <select className="v2-entry-select" aria-label={`Role for ${column.columnName}`} value={roleOverrides[column.columnName]} onChange={e=>setRoleOverrides(v=>({...v,[column.columnName]:e.target.value as BusinessRole}))}>{roleOptions.map(role=><option key={role.value} value={role.value}>{role.label}</option>)}</select>
           </div>)}
         </div>
-        {error && <div className="mt-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>}
-        <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-between gap-3"><button onClick={()=>setPending(null)} className="secondary-button justify-center">Choose another file</button><button disabled={loading} onClick={confirmMapping} className="primary-action justify-center">{loading ? stage : 'Confirm mapping and analyse'} <ChevronRight size={15}/></button></div>
-      </div>
+        {error && <div role="alert" className="v2-entry-error"><AlertTriangle size={16} aria-hidden="true"/><span>{error}</span></div>}
+        <div className="v2-entry-foot"><button type="button" onClick={()=>setPending(null)} className="v2-btn is-quiet">Choose another file</button><button type="button" disabled={loading} onClick={confirmMapping} className="v2-btn">{loading ? stage : 'Confirm mapping and analyse'} <ChevronRight size={15} aria-hidden="true"/></button></div>
+      </main>
     </div>
   );
   return (
-    <div className="onboarding-shell min-h-screen flex items-center justify-center p-5 md:p-8">
-      <div className="onboarding-glow" />
-      <div className="w-full max-w-[620px] elevated-panel rounded-[28px] p-7 md:p-11 text-center relative">
-        <div className="mx-auto mb-6 flex justify-center"><BrandMark /></div>
-        <div className="eyebrow justify-center mb-3"><span className="eyebrow-dot" /> NEW ANALYSIS</div>
-        <h1 className="text-[30px] md:text-[36px] font-semibold tracking-[-0.04em] text-slate-950">Turn your data into decisions.</h1>
-        <p className="text-slate-500 text-[14px] leading-6 mt-3 mb-8 max-w-[470px] mx-auto">Upload one or more structured business datasets. Verd.io will understand how they relate and surface the decisions that matter.</p>
+    <div className="v2-entry-shell">
+      <main className="v2-entry-col">
+        <p className="v2-entry-mark">Verd<i>.</i>io</p>
+        <header className="v2-entry-head"><p className="v2-eyebrow">NEW ANALYSIS</p><h1 className="v2-entry-title">Turn your data into <em>decisions.</em></h1><p className="v2-entry-lede">Upload one or more structured business datasets. Verd.io will understand how they relate and surface the decisions that matter.</p></header>
         <div onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); handleFiles(Array.from(e.dataTransfer.files)); }} onClick={() => document.getElementById('fi')?.click()}
-          className={`upload-zone cursor-pointer rounded-[20px] border p-8 md:p-10 transition-all ${dragging ? 'is-dragging' : ''}`}>
+          role="button" tabIndex={0} aria-busy={loading} onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); document.getElementById('fi')?.click(); } }}
+          className={`v2-entry-drop${dragging ? ' is-dragging' : ''}`}>
           <input id="fi" type="file" multiple accept=".csv,.xlsx,.xls,.tsv,.json" className="hidden" onChange={e => { handleFiles(Array.from(e.target.files || [])); e.target.value = ''; }} />
-          {loading ? <div className="flex flex-col items-center gap-3"><div className="h-9 w-9 border-2 border-slate-200 border-t-blue-600 rounded-full animate-spin" /><p className="text-sm text-slate-700 font-medium">{stage}</p><p className="text-xs text-slate-400">This usually takes less than a minute.</p></div> :
-            <><div className="upload-icon mx-auto mb-4"><UploadCloud size={22}/></div><p className="font-semibold text-slate-950 text-sm">Drop one or multiple business datasets here</p><p className="mt-1.5 text-[12px] text-slate-500">Sales, stock, customers, products or finance · CSV, XLSX, XLS, TSV, JSON</p><p className="mt-4 text-[10px] text-slate-400 font-semibold tracking-[0.12em]">YOUR DATA REMAINS PRIVATE</p></>}
+          {loading ? <div className="v2-entry-drop-busy" role="status" aria-live="polite"><div className="v2-spinner" aria-hidden="true" /><p className="v2-entry-drop-title">{stage}</p><p className="v2-tag">This usually takes less than a minute.</p></div> :
+            <><UploadCloud className="v2-entry-drop-icon" size={28} aria-hidden="true"/><p className="v2-entry-drop-title">Drop one or multiple business datasets here</p><p className="v2-entry-drop-types">Sales, stock, customers, products or finance · CSV, XLSX, XLS, TSV, JSON</p><p className="v2-entry-drop-private">YOUR DATA REMAINS PRIVATE</p></>}
         </div>
-        {error && <div className="mt-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>}
-        <div className="demo-divider"><span>or explore before uploading</span></div>
-        <button type="button" disabled={loading} onClick={() => handleFile(createSampleBusinessFile(), true)} className="demo-entry group">
-          <span className="demo-entry-icon"><Building2 size={18} /></span>
-          <span className="demo-entry-copy"><strong>Explore a sample business</strong><small>See forecasts, risks and recommended decisions using 24 months of realistic operating data.</small></span>
-          <PlayCircle className="demo-entry-arrow" size={21} />
+        {error && <div role="alert" className="v2-entry-error"><AlertTriangle size={16} aria-hidden="true"/><span>{error}</span></div>}
+        <div className="v2-entry-or"><span>or explore before uploading</span></div>
+        <button type="button" disabled={loading} onClick={() => handleFile(createSampleBusinessFile(), true)} className="v2-entry-demo">
+          <Building2 className="v2-entry-demo-icon" size={22} aria-hidden="true" />
+          <span className="v2-entry-demo-copy"><strong>Explore a sample business</strong><small>See forecasts, risks and recommended decisions using 24 months of realistic operating data.</small></span>
+          <PlayCircle className="v2-entry-demo-arrow" size={22} aria-hidden="true" />
         </button>
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[11px] text-slate-400"><span>Automatic cleaning</span><span className="hidden sm:inline">•</span><span>Adaptive analysis</span><span className="hidden sm:inline">•</span><span>Explainable decisions</span></div>
-      </div>
+        <div className="v2-entry-assure"><span>Automatic cleaning</span><span className="hidden sm:inline" aria-hidden="true">•</span><span>Adaptive analysis</span><span className="hidden sm:inline" aria-hidden="true">•</span><span>Explainable decisions</span></div>
+      </main>
     </div>
   );
 }
 
-const PAGES = [
-  { id: 'overview', label: 'Executive Workspace', icon: Home, group: 'WORKSPACE' },
-  { id: 'analyses', label: 'Intelligence', icon: BarChart3, group: 'INTELLIGENCE' },
-  { id: 'forecast', label: 'Predictions', icon: TrendingUp, group: 'INTELLIGENCE' },
-  { id: 'risks', label: 'Risks & Opportunities', icon: ShieldAlert, group: 'INTELLIGENCE' },
-  { id: 'recs', label: 'Decisions', icon: Brain, group: 'INTELLIGENCE' },
-  { id: 'execution', label: 'Execution', icon: ClipboardCheck, group: 'WORKSPACE' },
-  { id: 'advisor', label: 'AI Advisor', icon: Sparkles, badge: 'AI', group: 'INTELLIGENCE' },
-  { id: 'scenarios', label: 'Scenario Planning', icon: SlidersHorizontal, group: 'INTELLIGENCE' },
-  { id: 'customers', label: 'Customer Intelligence', icon: Users, group: 'EXPLORE' },
-  { id: 'seasonality', label: 'Seasonality', icon: Activity, group: 'EXPLORE' },
-  { id: 'products', label: 'Products & Markets', icon: Package, group: 'EXPLORE' },
-  { id: 'health', label: 'Health Detail', icon: CheckCircle, group: 'EXPLORE' },
-  { id: 'profile', label: 'Data Hub', icon: Layers, group: 'DATA' },
-  { id: 'connections', label: 'Connections', icon: Plug, group: 'DATA' },
-  { id: 'relationships', label: 'Data Relationships', icon: Network, group: 'DATA' },
-  { id: 'governance', label: 'Governance', icon: ShieldCheck, group: 'DATA' },
-  { id: 'alerts', label: 'Alerts & Reports', icon: Bell, group: 'DATA' },
-];
+function PageLoadingFallback() { return <div role="status" aria-live="polite" className="v2-loading"><div className="v2-spinner" aria-hidden="true" /><span className="v2-tag">Loading…</span></div>; }
 
-function Sidebar({ page, setPage, result, onReset, open, onClose }: { page: string; setPage: (p: string) => void; result: PipelineResult; onReset: () => void; open: boolean; onClose: () => void }) {
-  const groups = ['WORKSPACE', 'INTELLIGENCE', 'EXPLORE', 'DATA'];
-  return (
-    <><button aria-label="Close navigation" onClick={onClose} className={`mobile-scrim ${open ? 'is-open' : ''}`} /><aside className={`app-sidebar fixed left-0 top-0 h-screen w-[272px] flex flex-col z-50 ${open ? 'is-open' : ''}`}>
-      <div className="px-5 h-[72px] flex items-center border-b border-slate-200">
-        <div className="flex items-center gap-3">
-          <BrandMark compact />
-          <div><div className="font-semibold text-slate-950 text-[15px] tracking-tight">Verd.io</div><div className="text-[9px] text-slate-500 tracking-[0.16em] font-semibold">DECISION INTELLIGENCE</div></div>
-        </div>
-        <button aria-label="Close navigation" onClick={onClose} className="ml-auto text-slate-400 lg:hidden"><X size={19}/></button>
-      </div>
-      <nav className="flex-1 px-3 py-4 overflow-y-auto">
-        {groups.map(group => <div key={group} className="mb-4"><p className="px-3 mb-1.5 text-[9px] tracking-[0.18em] font-bold text-slate-600">{group}</p>{PAGES.filter(p=>p.group===group).map(({ id, label, icon: Icon, badge }) => (
-          <button key={id} onClick={() => { setPage(id); onClose(); }} className={`nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-[12px] font-medium text-left ${page === id ? 'is-active' : ''}`}>
-            <span className="nav-icon"><Icon size={15} strokeWidth={1.8}/></span>
-            <span className="flex-1">{label}</span>
-            {badge && <span className="nav-badge">{badge}</span>}
-          </button>
-        ))}</div>)}
-      </nav>
-      <div className="p-3 border-t border-slate-200">
-        <div className="sidebar-score rounded-[14px] p-3.5">
-          <div className="flex items-center justify-between"><p className="text-[9px] font-bold text-slate-500 tracking-[0.14em]">BUSINESS HEALTH</p><span className="text-xs font-semibold text-blue-700">{result.decision.health.total}/100</span></div>
-          <div className="mt-2.5 h-1 rounded-full bg-blue-100 overflow-hidden"><div className="h-full rounded-full bg-blue-500" style={{ width: `${result.decision.health.total}%` }} /></div>
-          <p className="text-[10px] text-slate-500 mt-2">Data quality {result.quality.overallScore}/100</p>
-        </div>
-      </div>
-      <div className="px-3 pb-3"><button onClick={onReset} className="sidebar-upload w-full py-2.5 rounded-[10px] text-xs font-semibold flex items-center justify-center gap-2"><UploadCloud size={14}/> New dataset</button></div>
-    </aside></>
-  );
-}
-
-function MetricCard({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'green' | 'red' | 'amber' }) {
-  const toneCls = tone === 'red' ? 'bg-red-50 text-red-700 border-red-200' : tone === 'amber' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-blue-50 text-blue-700 border-blue-200';
-  return (
-    <div className="rounded-[14px] bg-white border border-slate-200 p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-      <p className="text-[10px] font-bold tracking-widest text-slate-500 uppercase">{label}</p>
-      <p className="mt-2 text-[22px] font-bold text-slate-900 leading-none tracking-tight">{value}</p>
-      {sub && <span className={`mt-2 inline-flex text-[11px] font-medium px-2 py-0.5 rounded-full border ${tone ? toneCls : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{sub}</span>}
-    </div>
-  );
-}
-
-const formatExecutiveCurrency=(value:number)=>new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP',notation:'compact',maximumFractionDigits:1}).format(value);
-
-function getRevenueView(result: PipelineResult) {
-  const revenueColumn=bestColumnOfRole(result.semantics.columns,'revenue');
-  const connectedRevenue=result.organization?.metrics?.find(metric=>metric.id==='connected-revenue')?.value;
-  const total=connectedRevenue??(revenueColumn?result.engineeredRows.reduce((sum,row)=>sum+(Number(row[revenueColumn])||0),0):0);
-  const series=result.statistics.timeSeries.find(item=>item.measureColumn===revenueColumn)
-    ?? result.statistics.timeSeries.find(item=>/revenue|sales|amount/i.test(item.measureColumn));
-  const latest=series?.points.at(-1)?.value ?? 0;
-  const previous=series?.points.at(-2)?.value ?? 0;
-  const changePct=previous?((latest-previous)/Math.abs(previous))*100:0;
-  const revenueForecast=result.ml.forecast && (!revenueColumn || result.ml.forecast.measureColumn===revenueColumn) ? result.ml.forecast : null;
-  return {revenueColumn,connectedRevenue,total,series,latest,changePct,revenueForecast};
-}
-
-function ExecutiveRevenue({ result }: { result: PipelineResult }) {
-  const revenue=getRevenueView(result);
-  if(!revenue.revenueColumn&&!revenue.connectedRevenue)return <section className="executive-revenue-empty"><CircleDollarSign size={23}/><div><h2>Revenue data is not available</h2><p>Map a numeric sales or revenue field in Data Hub to activate this executive view.</p></div></section>;
-  const chartData=[
-    ...(revenue.series?.points.map(point=>({period:point.label,revenue:point.value,forecast:null}))??[]),
-    ...(revenue.revenueForecast?.points.map(point=>({period:point.periodLabel,revenue:null,forecast:point.value}))??[]),
-  ];
-  const projected=revenue.revenueForecast?.holtNextPeriod??0;
-  return <div className="executive-revenue-view">
-    <section className="revenue-hero-card">
-      <div><span>Recognised revenue</span><strong>{formatExecutiveCurrency(revenue.total)}</strong><p>{revenue.connectedRevenue!==undefined?'Reconciled across the connected sales source':`Calculated from ${revenue.revenueColumn}`}</p></div>
-      <div className={`revenue-movement ${revenue.changePct>=0?'is-positive':'is-negative'}`}><TrendingUp size={17}/><span>{revenue.changePct>=0?'+':''}{revenue.changePct.toFixed(1)}%</span><small>latest period movement</small></div>
-    </section>
-    <section className="revenue-support-kpis">
-      <article><span>Latest period</span><strong>{revenue.latest?formatExecutiveCurrency(revenue.latest):'Not available'}</strong><small>{revenue.series?.points.at(-1)?.label??'No dated revenue series'}</small></article>
-      <article><span>Next-period outlook</span><strong>{projected?formatExecutiveCurrency(projected):'Not available'}</strong><small>{revenue.revenueForecast?'Holt-smoothed base forecast':'More history is required'}</small></article>
-      <article><span>Revenue history</span><strong>{revenue.series?.points.length??0}<em> periods</em></strong><small>{revenue.series?'Available for trend review':'A date field was not detected'}</small></article>
-    </section>
-    {chartData.length>0?<section className="revenue-chart-panel"><div><span>Revenue performance</span><h2>Historical trend and forward outlook</h2><p>Actual recognised revenue is shown alongside the current modelled forecast.</p></div><ChartRenderer chart={{chartType:'line',title:'',xKey:'period',seriesKeys:['revenue','forecast'],data:chartData,formatValue:'currency'} as ChartSpec}/></section>:null}
-    <section className="revenue-evidence"><ShieldCheck size={17}/><div><strong>Revenue evidence</strong><p>Values are derived from the active mapped revenue field. Forecasts are planning estimates and should be reviewed alongside pipeline, pricing and operational context.</p></div></section>
-  </div>;
-}
-
-function PageOverview({ r }: { r: PipelineResult }) {
-  const h = r.decision.health.total; const topRisk = r.decision.risks[0]; const topRec = r.decision.recommendations[0];
-  const [section,setSection]=useState<'overview'|'revenue'>('overview');
-  const [now,setNow]=useState(()=>new Date());
-  useEffect(()=>{const timer=window.setInterval(()=>setNow(new Date()),60_000);return()=>window.clearInterval(timer)},[]);
-  const greeting=getTimeGreeting(now);
-  const dateLabel=new Intl.DateTimeFormat(undefined,{weekday:'long',day:'numeric',month:'long'}).format(now);
-  const healthLabel=h>=80?'Strong':h>=60?'Monitored':'Needs attention';
-  const revenue=getRevenueView(r);
-  const nextPeriod=revenue.revenueForecast?.holtNextPeriod??0;
-  return (
-    <div className="executive-overview">
-      <header className="executive-heading">
-        <div>
-          <div className="eyebrow"><span className="eyebrow-dot"/> EXECUTIVE WORKSPACE</div>
-          <h1>{greeting}<span>.</span></h1>
-          <p>{dateLabel} · Your latest organisational signals are ready for review.</p>
-        </div>
-        <button className="executive-methodology">Decision methodology <ArrowUpRight size={14}/></button>
-      </header>
-      <nav className="executive-view-tabs" aria-label="Executive workspace views">
-        <button className={section==='overview'?'is-active':''} onClick={()=>setSection('overview')}><Gauge size={14}/>Overview</button>
-        <button className={section==='revenue'?'is-active':''} onClick={()=>setSection('revenue')}><CircleDollarSign size={14}/>Revenue</button>
-      </nav>
-
-      {section==='revenue'?<ExecutiveRevenue result={r}/>:<>
-      <section className="executive-command-card">
-        <div className="executive-command-main">
-          <div className="executive-command-meta">
-            <span className={`status-pill ${h >= 80 ? 'is-good' : h >= 60 ? 'is-watch' : 'is-risk'}`}><i/>{h >= 80 ? 'Business performing strongly' : h >= 60 ? 'Performance requires monitoring' : 'Management attention required'}</span>
-            <span className="analysis-freshness"><Activity size={12}/> Live analysis</span>
-          </div>
-          <p className="executive-kicker">Today’s decision brief</p>
-          <h2>{topRisk ? topRisk.title : 'Your business signals are ready to review.'}</h2>
-          <p className="executive-command-copy">Verd.io reviewed {fmtN(r.source.rowCount)} records across {r.profile.columnCount} classified fields. {topRec ? `The recommended next move is to ${topRec.title.toLowerCase()}.` : 'No immediate intervention has been identified.'}</p>
-          <div className="executive-ai-brief">
-            <span><BrainCircuit size={17}/></span>
-            <div>
-              <div className="executive-ai-label">Verd.io intelligence {r.aiLoading?<small>Generating</small>:<small className="is-ready">Ready</small>}</div>
-              {r.aiLoading?<SkeletonBlock lines={2}/>:<p>{r.aiInsights?.executiveSummary || 'AI analysis will appear here when the executive summary is available.'}</p>}
-            </div>
-          </div>
-        </div>
-        <aside className="executive-health">
-          <div className="health-ring" style={{'--score': `${h * 3.6}deg`} as React.CSSProperties}><div><strong>{h}</strong><span>OUT OF 100</span></div></div>
-          <p>Business health</p>
-          <strong>{healthLabel}</strong>
-          <small>Combined operational, quality and risk assessment</small>
-        </aside>
-      </section>
-
-      <section className="executive-kpis" aria-label="Executive key performance indicators">
-        <article><span className="executive-kpi-icon"><CircleDollarSign size={16}/></span><div><p>Recognised revenue</p><strong>{revenue.total?formatExecutiveCurrency(revenue.total):'—'}</strong><small>{revenue.revenueColumn?'Mapped revenue evidence':'Revenue field not detected'}</small></div></article>
-        <article><span className="executive-kpi-icon"><TrendingUp size={16}/></span><div><p>Revenue momentum</p><strong>{revenue.series?`${revenue.changePct>=0?'+':''}${revenue.changePct.toFixed(1)}%`:'—'}</strong><small>Latest period movement</small></div></article>
-        <article><span className="executive-kpi-icon"><BrainCircuit size={16}/></span><div><p>Next-period outlook</p><strong>{nextPeriod?formatExecutiveCurrency(nextPeriod):'—'}</strong><small>{nextPeriod?'Modelled base forecast':'Forecast not available'}</small></div></article>
-        <article><span className="executive-kpi-icon"><ShieldAlert size={16}/></span><div><p>Active risks</p><strong>{r.decision.risks.length}</strong><small>{r.decision.risks.filter(risk=>risk.level==='high').length} high-priority signals</small></div></article>
-      </section>
-
-      <section className="executive-decisions">
-        <article className="executive-decision-card is-priority">
-          <div className="decision-card-heading"><span><Target size={16}/></span><p>Recommended action</p><em>Priority 01</em></div>
-          <h3>{topRec?.title || 'No immediate recommendation'}</h3>
-          <p>{topRec?.desc || 'Continue monitoring the current business signals.'}</p>
-          <footer><span>Next best action</span><ArrowUpRight size={15}/></footer>
-        </article>
-        <article className="executive-decision-card is-risk">
-          <div className="decision-card-heading"><span><ShieldAlert size={16}/></span><p>Risk requiring attention</p><em>Monitor</em></div>
-          <h3>{topRisk?.title || 'No material risk identified'}</h3>
-          <p>{topRisk?.desc || 'No critical risk is currently affecting the executive assessment.'}</p>
-          <footer><span>Review supporting evidence</span><ArrowUpRight size={15}/></footer>
-        </article>
-      </section>
-      </>}
-    </div>
-  );
-}
-
-function PageAnalyses({ r }: { r: PipelineResult }) {
-  const filtered = r.analyses.filter(a => !['comparison', 'concentration_analysis', 'segmentation'].includes(a.capability));
-  const revenueColumn=bestColumnOfRole(r.semantics.columns,'revenue');
-  const connectedRevenue=r.organization?.metrics?.find(metric=>metric.id==='connected-revenue')?.value;
-  const revenue=connectedRevenue??(revenueColumn?r.engineeredRows.reduce((sum,row)=>sum+(Number(row[revenueColumn])||0),0):0);
-  const inventoryCoverage=r.organization?.metrics?.find(metric=>metric.id==='inventory-demand-coverage');
-  const stockReview=r.organization?.metrics?.find(metric=>metric.id==='products-requiring-review');
-  return <div className="space-y-5"><section className="bi-heading"><div><div className="eyebrow"><span className="eyebrow-dot"/> BUSINESS INTELLIGENCE</div><h1>Commercial performance</h1><p>Decision-ready KPIs and analytical evidence from the active organisational workspace.</p></div>{r.organization&&<span><Network size={14}/>{r.organization.datasets.length} connected sources</span>}</section><section className="bi-kpi-grid"><article className="bi-revenue-kpi"><div><CircleDollarSign size={20}/><span>Recognised revenue</span></div><strong>{revenue?new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP',maximumFractionDigits:0}).format(revenue):'Not available'}</strong><p>{connectedRevenue!==undefined?'Connected sales source · reconciled organisational context':revenueColumn?`Calculated from ${revenueColumn}`:'A revenue measure was not detected'}</p></article><article><span>{inventoryCoverage?'Inventory coverage':'Transactions analysed'}</span><strong>{inventoryCoverage?`${inventoryCoverage.value.toFixed(1)}%`:r.source.rowCount.toLocaleString('en-GB')}</strong><p>{inventoryCoverage?'Against demand represented in the sales period':`${r.profile.columnCount} classified columns`}</p></article><article><span>{stockReview?'Products requiring review':'Data quality'}</span><strong>{stockReview?Math.round(stockReview.value):`${r.quality.overallScore}/100`}</strong><p>{stockReview?'Validate lead times and safety stock':'Decision-grade source integrity'}</p></article><article><span>Analytical coverage</span><strong>{r.capabilities.available.length}/{r.capabilities.capabilities.length}</strong><p>Capability-gated analyses available</p></article></section>{filtered.length?<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{filtered.map((a, i) => { const narrative = findNarrative(r.aiInsights, a.id, i); return <div key={a.id} className="bg-white rounded-[16px] border border-slate-200 p-4 shadow-sm"><ChartRenderer chart={a.chart} /><div className="mt-2">{r.aiLoading ? <SkeletonLine width="60%" /> : narrative ? <p className="text-xs text-slate-500 leading-5"><span className="font-semibold text-indigo-700">AI: </span>{narrative.narrative}</p> : <p className="text-xs text-slate-400">{a.explanation}</p>}</div></div>; })}</div>:<div className="bg-white rounded-[16px] border p-6 text-sm text-slate-500">No analyses could be generated.</div>}</div>;
-}
-
-function PageForecast({ r }: { r: PipelineResult }) {
-  const [scenario, setScenario] = useState<'base' | 'optimistic' | 'conservative'>('base');
-  if (!r.ml.forecast) return <div className="bg-white rounded-[16px] border p-6 text-sm text-slate-500">Forecasting isn't available.</div>;
-  const ts = r.statistics.timeSeries.find(t => t.measureColumn === r.ml.forecast!.measureColumn);
-  const forecast = runForecast(ts ?? { measureColumn: r.ml.forecast.measureColumn, dateColumn: '', points: [] }, scenario as any);
-  const measureLabel = labelForMeasure(forecast.measureColumn);
-  const chartData = [...(ts?.points.map(p => ({ period: p.label, historical: p.value, forecast: null })) || []), ...forecast.points.map(p => ({ period: p.periodLabel, historical: null, forecast: p.value }))];
-  return (
-    <div className="space-y-4">
-      <div className="bg-white rounded-[16px] border p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-4"><div><p className="text-[11px] font-bold tracking-widest text-slate-600">{measureLabel.toUpperCase()} FORECAST</p><p className="text-[11px] text-slate-400">Linear + Holt smoothing</p></div><div className="flex gap-1.5">{(['base', 'optimistic', 'conservative'] as const).map(s => <button key={s} onClick={() => setScenario(s)} className={`px-3 py-1.5 rounded-full text-[11px] font-bold border ${scenario === s ? 'bg-indigo-900 text-white border-indigo-900' : 'text-slate-500 border-slate-200 hover:border-indigo-300'}`}>{s}</button>)}</div></div>
-        <ChartRenderer chart={{ chartType: 'line', title: '', xKey: 'period', seriesKeys: ['historical', 'forecast'], data: chartData, formatValue: 'currency' } as any} />
-      </div>
-      <div className="grid grid-cols-3 gap-3">
-        <MetricCard label="6-Period Projection" value={`£${forecast.points.reduce((s, p) => s + p.value, 0).toLocaleString('en-GB')}`} sub={`${scenario}`} />
-        <MetricCard label="Monthly Trend" value={`${forecast.monthlyTrendPct >= 0 ? '+' : ''}${forecast.monthlyTrendPct}%`} tone={forecast.monthlyTrendPct >= 0 ? 'green' : 'red'} />
-        <MetricCard label="Holt Next Period" value={`£${Math.round(forecast.holtNextPeriod).toLocaleString('en-GB')}`} />
-      </div>
-    </div>
-  );
-}
-
-function PageCustomers({ r }: { r: PipelineResult }) {
-  if (!r.ml.segmentation || !r.ml.segmentation.segments.length) return <div className="bg-white rounded-[16px] border p-6 text-sm text-slate-500">Segmentation not available.</div>;
-  const seg = r.ml.segmentation;
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-4 gap-3"><MetricCard label="Total Customers" value={fmtN(seg.segments.length)} /><MetricCard label="Churn Risk" value={`${seg.churnRiskScore}/100`} tone={seg.churnRiskScore >= 60 ? 'red' : 'amber'} /><MetricCard label="Revenue at Risk" value={`£${Math.round(seg.revenueAtRisk).toLocaleString()}`} tone="red" /><MetricCard label="At Risk" value={fmtN(seg.segments.filter(s=>s.segment==='atRisk' || s.segment==='lost').length)} /></div>
-      <div className="bg-white rounded-[16px] border p-5 shadow-sm overflow-auto"><table className="w-full text-sm"><thead><tr className="text-left border-b">{['Customer','Segment','Total','Orders','RFM'].map(h=><th key={h} className="pb-2 text-[10px] text-slate-400 uppercase">{h}</th>)}</tr></thead><tbody>{seg.segments.slice(0,12).map(s=><tr key={s.id} className="border-t border-slate-100"><td className="py-2.5 font-semibold">{s.id}</td><td><span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100">{s.segment}</span></td><td className="font-bold">£{s.monetary.toLocaleString()}</td><td className="text-slate-500">{s.frequency}</td><td><div className="w-14 h-1.5 bg-slate-200 rounded-full overflow-hidden"><div className="h-full bg-indigo-900" style={{width:`${(s.rfmScore/9)*100}%`}} /></div></td></tr>)}</tbody></table></div>
-    </div>
-  );
-}
-
-function PageSeasonality({ r }: { r: PipelineResult }) {
-  const s = r.statistics.seasonality; if (!s) return <div className="bg-white rounded-[16px] border p-6 text-sm text-slate-500">Seasonality not available.</div>;
-  return <div className="grid grid-cols-1 lg:grid-cols-2 gap-4"><div className="bg-white rounded-[16px] border p-4"><ChartRenderer chart={{ chartType: 'bar', title: 'By Day of Week', xKey: 'label', yKey: 'value', data: s.byDayOfWeek, formatValue: 'currency' } as any} /></div><div className="bg-white rounded-[16px] border p-4"><ChartRenderer chart={{ chartType: 'bar', title: 'By Month', xKey: 'label', yKey: 'value', data: s.byMonthOfYear, formatValue: 'currency' } as any} /></div></div>;
-}
-
-function PageHealth({ r }: { r: PipelineResult }) {
-  const h = r.decision.health;
-  return (
-    <div className="bg-white rounded-[16px] border border-slate-200 p-6 shadow-sm">
-      <div className="flex gap-8 items-start flex-wrap">
-        <div className="text-5xl font-black text-slate-900">{h.total}<span className="text-lg text-slate-400 font-normal">/100</span></div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 flex-1">
-          {h.pillars.map(p => (
-            <div key={p.name} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{p.name}</p>
-              <p className="text-xl font-black mt-1 text-slate-900">{p.score}<span className="text-sm text-slate-400 font-normal">/{p.max}</span></p>
-              <div className="h-1.5 bg-slate-200 rounded-full mt-2 overflow-hidden"><div className="h-full bg-indigo-900 rounded-full" style={{ width: `${(p.score / p.max) * 100}%` }} /></div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PageProducts({ r }: { r: PipelineResult }) {
-  const measureCol = primaryMeasureColumn(r.semantics.columns, r.engineeredRows); const productCol = bestColumnOfRole(r.semantics.columns, 'product');
-  if (!measureCol || !productCol) return <div className="bg-white rounded-[16px] border p-6 text-sm text-slate-500">No product breakdown.</div>;
-  const rows = computeCategoryBreakdown(r.engineeredRows, productCol, measureCol).slice(0,12);
-  return <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm"><table className="w-full text-sm"><thead><tr className="text-left border-b border-slate-100">{['#','Product','Value','Orders','Share'].map(h=><th key={h} className="pb-2 text-[10px] text-slate-400 uppercase tracking-wider">{h}</th>)}</tr></thead><tbody>{rows.map((row,i)=><tr key={row.label} className="border-t border-slate-100"><td className="py-2.5"><span className="w-6 h-6 rounded-full bg-slate-100 inline-flex items-center justify-center text-[10px] font-bold">{i+1}</span></td><td className="py-2.5 font-semibold">{row.label}</td><td className="py-2.5 font-bold">£{row.value.toLocaleString()}</td><td className="py-2.5 text-slate-500">{fmtN(row.count)}</td><td className="py-2.5"><span className="text-xs">{row.pct}%</span></td></tr>)}</tbody></table></div>;
-}
-
-function PageRisks({ r }: { r: PipelineResult }) {
-  if (!r.decision.risks.length) return <div className="bg-white rounded-[16px] border p-6 text-sm text-slate-500">No risks.</div>;
-  return <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm space-y-3">{r.decision.risks.map((risk,i)=>{ const exp=findRiskExplanation(r.aiInsights, risk.title, i); return <div key={i} className="p-4 rounded-xl border border-slate-200 border-l-4" style={{borderLeftColor: risk.level==='high'?'#DC2626': risk.level==='medium'?'#D97706':'#312E81'}}><span className="text-[10px] font-bold uppercase text-slate-500">{risk.level} risk</span><p className="font-bold text-sm mt-1 text-slate-900">{risk.title}</p>{r.aiLoading?<SkeletonBlock lines={2}/>:exp?<p className="text-xs text-slate-600 mt-1 leading-5">{exp.impact} • {exp.action}</p>:<p className="text-xs text-slate-500 mt-1">{risk.desc}</p>}</div>; })}</div>;
-}
-
-function PageRecs({ r }: { r: PipelineResult }) {
-  const recs = r.decision.recommendations as EnrichedRec[]; if (!recs.length) return <div className="bg-white rounded-[16px] border p-6 text-sm text-slate-500">No recommendations.</div>;
-  const vdeMeta = (r as any)._vdeMeta as VDEResult | undefined;
-  return (
-    <div className="space-y-4">
-      {vdeMeta && <div className="bg-indigo-900 rounded-[16px] p-5 text-white"><p className="text-[11px] tracking-widest opacity-70">VERD.IO DECISION ENGINE v2 • FINANCIALLY RANKED</p><p className="text-sm mt-2 leading-6 opacity-90">{vdeMeta.summary}</p><div className="grid grid-cols-3 gap-3 mt-4"><div className="bg-white/10 rounded-xl p-3"><p className="text-[10px] opacity-60">VALUE AT RISK</p><p className="font-bold">£{vdeMeta.totalValueAtRisk?.toLocaleString()}</p></div><div className="bg-white/10 rounded-xl p-3"><p className="text-[10px] opacity-60">OPPORTUNITY</p><p className="font-bold text-amber-300">£{vdeMeta.totalOpportunityValue?.toLocaleString()}</p></div><div className="bg-white/10 rounded-xl p-3"><p className="text-[10px] opacity-60">ACTIONS</p><p className="font-bold">{recs.length}</p></div></div></div>}
-      <div className="space-y-3">{recs.map((rec,i)=>{ const ai=findRecommendation(r.aiInsights, rec.title, i); return <article key={i} className="decision-evidence-card"><div className="flex gap-3"><div className="w-8 h-8 rounded-full bg-indigo-900 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">{i+1}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-bold text-[13px] text-slate-900">{rec.title}</p><span className="evidence-confidence">{Math.round(rec.confidence*100)}% confidence</span></div>{r.aiLoading?<SkeletonLine width="70%"/>:ai?<p className="text-xs text-slate-600 mt-1 leading-5">{ai.action}</p>:<p className="text-xs text-slate-500 mt-1 leading-5">{rec.desc}</p>}</div></div>{rec.financialImpact && <div className="evidence-grid"><div><span>Estimated impact</span><strong>£{rec.financialImpact.estimatedValue.toLocaleString()}</strong><small>Range £{rec.financialImpact.rangeLow.toLocaleString()}–£{rec.financialImpact.rangeHigh.toLocaleString()}</small></div><div><span>Calculation basis</span><p>{rec.financialImpact.basis}</p></div><div><span>Supporting data</span><p>{rec.sourceColumns.length ? rec.sourceColumns.join(', ') : 'Business-wide operating baseline'}</p></div></div>}<details className="evidence-details"><summary>View assumptions and decision evidence</summary><div><p><b>Priority:</b> {rec.priorityScore}/100 · <b>Urgency:</b> {rec.urgency.replace('_',' ')} · <b>Estimated effort:</b> {rec.effortDays} days</p><p>Confidence combines data completeness, validity and the quality of the source columns. Financial impact is an indicative planning range, not a guaranteed outcome.</p></div></details></article>; })}</div>
-    </div>
-  );
-}
-
-function PageDataProfile({ r }: { r: PipelineResult }) { return <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm overflow-auto"><table className="w-full text-sm"><thead><tr className="text-left border-b border-slate-100">{['Column','Type','Role','Conf'].map(h=><th key={h} className="pb-2 text-[10px] text-slate-400 uppercase">{h}</th>)}</tr></thead><tbody>{r.semantics.columns.map(c=><tr key={c.columnName} className="border-t border-slate-100"><td className="py-2 font-medium">{c.columnName}</td><td className="text-slate-500">{c.dataType}</td><td><span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">{c.businessRole}</span></td><td className="text-slate-600">{Math.round(c.confidence*100)}%</td></tr>)}</tbody></table></div>; }
-function PageQuality({ r }: { r: PipelineResult }) { return <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[{l:'Overall',v:r.quality.overallScore},{l:'Completeness',v:r.quality.completenessScore},{l:'Validity',v:r.quality.validityScore},{l:'Consistency',v:r.quality.consistencyScore}].map(s=><div key={s.l} className="bg-white rounded-[16px] border border-slate-200 p-4 shadow-sm"><p className="text-[10px] font-bold text-slate-400 tracking-widest">{s.l.toUpperCase()}</p><p className="text-2xl font-black mt-1 text-slate-900">{s.v}</p></div>)}</div>; }
-
-function PageLoadingFallback() { return <div role="status" aria-live="polite" className="flex items-center justify-center py-16"><div className="h-8 w-8 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" /><span className="sr-only">Loading…</span></div>; }
-
-function WorkspaceHub({ tabs, initial }: { tabs: { id: string; label: string; icon: typeof ClipboardCheck; content: React.ReactNode }[]; initial: string }) {
+function WorkspaceHub({ tabs, initial, label: ariaLabel }: { tabs: { id: string; label: string; icon: typeof ClipboardCheck; content: React.ReactNode }[]; initial: string; label: string }) {
   const [active, setActive] = useState(initial);
-  return <div className="space-y-5"><nav className="workspace-tabs" aria-label="Workspace sections">{tabs.map(({id,label,icon:Icon})=><button key={id} className={active===id?'is-active':''} onClick={()=>setActive(id)}><Icon size={14}/>{label}</button>)}</nav><ErrorBoundary><Suspense fallback={<PageLoadingFallback />}>{tabs.find(tab=>tab.id===active)?.content}</Suspense></ErrorBoundary></div>;
+  function onTabKeyDown(e: React.KeyboardEvent<HTMLButtonElement>) {
+    const i=tabs.findIndex(tab=>tab.id===active);
+    const next=e.key==='ArrowRight'?tabs[(i+1)%tabs.length]:e.key==='ArrowLeft'?tabs[(i+tabs.length-1)%tabs.length]:e.key==='Home'?tabs[0]:e.key==='End'?tabs[tabs.length-1]:null;
+    if(!next)return;
+    e.preventDefault(); setActive(next.id);
+    document.getElementById(`hub-tab-${next.id}`)?.focus();
+  }
+  return <div className="v2-op-hub space-y-5"><div className="v2-tabs v2-hub-tabs" role="tablist" aria-label={ariaLabel}>{tabs.map(({id,label,icon:Icon})=><button key={id} type="button" role="tab" id={`hub-tab-${id}`} aria-selected={active===id} aria-controls={`hub-panel-${id}`} tabIndex={active===id?0:-1} onKeyDown={onTabKeyDown} onClick={()=>setActive(id)}><Icon size={14} aria-hidden="true"/>{label}</button>)}</div><div role="tabpanel" id={`hub-panel-${active}`} aria-labelledby={`hub-tab-${active}`}><ErrorBoundary><Suspense fallback={<PageLoadingFallback />}>{tabs.find(tab=>tab.id===active)?.content}</Suspense></ErrorBoundary></div></div>;
 }
 
 function PageExecutionHub({ r }: { r: PipelineResult }) {
-  return <WorkspaceHub initial="actions" tabs={[{id:'actions',label:'Actions',icon:ClipboardCheck,content:<PageActionTracker r={r}/>},{id:'targets',label:'KPI Targets',icon:Target,content:<PageKpiTargets r={r}/>},{id:'outcomes',label:'Outcomes',icon:Gauge,content:<PageOutcomes r={r}/>},{id:'approvals',label:'Approvals',icon:Stamp,content:<PageApprovals r={r}/>}]} />;
+  return <WorkspaceHub initial="actions" label="Execution sections" tabs={[{id:'actions',label:'Actions',icon:ClipboardCheck,content:<PageActionTracker r={r}/>},{id:'targets',label:'KPI Targets',icon:Target,content:<PageKpiTargets r={r}/>},{id:'outcomes',label:'Outcomes',icon:Gauge,content:<PageOutcomes r={r}/>},{id:'approvals',label:'Approvals',icon:Stamp,content:<PageApprovals r={r}/>}]} />;
 }
 
 function PageGovernanceHub({ r }: { r: PipelineResult }) {
-  return <WorkspaceHub initial="evidence" tabs={[{id:'evidence',label:'Evidence',icon:ScrollText,content:<PageEvidence r={r}/>},{id:'models',label:'Models',icon:BrainCircuit,content:<PageModelAssurance r={r}/>},{id:'quality',label:'Data Quality',icon:Database,content:<PageQuality r={r}/>},{id:'team',label:'Team & Roles',icon:Users,content:<PageTeamWorkspace/>},{id:'audit',label:'Audit Log',icon:Activity,content:<PageAuditLog/>},{id:'trust',label:'Trust',icon:ShieldCheck,content:<PageTrustCenter r={r}/>}]} />;
-}
-
-function PageAdvisor({ r }: { r: PipelineResult }) {
-  const [messages, setMessages] = useState<{ role: 'ai' | 'user'; text?: string; charts?: ChartSpec[]; sources?: string[] }[]>([{ role: 'ai', text: `Full analysis loaded — ${r.source.rowCount} rows, ${r.analyses.length} charts, health ${r.decision.health.total}/100. Choose a decision task below or ask a specific question.`, sources: [r.source.fileName, 'Verd.io decision engine'] }]);
-  const [input, setInput] = useState(''); const [loading, setLoading] = useState(false); const PROXY = '/api/chat'; const context = buildAdvisorContext(r);
-  const quickActions = ['Explain the highest risk', 'Create a 30-day action plan', 'Compare recent performance', 'Summarise for the board'];
-  async function send(prompt?: string) {
-    const userMsg = (prompt || input).trim(); if (!userMsg) return; setInput(''); setMessages(m => [...m, { role: 'user', text: userMsg }]); setLoading(true);
-    try {
-      const groundedPrompt = `${userMsg}\n\nUse only the supplied Verd.io analysis. State the supporting metric or analysis and finish with a concrete next action. Add [CHART:analysis_id] when a chart supports the answer.`;
-      const res = await fetch(PROXY, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: [{ role: 'system', content: context }, { role: 'user', content: groundedPrompt }], max_tokens: 700 }) });
-      const data = await res.json(); const txt = data.choices?.[0]?.message?.content; if (!txt) throw new Error('empty');
-      const { cleanText, charts } = parseChartTagsFromAI(txt, r); setMessages(m => [...m, { role: 'ai', text: cleanText, charts, sources: [r.source.fileName, ...charts.map(c=>c.title || 'Supporting analysis')] }]);
-    } catch { const fb = localAnalysisFallback(userMsg, r); setMessages(m => [...m, { role: 'ai', text: fb.text, charts: fb.charts, sources: [r.source.fileName, 'Local analysis fallback'] }]); }
-    setLoading(false);
-  }
-  return <div className="advisor-workspace"><div className="advisor-actions"><div><strong>Decision tasks</strong><span>Grounded in {r.source.fileName}</span></div>{quickActions.map(action=><button key={action} disabled={loading} onClick={()=>send(action)}>{action}<ChevronRight size={13}/></button>)}</div><div className="advisor-conversation"><div className="advisor-messages">{messages.map((msg,i)=><div key={i} className={`flex ${msg.role==='user'?'justify-end':''}`}><div className={`advisor-message ${msg.role==='user'?'is-user':'is-ai'}`}>{msg.text}{msg.charts?.map((c,j)=><div key={j} className="mt-3 bg-white border rounded-xl p-2"><ChartRenderer chart={c} /></div>)}{msg.sources&&<div className="advisor-sources"><span>Evidence</span>{msg.sources.map(source=><small key={source}>{source}</small>)}</div>}</div></div>)}{loading && <div className="advisor-thinking"><Sparkles size={13}/> Analysing the supporting evidence…</div>}</div><div className="advisor-input"><input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&send()} placeholder="Ask about a risk, forecast, customer segment or decision…" /><button disabled={loading} onClick={()=>send()}>Send</button></div></div></div>;
+  return <WorkspaceHub initial="evidence" label="Governance sections" tabs={[{id:'evidence',label:'Evidence',icon:ScrollText,content:<PageEvidence r={r}/>},{id:'models',label:'Models',icon:BrainCircuit,content:<PageModelAssurance r={r}/>},{id:'quality',label:'Data Quality',icon:Database,content:<PageQuality r={r}/>},{id:'team',label:'Team & Roles',icon:Users,content:<PageTeamWorkspace/>},{id:'audit',label:'Audit Log',icon:Activity,content:<PageAuditLog/>},{id:'trust',label:'Trust',icon:ShieldCheck,content:<PageTrustCenter r={r}/>}]} />;
 }
 
 function ProjectLibrary({ open, onClose, onOpen }: { open: boolean; onClose: () => void; onOpen: (project: SavedProject) => void }) {
@@ -511,20 +192,22 @@ function ProjectLibrary({ open, onClose, onOpen }: { open: boolean; onClose: () 
   const [projects, setProjects] = useState<SavedProject[]>([]);
   const [loading, setLoading] = useState(false);
   useEffect(() => { if (!open) return; setLoading(true); listProjects().then(setProjects).finally(()=>setLoading(false)); }, [open]);
+  const panelRef=useDialogBehaviour(open,onClose);
   if (!open) return null;
   async function remove(id: string) { const project=projects.find(item=>item.id===id);if(project?.shared&&access.role==='viewer')return;await deleteProject(id);setProjects(items=>items.filter(item=>item.id!==id)); }
-  return <div className="modal-shell" role="dialog" aria-modal="true" aria-label="Saved analyses"><button className="modal-scrim" onClick={onClose} aria-label="Close saved analyses"/><section className="workspace-modal"><div className="modal-heading"><div><div className="eyebrow mb-2"><span className="eyebrow-dot"/> WORKSPACE</div><h2>Saved analyses</h2><p>Return to previous decision workspaces without uploading the dataset again.</p></div><button className="header-icon flex" onClick={onClose} aria-label="Close"><X size={17}/></button></div><div className="project-list">{loading?<p className="empty-state">Loading projects…</p>:projects.length===0?<p className="empty-state">Your completed analyses will appear here automatically.</p>:projects.map(project=><article key={project.id} className="project-row"><span className="project-icon"><FolderOpen size={17}/></span><div><strong>{project.name}</strong><small>{project.result.source.rowCount.toLocaleString()} rows · Health {project.result.decision.health.total}/100 · {new Date(project.updatedAt).toLocaleDateString('en-GB')}</small></div><button onClick={()=>onOpen(project)} className="project-open">Open</button><button onClick={()=>remove(project.id)} className="project-delete" aria-label={`Delete ${project.name}`}><Trash2 size={15}/></button></article>)}</div></section></div>;
+  return <div className="v2-dlg-shell"><button type="button" tabIndex={-1} className="v2-dlg-scrim" onClick={onClose} aria-label="Close saved analyses"/><section ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="project-library-title" className="v2-dlg-panel"><div className="v2-dlg-head"><div><p className="v2-eyebrow">WORKSPACE</p><h2 id="project-library-title">Saved analyses</h2><p className="v2-dlg-lede">Return to previous decision workspaces without uploading the dataset again.</p></div><button type="button" className="v2-dlg-close" onClick={onClose} aria-label="Close"><X size={18} aria-hidden="true"/></button></div><div className="v2-dlg-body">{loading?<p className="v2-dlg-empty" role="status">Loading projects…</p>:projects.length===0?<p className="v2-dlg-empty">Your completed analyses will appear here automatically.</p>:projects.map(project=><article key={project.id} className="v2-dlg-row"><FolderOpen className="v2-dlg-row-icon" size={18} aria-hidden="true"/><div className="v2-dlg-row-copy"><strong>{project.name}</strong><small className="v2-tag">{project.result.source.rowCount.toLocaleString()} rows · Health {project.result.decision.health.total}/100 · {new Date(project.updatedAt).toLocaleDateString('en-GB')}</small></div><button type="button" onClick={()=>onOpen(project)} className="v2-op-btn">Open</button><button type="button" onClick={()=>remove(project.id)} className="v2-dlg-delete" aria-label={`Delete ${project.name}`}><Trash2 size={16} aria-hidden="true"/></button></article>)}</div></section></div>;
 }
 
 function ExportDialog({ result, open, onClose }: { result: PipelineResult; open: boolean; onClose: () => void }) {
+  const panelRef=useDialogBehaviour(open,onClose);
   if (!open) return null;
-  return <div className="modal-shell" role="dialog" aria-modal="true" aria-label="Export executive report"><button className="modal-scrim" onClick={onClose} aria-label="Close export dialog"/><section className="export-modal"><div className="modal-heading"><div><div className="eyebrow mb-2"><span className="eyebrow-dot"/> EXECUTIVE REPORTING</div><h2>Share the decision brief</h2><p>Use a board-ready report or send a concise summary through your email application.</p></div><button className="header-icon flex" onClick={onClose} aria-label="Close"><X size={17}/></button></div><div className="export-options"><button onClick={()=>openReport(result)}><span><Download size={18}/></span><div><strong>PDF-ready executive report</strong><small>Open the formatted report, then print or save it as PDF.</small></div><ChevronRight size={17}/></button><button onClick={()=>emailExecutiveSummary(result)}><span><Mail size={18}/></span><div><strong>Email executive summary</strong><small>Prepare a concise risk, health and recommended-action email.</small></div><ChevronRight size={17}/></button></div></section></div>;
+  return <div className="v2-dlg-shell"><button type="button" tabIndex={-1} className="v2-dlg-scrim" onClick={onClose} aria-label="Close export dialog"/><section ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="export-dialog-title" className="v2-dlg-panel is-narrow"><div className="v2-dlg-head"><div><p className="v2-eyebrow">EXECUTIVE REPORTING</p><h2 id="export-dialog-title">Share the decision brief</h2><p className="v2-dlg-lede">Use a board-ready report or send a concise summary through your email application.</p></div><button type="button" className="v2-dlg-close" onClick={onClose} aria-label="Close"><X size={18} aria-hidden="true"/></button></div><div className="v2-dlg-body"><button type="button" className="v2-dlg-option" onClick={()=>openReport(result)}><Download size={20} aria-hidden="true"/><span><strong>PDF-ready executive report</strong><small>Open the formatted report, then print or save it as PDF.</small></span><ChevronRight size={18} aria-hidden="true"/></button><button type="button" className="v2-dlg-option" onClick={()=>emailExecutiveSummary(result)}><Mail size={20} aria-hidden="true"/><span><strong>Email executive summary</strong><small>Prepare a concise risk, health and recommended-action email.</small></span><ChevronRight size={18} aria-hidden="true"/></button></div></section></div>;
 }
 
 function ViewerWorkspaceLanding({ message, onOpen }: { message: string; onOpen: (project: SavedProject) => void }) {
   const [projects,setProjects]=useState<SavedProject[]>([]);const [loading,setLoading]=useState(true);
   useEffect(()=>{listProjects().then(items=>setProjects(items.filter(item=>item.shared))).finally(()=>setLoading(false))},[]);
-  return <div className="onboarding-shell min-h-screen flex items-center justify-center p-6"><div className="elevated-panel w-full max-w-2xl rounded-[24px] p-8"><div className="text-center"><ShieldCheck className="mx-auto text-blue-700"/><h1 className="text-2xl font-semibold mt-4">Shared organisation projects</h1><p className="text-sm text-slate-500 mt-3">Your viewer role provides secure read-only access.</p>{message&&<p className="mt-3 text-xs text-blue-700">{message}</p>}</div><div className="viewer-projects">{loading?<p>Loading shared projects…</p>:projects.length===0?<p>No shared analyses are available yet. Ask an analyst or administrator to publish one.</p>:projects.map(project=><article key={project.id}><div><strong>{project.name}</strong><small>{project.result.source.rowCount.toLocaleString()} rows · Health {project.result.decision.health.total}/100</small></div><button onClick={()=>onOpen(project)}>Open read-only</button></article>)}</div></div></div>;
+  return <div className="v2-entry-shell"><main className="v2-entry-col is-mid"><p className="v2-entry-mark">Verd<i>.</i>io</p><header className="v2-entry-head"><h1 className="v2-entry-title is-compact">Shared organisation projects</h1><p className="v2-entry-lede"><ShieldCheck className="v2-entry-inline-icon" size={18} aria-hidden="true"/>Your viewer role provides secure read-only access.</p>{message&&<p className="v2-entry-notice" role="status">{message}</p>}</header><div className="v2-entry-projects">{loading?<p className="v2-entry-projects-empty" role="status">Loading shared projects…</p>:projects.length===0?<p className="v2-entry-projects-empty">No shared analyses are available yet. Ask an analyst or administrator to publish one.</p>:projects.map(project=><article key={project.id}><div><strong>{project.name}</strong><small className="v2-tag">{project.result.source.rowCount.toLocaleString()} rows · Health {project.result.decision.health.total}/100</small></div><button type="button" onClick={()=>onOpen(project)} className="v2-op-btn">Open read-only</button></article>)}</div></main></div>;
 }
 
 export default function App() {
@@ -555,7 +238,7 @@ export default function App() {
   useEffect(() => { if (!result || !result.aiLoading) return; let cancelled=false; generateAIInsights(result).then(ai=>{ if(!cancelled) setResult(prev=>prev?{...prev, aiInsights: ai, aiLoading:false}:prev); }); return()=>{cancelled=true;}; }, [result]);
   useEffect(() => { if (!result || result.aiLoading) return; saveToHistory(result); saveProject(result, currentProjectIdRef.current || undefined).then(setCurrentProjectId).catch(e=>console.warn('Project save failed', e)); }, [result]);
   useEffect(()=>{if(!user)return;const token=new URLSearchParams(window.location.search).get('invite');if(!token)return;const sb=getSupabase();if(!sb)return;void sb.rpc('accept_organization_invitation',{invitation_token:token}).then(({error})=>{setInviteMessage(error?error.message:'Invitation accepted. Your workspace role is now active.');if(!error)window.history.replaceState({},'',window.location.pathname)})},[user]);
-  if (authLoading) return <div className="min-h-screen bg-[#F5F6FA] flex items-center justify-center"><div className="h-8 w-8 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" /></div>;
+  if (authLoading) return <div role="status" aria-live="polite" className="v2-entry-shell is-wait"><div className="v2-spinner" aria-hidden="true" /><span className="v2-tag">Loading…</span></div>;
   const setPublicView=(mode:'landing'|'signin'|'signup')=>{
     if(publicMode==='demo'){setResult(null);setPage('overview')}
     setPublicMode(mode);
@@ -578,7 +261,7 @@ export default function App() {
   if (isPublicHomepage) return <LandingPage onDemo={()=>void openDemo()} onLogin={()=>setPublicView('signin')} onSignup={()=>setPublicView('signup')}/>;
   if (!user && publicMode==='landing') return <PasswordGateScreen onBack={()=>setPublicView('landing')}/>;
   if (!user && (publicMode==='signin'||publicMode==='signup')) return <PasswordGateScreen initialMode={publicMode} onBack={()=>setPublicView('landing')}/>;
-  if (!user && publicMode==='demo' && demoLoading) return <div className="public-demo-loading"><div className="h-9 w-9 border-2 border-slate-200 border-t-blue-600 rounded-full animate-spin"/><p>Preparing the Verd.io live demo…</p></div>;
+  if (!user && publicMode==='demo' && demoLoading) return <div role="status" aria-live="polite" className="v2-entry-shell is-wait"><div className="v2-spinner" aria-hidden="true"/><p className="v2-tag">Preparing the Verd.io live demo…</p></div>;
   if (!result && access.role==='viewer') return <ViewerWorkspaceLanding message={inviteMessage} onOpen={project=>{void recordProjectOpened(project);setResult(project.result);setCurrentProjectId(project.id)}}/>;
   if (!result) return <UploadScreen onLoaded={r => { setCurrentProjectId(null); setResult(r); setPage('overview'); }} />;
   const titles: Record<string, string> = { overview: 'Executive Workspace', execution: 'Execution', governance: 'Governance', advisor: 'AI Advisor', forecast: 'Predictions', scenarios: 'Scenario Planning', analyses: 'Intelligence', customers: 'Customer Intelligence', seasonality: 'Seasonality', health: 'Health Detail', risks: 'Risks & Opportunities', recs: 'Decisions', products: 'Products & Markets', profile: 'Data Hub', connections: 'Connections', relationships: 'Data Relationships', alerts: 'Alerts & Reports' };
@@ -587,8 +270,8 @@ export default function App() {
       <Sidebar page={page} setPage={setPage} result={result} onReset={reset} open={navOpen} onClose={()=>setNavOpen(false)} />
       <div className="app-content lg:ml-[272px]">
         <header className="app-header sticky top-0 z-30 px-4 md:px-7 h-[72px] flex items-center justify-between gap-3">
-          <div className="flex items-center min-w-0"><button aria-label="Open navigation" onClick={()=>setNavOpen(true)} className="header-icon mr-3 lg:hidden"><Menu size={18}/></button><div className="min-w-0"><p className="text-[14px] font-semibold text-slate-950 truncate">{titles[page]}</p><p className="text-[10px] md:text-[11px] text-slate-500 truncate">{result.organization?`${result.organization.datasets.length} connected datasets · `:''}{result.source.fileName} · {fmtN(result.source.rowCount)} rows · updated just now</p></div></div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center min-w-0"><button aria-label="Open navigation" onClick={()=>setNavOpen(true)} className="header-icon mr-3 lg:hidden"><Menu size={18}/></button><div className="min-w-0"><p className="v2-header-title truncate">{titles[page]}</p><p className="v2-header-source truncate">{result.organization?`${result.organization.datasets.length} connected datasets · `:''}{result.source.fileName} · {fmtN(result.source.rowCount)} rows · updated just now</p></div></div>
+          <div className="v2-header-actions flex items-center gap-2">
             <button onClick={() => setExportOpen(true)} className="header-action hidden md:flex"><FileText size={14}/> Export report</button>
             <button onClick={()=>setProjectLibraryOpen(true)} className="header-icon hidden sm:flex" aria-label="Analysis history"><Activity size={16}/></button>
             {publicMode==='demo'&&!user?<button onClick={()=>setPublicView('signup')} className="header-action flex">Create free account <ArrowUpRight size={13}/></button>:<div className="user-menu group relative"><button className="user-avatar" aria-label="Account menu">{(user?.email?.[0] || 'V').toUpperCase()}</button><div className="user-popover"><p className="truncate text-xs font-semibold text-slate-900">{user?.email || 'Local workspace'}</p><button onClick={reset}><RefreshCw size={13}/> New dataset</button><button onClick={()=>setPage('governance')}><Settings size={13}/> Settings</button><button onClick={async()=>{ const sb=getSupabase(); if(sb) await sb.auth.signOut(); }}>Sign out</button></div></div>}

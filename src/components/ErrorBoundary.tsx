@@ -18,11 +18,13 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.error) {
       return (
-        <div role="alert" className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-          <AlertTriangle className="text-amber-600" size={28} />
-          <p className="text-sm font-semibold text-slate-900">This section couldn't be displayed.</p>
-          <p className="text-xs text-slate-500 max-w-sm">{this.state.error.message || "An unexpected error occurred while rendering this page."}</p>
-          <button onClick={() => this.setState({ error: null })} className="secondary-button">Try again</button>
+        <div role="alert" className="v2-boundary">
+          <AlertTriangle className="v2-boundary-icon" size={24} aria-hidden="true" />
+          <div className="v2-boundary-copy">
+            <p className="v2-boundary-title">This section couldn't be displayed.</p>
+            <p className="v2-boundary-detail">{this.state.error.message || "An unexpected error occurred while rendering this page."}</p>
+            <button type="button" onClick={() => this.setState({ error: null })} className="v2-btn is-small">Try again</button>
+          </div>
         </div>
       );
     }
