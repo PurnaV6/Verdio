@@ -11,16 +11,21 @@ import type { ChartSpec, ValueFormat } from "../types/analysis";
    per page. One component, six chart types.
    ================================================================ */
 
-const PAL = ['#0A66C2', '#4DA3F7', '#083E78', '#78B9F7', '#506D8A', '#A7CFF5', '#2E7FCB', '#7891AA'];
-const GRID = '#E4EDF6';
-const TICK = '#6B8095';
+// Brand palette: verd, tide, brass, oxide, then a deep slate, a verd tint, a neutral and a tide tint.
+// Every series colour is at least 3:1 against the paper (#EDF0EA) and sheet (#F7F9F5) backgrounds,
+// and neighbouring entries differ in hue or lightness so adjacent series stay distinguishable.
+const PAL = ['#1F5B49', '#3F7C99', '#8F6A18', '#A8382E', '#2F4F5C', '#4A8F77', '#5C6B73', '#6A8FA3'];
+const GRID = '#C9D2CA';
+const TICK = '#55645F';
+const INK = '#1A2B2F';
+const SHEET = '#F7F9F5';
 const TOOLTIP_STYLE = {
-  borderRadius: 12,
-  border: '1px solid #D7E4F0',
-  boxShadow: '0 12px 30px rgba(6, 45, 82, .12)',
-  color: '#18334D',
-  fontSize: 11,
-  background: 'rgba(255, 255, 255, .97)',
+  borderRadius: 4,
+  border: '1px solid #C9D2CA',
+  boxShadow: '0 8px 24px rgba(26, 43, 47, .14)',
+  color: INK,
+  fontSize: 12,
+  background: SHEET,
 };
 
 export function formatValue(v: number | string, format: ValueFormat): string {
@@ -51,15 +56,15 @@ export function ChartRenderer({ chart }: { chart: ChartSpec }) {
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={chart.data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="2 5" vertical={false} stroke={GRID} />
-            <XAxis dataKey={chart.xKey} tick={{ fill: TICK, fontSize: 10 }} tickLine={false} axisLine={false} />
-            <YAxis tick={{ fill: TICK, fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => formatValue(v, chart.formatValue)} />
-            <Tooltip formatter={tooltipFormatter} contentStyle={TOOLTIP_STYLE} cursor={{ stroke: '#9BB8D3', strokeDasharray: '3 3' }} />
-            {(chart.seriesKeys || ['value']).length > 1 && <Legend iconType="circle" iconSize={7} wrapperStyle={{ color: '#60758A', fontSize: 10, paddingTop: 8 }} />}
+            <XAxis dataKey={chart.xKey} tick={{ fill: TICK, fontSize: 11 }} tickLine={false} axisLine={false} />
+            <YAxis tick={{ fill: TICK, fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={v => formatValue(v, chart.formatValue)} />
+            <Tooltip formatter={tooltipFormatter} contentStyle={TOOLTIP_STYLE} cursor={{ stroke: '#8A9A92', strokeDasharray: '3 3' }} />
+            {(chart.seriesKeys || ['value']).length > 1 && <Legend iconType="circle" iconSize={7} wrapperStyle={{ color: TICK, fontSize: 11, paddingTop: 8 }} />}
             {(chart.seriesKeys || ['value']).map((key, i) => (
               <Line key={key} type="monotone" dataKey={key} stroke={PAL[i % PAL.length]} strokeWidth={2.75}
                 strokeDasharray={key === 'forecast' ? '6 3' : undefined}
-                dot={{ r: 2.5, fill: '#FFFFFF', stroke: PAL[i % PAL.length], strokeWidth: 2 }}
-                activeDot={{ r: 4, fill: PAL[i % PAL.length], stroke: '#FFFFFF', strokeWidth: 2 }}
+                dot={{ r: 2.5, fill: SHEET, stroke: PAL[i % PAL.length], strokeWidth: 2 }}
+                activeDot={{ r: 4, fill: PAL[i % PAL.length], stroke: SHEET, strokeWidth: 2 }}
                 connectNulls={false} name={key} />
             ))}
           </LineChart>
@@ -69,11 +74,11 @@ export function ChartRenderer({ chart }: { chart: ChartSpec }) {
       {chart.chartType === 'bar' && (
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={chart.data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-            <defs><linearGradient id="verdioBar" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#4DA3F7"/><stop offset="100%" stopColor="#0A66C2"/></linearGradient></defs>
+            <defs><linearGradient id="verdioBar" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#4A8F77"/><stop offset="100%" stopColor="#1F5B49"/></linearGradient></defs>
             <CartesianGrid strokeDasharray="2 5" vertical={false} stroke={GRID} />
-            <XAxis dataKey={chart.xKey} tick={{ fill: TICK, fontSize: 10 }} tickLine={false} axisLine={false} />
-            <YAxis tick={{ fill: TICK, fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => formatValue(v, chart.formatValue)} />
-            <Tooltip formatter={tooltipFormatter} contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'rgba(10,102,194,.055)' }} />
+            <XAxis dataKey={chart.xKey} tick={{ fill: TICK, fontSize: 11 }} tickLine={false} axisLine={false} />
+            <YAxis tick={{ fill: TICK, fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={v => formatValue(v, chart.formatValue)} />
+            <Tooltip formatter={tooltipFormatter} contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'rgba(31,91,73,.08)' }} />
             <Bar dataKey={chart.yKey || 'value'} fill="url(#verdioBar)" radius={[6, 6, 2, 2]} maxBarSize={48} />
           </BarChart>
         </ResponsiveContainer>
@@ -82,12 +87,12 @@ export function ChartRenderer({ chart }: { chart: ChartSpec }) {
       {chart.chartType === 'horizontal_bar' && (
         <ResponsiveContainer width="100%" height={Math.max(180, (chart.data.length || 1) * 34)}>
           <BarChart data={chart.data} layout="vertical" margin={{ left: 8, right: 8 }}>
-            <defs><linearGradient id="verdioHorizontalBar" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#083E78"/><stop offset="100%" stopColor="#4DA3F7"/></linearGradient></defs>
+            <defs><linearGradient id="verdioHorizontalBar" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#1F5B49"/><stop offset="100%" stopColor="#4A8F77"/></linearGradient></defs>
             <CartesianGrid strokeDasharray="2 5" horizontal={false} stroke={GRID} />
-            <XAxis type="number" tick={{ fill: TICK, fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => formatValue(v, chart.formatValue)} />
-            <YAxis type="category" dataKey={chart.yKey} tick={{ fill: '#49647E', fontSize: 10 }} tickLine={false} axisLine={false} width={110}
+            <XAxis type="number" tick={{ fill: TICK, fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={v => formatValue(v, chart.formatValue)} />
+            <YAxis type="category" dataKey={chart.yKey} tick={{ fill: TICK, fontSize: 11 }} tickLine={false} axisLine={false} width={110}
               tickFormatter={(v: string) => (v && v.length > 16 ? v.slice(0, 16) + '…' : v)} />
-            <Tooltip formatter={tooltipFormatter} contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'rgba(10,102,194,.05)' }} />
+            <Tooltip formatter={tooltipFormatter} contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'rgba(31,91,73,.08)' }} />
             <Bar dataKey={chart.xKey || 'value'} fill="url(#verdioHorizontalBar)" radius={[0, 7, 7, 0]} maxBarSize={22} />
           </BarChart>
         </ResponsiveContainer>
@@ -97,10 +102,10 @@ export function ChartRenderer({ chart }: { chart: ChartSpec }) {
         <ResponsiveContainer width="100%" height={240}>
           <ScatterChart>
             <CartesianGrid strokeDasharray="2 5" stroke={GRID} />
-            <XAxis type="number" dataKey={chart.xKey} tick={{ fill: TICK, fontSize: 10 }} tickLine={false} axisLine={false} name={chart.xKey} />
-            <YAxis type="number" dataKey={chart.yKey} tick={{ fill: TICK, fontSize: 10 }} tickLine={false} axisLine={false} name={chart.yKey} />
-            <Tooltip cursor={{ stroke: '#9BB8D3', strokeDasharray: '3 3' }} contentStyle={TOOLTIP_STYLE} />
-            <Scatter data={chart.data} fill="#0A66C2" fillOpacity={0.68} stroke="#083E78" strokeWidth={0.5} />
+            <XAxis type="number" dataKey={chart.xKey} tick={{ fill: TICK, fontSize: 11 }} tickLine={false} axisLine={false} name={chart.xKey} />
+            <YAxis type="number" dataKey={chart.yKey} tick={{ fill: TICK, fontSize: 11 }} tickLine={false} axisLine={false} name={chart.yKey} />
+            <Tooltip cursor={{ stroke: '#8A9A92', strokeDasharray: '3 3' }} contentStyle={TOOLTIP_STYLE} />
+            <Scatter data={chart.data} fill="#4A8F77" fillOpacity={0.8} stroke="#1F5B49" strokeWidth={0.5} />
           </ScatterChart>
         </ResponsiveContainer>
       )}
@@ -108,11 +113,11 @@ export function ChartRenderer({ chart }: { chart: ChartSpec }) {
       {chart.chartType === 'pie' && (
         <ResponsiveContainer width="100%" height={240}>
           <PieChart>
-            <Pie data={chart.data} dataKey={chart.yKey || 'value'} nameKey={chart.xKey || 'label'} innerRadius={54} outerRadius={88} paddingAngle={3} cornerRadius={3} stroke="#FFFFFF" strokeWidth={2}>
+            <Pie data={chart.data} dataKey={chart.yKey || 'value'} nameKey={chart.xKey || 'label'} innerRadius={54} outerRadius={88} paddingAngle={3} cornerRadius={3} stroke={SHEET} strokeWidth={2}>
               {chart.data.map((_, i) => <Cell key={i} fill={PAL[i % PAL.length]} />)}
             </Pie>
             <Tooltip formatter={tooltipFormatter} contentStyle={TOOLTIP_STYLE} />
-            <Legend iconType="circle" iconSize={7} wrapperStyle={{ color: '#60758A', fontSize: 10 }} />
+            <Legend iconType="circle" iconSize={7} wrapperStyle={{ color: TICK, fontSize: 11 }} />
           </PieChart>
         </ResponsiveContainer>
       )}
@@ -120,17 +125,17 @@ export function ChartRenderer({ chart }: { chart: ChartSpec }) {
       {chart.chartType === 'table' && chart.columns && (
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left border-b border-slate-100">
+            <tr className="text-left border-b border-[#1A2B2F]">
               {chart.columns.map(c => (
-                <th key={c.key} className="pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">{c.label}</th>
+                <th key={c.key} className="pb-2 text-[11.5px] font-medium text-[#55645F] uppercase tracking-wider">{c.label}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {chart.data.map((row, i) => (
-              <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
+              <tr key={i} className="border-t border-[#C9D2CA]">
                 {chart.columns!.map(c => (
-                  <td key={c.key} className="py-2.5 text-slate-600">{formatValue(row[c.key], c.format || 'plain')}</td>
+                  <td key={c.key} className="py-2.5 text-[#1A2B2F]">{formatValue(row[c.key], c.format || 'plain')}</td>
                 ))}
               </tr>
             ))}

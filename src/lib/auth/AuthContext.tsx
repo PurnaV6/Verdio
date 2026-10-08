@@ -44,19 +44,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() { return useContext(Ctx); }
 
-// Small header badge / user pill (kept for header)
-export function LoginButton() {
-  const { user, isEnabled, signOut } = useAuth();
-  if (!isEnabled) return <span className="text-[10px] px-2 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200 font-bold">Auth: Local Mode</span>;
-  if (!user) return null;
-  return (
-    <div className="flex items-center gap-2 text-xs">
-      <span className="text-slate-500 truncate max-w-[140px] hidden md:block">{user.email}</span>
-      <button onClick={signOut} className="px-3 py-1.5 rounded-full border border-slate-200 font-bold hover:bg-slate-50">Sign out</button>
-    </div>
-  );
-}
-
 /* Full page password gate */
 export function PasswordGateScreen({ initialMode = 'signin', onBack }: { initialMode?: 'signin' | 'signup'; onBack?: () => void } = {}) {
   const [email, setEmail] = useState('');
@@ -96,47 +83,44 @@ export function PasswordGateScreen({ initialMode = 'signin', onBack }: { initial
   };
 
   return (
-    <div className="auth-shell min-h-screen flex items-center justify-center p-5 md:p-8">
-      <div className="auth-orbit auth-orbit-one"/><div className="auth-orbit auth-orbit-two"/>
-      <div className="w-full max-w-[450px] elevated-panel rounded-[28px] p-7 md:p-10 relative">
-        {onBack&&<button onClick={onBack} className="auth-back-button">← Back to Verd.io</button>}
-        <div className="text-center mb-8">
-          <div className="mx-auto mb-6 h-12 w-12 rounded-[13px] bg-[#0a66c2] flex items-center justify-center shadow-[0_8px_24px_rgba(10,102,194,.25)]">
-            <span className="text-white font-black text-lg">V</span>
-          </div>
-          <p className="text-[9px] font-bold tracking-[.18em] text-blue-700 mb-2">VERD.IO DECISION INTELLIGENCE</p>
-          <h1 className="text-[27px] font-semibold tracking-[-.04em] text-[#102a43]">{mode === 'signin' ? 'Welcome back' : 'Create your workspace'}</h1>
-          <p className="text-sm text-slate-500 mt-2 leading-6">{mode === 'signin' ? 'Sign in to continue to your executive workspace.' : 'Turn your business data into prioritised decisions.'}</p>
-        </div>
+    <div className="v2-entry-shell">
+      <main className="v2-entry-col is-auth">
+        {onBack&&<button type="button" onClick={onBack} className="v2-auth-back">← Back to Verd.io</button>}
+        <p className="v2-entry-mark">Verd<i>.</i>io</p>
+        <div className="v2-auth-panel">
+          <header className="v2-auth-head">
+            <p className="v2-eyebrow">VERD.IO DECISION INTELLIGENCE</p>
+            <h1 className="v2-entry-title is-compact">{mode === 'signin' ? 'Welcome back' : 'Create your workspace'}</h1>
+            <p className="v2-entry-lede">{mode === 'signin' ? 'Sign in to continue to your executive workspace.' : 'Turn your business data into prioritised decisions.'}</p>
+          </header>
 
-        <div className="space-y-4">
-          <div>
-            <label className="text-[11px] font-semibold text-slate-700 mb-1.5 block">Work email</label>
-            <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@company.com" className="auth-input w-full px-4 py-3 rounded-xl border text-sm focus:outline-none" />
-          </div>
-          <div>
-            <label className="text-[11px] font-semibold text-slate-700 mb-1.5 block">Password</label>
-            <input type="password" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=> e.key==='Enter' && submit()} placeholder={mode==='signin' ? 'Your password' : 'At least 6 characters'} className="auth-input w-full px-4 py-3 rounded-xl border text-sm focus:outline-none" />
-          </div>
+          <form className="v2-auth-form" noValidate onSubmit={e => { e.preventDefault(); void submit(); }}>
+            <div className="v2-auth-field">
+              <label htmlFor="auth-email">Work email</label>
+              <input id="auth-email" name="email" type="email" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@company.com" aria-describedby={error ? 'auth-error' : undefined} className="v2-auth-input" />
+            </div>
+            <div className="v2-auth-field">
+              <label htmlFor="auth-password">Password</label>
+              <input id="auth-password" name="password" type="password" autoComplete={mode==='signin' ? 'current-password' : 'new-password'} value={password} onChange={e=>setPassword(e.target.value)} placeholder={mode==='signin' ? 'Your password' : 'At least 6 characters'} aria-describedby={error ? 'auth-error' : undefined} className="v2-auth-input" />
+            </div>
 
-          {error && <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-2.5 text-xs text-red-700">{error}</div>}
-          {info && <div className="rounded-xl bg-blue-50 border border-blue-200 px-4 py-2.5 text-xs text-blue-700">{info}</div>}
+            {error && <div id="auth-error" role="alert" className="v2-auth-msg is-error">{error}</div>}
+            {info && <div role="status" className="v2-auth-msg is-info">{info}</div>}
 
-          <button onClick={submit} disabled={loading} className="w-full py-3 bg-[#0a66c2] hover:bg-[#073b72] text-white rounded-xl text-sm font-semibold transition-all disabled:opacity-50 shadow-[0_8px_20px_rgba(10,102,194,.2)]">
-            {loading ? 'Please wait...' : mode === 'signin' ? 'Sign in' : 'Create account'}
-          </button>
-
-          <div className="text-center pt-2">
-            <button onClick={()=>{ setMode(mode==='signin'?'signup':'signin'); setError(''); setInfo(''); }} className="text-xs font-semibold text-slate-500 hover:text-blue-700">
-              {mode === 'signin' ? "Don't have an account? Create one" : "Already have an account? Sign in"}
+            <button type="submit" disabled={loading} className="v2-btn is-block">
+              {loading ? 'Please wait...' : mode === 'signin' ? 'Sign in' : 'Create account'}
             </button>
-          </div>
-        </div>
 
-        <div className="mt-8 pt-6 border-t border-slate-100 text-center">
-          <p className="text-[10px] text-slate-400 tracking-wide">SECURE AUTHENTICATION · PRIVATE BY DESIGN</p>
+            <div className="v2-auth-switch">
+              <button type="button" onClick={()=>{ setMode(mode==='signin'?'signup':'signin'); setError(''); setInfo(''); }} className="v2-link-button">
+                {mode === 'signin' ? "Don't have an account? Create one" : "Already have an account? Sign in"}
+              </button>
+            </div>
+          </form>
+
+          <p className="v2-tag v2-auth-foot">SECURE AUTHENTICATION · PRIVATE BY DESIGN</p>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
