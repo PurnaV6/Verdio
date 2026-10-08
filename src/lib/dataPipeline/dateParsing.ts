@@ -11,6 +11,13 @@
    • Numeric d/m/y   05/03/2024, 5-3-2024, 5/3/24, 25.03.2024  ("/" and "-" read as
                      m/d/y unless the first part is above 12; "." is d.m.y)
    • Month names     5 Mar 2024, 5 March 2024, Mar 5, 2024, March 5 2024
+   • Optional time   after numeric and month-name dates: 3/5/2024 10:00,
+                     3/5/2024 3:45 PM, 5 Mar 2024 14:30 (12 AM = 00, hour 1-12 with AM/PM)
+   • Month-year      2024-03, 03/2024, Mar 2024, March 2024, Mar-2024, Mar-24 -> day 1
+                     (the two-digit year form is hyphen-only so "Mar 12" is not read as 2012)
+   • Excel           sheet_to_csv writes Date cells with the default format as m/d/yy
+                     (e.g. 3/5/24, time of day dropped), or the cell's own format
+                     (05-Mar-24, Mar-24, 3/5/24 14:30). All of these are covered above.
    Two-digit years: 00-49 -> 20xx, 50-99 -> 19xx. Years must be 1900-2100.
    Pure numbers (including Excel serials) are not text dates.
    ================================================================ */
@@ -27,14 +34,29 @@ const MONTHS: Record<string, number> = {
 };
 
 const ISO_RE = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?\s*(Z|[+-]\d{2}:?\d{2})?)?$/i;
-const NUMERIC_RE = /^(\d{1,2})([/.-])(\d{1,2})\2(\d{2}|\d{4})$/;
-const DAY_MONTH_NAME_RE = /^(\d{1,2})[\s-]+([A-Za-z]{3,9})\.?,?[\s-]+(\d{2}|\d{4})$/;
-const MONTH_NAME_DAY_RE = /^([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{2}|\d{4})$/;
+// Optional wall-clock time after a non-ISO date: " 10:00", " 10:15:30", " 3:45 PM". The time never
+// changes the calendar day; it is only validated (hour 1-12 with AM/PM, 0-23 without).
+const TIME = String.raw`(?:\s+(\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(?:\s*([AP]M))?)?`;
+const NUMERIC_RE = new RegExp(String.raw`^(\d{1,2})([/.-])(\d{1,2})\2(\d{2}|\d{4})` + TIME + '$', 'i');
+const DAY_MONTH_NAME_RE = new RegExp(String.raw`^(\d{1,2})[\s-]+([A-Za-z]{3,9})\.?,?[\s-]+(\d{2}|\d{4})` + TIME + '$', 'i');
+const MONTH_NAME_DAY_RE = new RegExp(String.raw`^([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{2}|\d{4})` + TIME + '$', 'i');
+// Month-year labels, resolved to day 1: 2024-03, 2024/03, 03/2024, 3-2024, Mar 2024, March 2024, Mar-2024, Mar-24.
+const YEAR_MONTH_RE = /^(\d{4})[-/](\d{1,2})$/;
+const MONTH_YEAR_NUM_RE = /^(\d{1,2})[-/](\d{4})$/;
+const MONTH_YEAR_NAME_RE = /^([A-Za-z]{3,9})\.?(?:\s+(\d{4})|-(\d{2}|\d{4}))$/;
 
 function fullYear(text: string): number {
   const y = Number(text);
   if (text.length === 4) return y;
   return y < 50 ? 2000 + y : 1900 + y;
+}
+
+/** Validates the optional time suffix captured as [hh, mm, ss, ampm]. */
+function validTime(hh?: string, mi?: string, ss?: string, ampm?: string): boolean {
+  if (hh === undefined) return true;
+  const h = Number(hh);
+  if (ampm ? h < 1 || h > 12 : h > 23) return false;
+  return Number(mi) <= 59 && (ss === undefined || Number(ss) <= 59);
 }
 
 function valid(year: number, month: number, day: number): CalendarDate | null {
@@ -68,7 +90,8 @@ export function parseStrictDate(text: string): CalendarDate | null {
 
   const num = NUMERIC_RE.exec(s);
   if (num) {
-    const [, a, sep, b, y] = num;
+    const [, a, sep, b, y, hh, mi, ss, ap] = num;
+    if (!validTime(hh, mi, ss, ap)) return null;
     if (sep === '-' && y.length !== 4) return null;                      // 12-34-56 style codes are not dates
     const first = Number(a), second = Number(b), year = fullYear(y);
     if (sep === '.') return valid(year, second, first);                  // d.m.y
@@ -79,13 +102,28 @@ export function parseStrictDate(text: string): CalendarDate | null {
   const dmn = DAY_MONTH_NAME_RE.exec(s);
   if (dmn) {
     const month = MONTHS[dmn[2].toLowerCase()];
+    if (!validTime(dmn[4], dmn[5], dmn[6], dmn[7])) return null;
     return month ? valid(fullYear(dmn[3]), month, Number(dmn[1])) : null;
   }
 
   const mnd = MONTH_NAME_DAY_RE.exec(s);
   if (mnd) {
     const month = MONTHS[mnd[1].toLowerCase()];
+    if (!validTime(mnd[4], mnd[5], mnd[6], mnd[7])) return null;
     return month ? valid(fullYear(mnd[3]), month, Number(mnd[2])) : null;
+  }
+
+  const ym = YEAR_MONTH_RE.exec(s);
+  if (ym) return valid(Number(ym[1]), Number(ym[2]), 1);
+
+  const myn = MONTH_YEAR_NUM_RE.exec(s);
+  if (myn) return valid(Number(myn[2]), Number(myn[1]), 1);
+
+  const myName = MONTH_YEAR_NAME_RE.exec(s);
+  if (myName) {
+    const month = MONTHS[myName[1].toLowerCase()];
+    const year = myName[2] ?? myName[3];
+    return month ? valid(fullYear(year), month, 1) : null;
   }
 
   return null;
