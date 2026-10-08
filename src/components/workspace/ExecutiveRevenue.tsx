@@ -4,7 +4,7 @@ import type { PipelineResult } from "../../types/pipeline";
 import { ChartRenderer } from "./lazy";
 import { StateMark } from "./StateMark";
 import { formatExecutiveCurrency } from "./format";
-import { getRevenueView } from "./revenue";
+import { getRevenueView, NO_EARLIER_PERIOD } from "./revenue";
 
 export function ExecutiveRevenue({ result }: { result: PipelineResult }) {
   const revenue=getRevenueView(result);
@@ -14,7 +14,8 @@ export function ExecutiveRevenue({ result }: { result: PipelineResult }) {
     ...(revenue.revenueForecast?.points.map(point=>({period:point.periodLabel,revenue:null,forecast:point.value}))??[]),
   ];
   const projected=revenue.revenueForecast?.holtNextPeriod??0;
-  const movement=`${revenue.changePct>=0?'+':''}${revenue.changePct.toFixed(1)}%`;
+  const change=revenue.changePct;
+  const movement=change===null?null:`${change>=0?'+':''}${change.toFixed(1)}%`;
   return <div className="v2-revenue">
     <section className="v2-rev-hero" aria-label="Recognised revenue">
       <div>
@@ -24,8 +25,8 @@ export function ExecutiveRevenue({ result }: { result: PipelineResult }) {
       </div>
       <div className="v2-rev-move">
         <p className="v2-eyebrow">Latest period movement</p>
-        <p className="v2-rev-delta">{movement}</p>
-        <StateMark tone={revenue.changePct<0?'watch':'ok'} label={revenue.changePct>0?'Rising':revenue.changePct<0?'Declining':'Flat'}/>
+        {change===null?<p className="v2-tag">{NO_EARLIER_PERIOD}</p>:<><p className="v2-rev-delta">{movement}</p>
+        <StateMark tone={change<0?'watch':'ok'} label={change>0?'Rising':change<0?'Declining':'Flat'}/></>}
       </div>
     </section>
     <div className="v2-table-wrap">
