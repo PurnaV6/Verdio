@@ -1,28 +1,7 @@
-import { useState, useCallback, useEffect, useRef, lazy, Suspense, type ComponentType } from "react";
+import { useState, useCallback, useEffect, useRef, Suspense } from "react";
 import { runDataPipeline } from "../lib/dataPipeline/runDataPipeline";
 import { generateAIInsights } from "../services/ai";
 
-const CHUNK_RELOAD_KEY = 'verdio_chunk_reload';
-function lazyWithReload<T extends ComponentType<any>>(loader: () => Promise<{ default: T }>) {
-  return lazy(async () => {
-    try {
-      const loaded = await loader();
-      sessionStorage.removeItem(CHUNK_RELOAD_KEY);
-      return loaded;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const staleDeploymentChunk = /failed to fetch dynamically imported module|importing a module script failed|loading chunk [\d]+ failed/i.test(message);
-      if (staleDeploymentChunk && !sessionStorage.getItem(CHUNK_RELOAD_KEY)) {
-        sessionStorage.setItem(CHUNK_RELOAD_KEY, '1');
-        window.location.reload();
-        return new Promise<{ default: T }>(() => undefined);
-      }
-      throw error;
-    }
-  });
-}
-
-const ChartRenderer = lazyWithReload(() => import("../components/ChartRenderer").then(m => ({ default: m.ChartRenderer })));
 import { computeCategoryBreakdown } from "../lib/analysis/categoryBreakdown";
 import { bestColumnOfRole, primaryMeasureColumn } from "../lib/analysis/pickColumns";
 import { buildAdvisorContext } from "../lib/analysis/factSummary";
@@ -34,11 +13,11 @@ import type { PipelineResult } from "../types/pipeline";
 import type { EnrichedRecommendation as EnrichedRec, VDEResult } from "../lib/decision/verdioDecisionEngine";
 import type { AIInsights } from "../types/aiInsights";
 import {
-  Home, Sparkles, BarChart3, ShieldAlert, Brain, Database,
-  RefreshCw, CheckCircle, Layers, TrendingUp, Users, Package, Activity,
+  Sparkles, Database,
+  RefreshCw, Users, Activity,
   ArrowUpRight, FileText, Menu, Settings, X, UploadCloud, PlayCircle, Building2,
   Trash2, FolderOpen, Mail, Download, ChevronRight,
-  Plug, Bell, SlidersHorizontal, ShieldCheck, Network, Files, ClipboardCheck, Target, Gauge, ScrollText, Stamp, BrainCircuit, CircleDollarSign
+  ShieldCheck, Network, Files, ClipboardCheck, Target, Gauge, ScrollText, Stamp, BrainCircuit, CircleDollarSign
 } from "lucide-react";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { saveToHistory } from "../lib/history/historyStore";
@@ -48,9 +27,14 @@ import { getSupabase } from "../lib/auth/supabaseClient";
 import { useOrganizationAccess } from "../lib/auth/useOrganizationAccess";
 import { createSampleBusinessFile } from "../lib/demo/sampleBusinessDataset";
 import { deleteProject, listProjects, recordProjectOpened, saveProject, type SavedProject } from "../lib/projects/projectStore";
-import { getTimeGreeting } from "../lib/time/greeting";
 import type { BusinessRole } from "../types/semantic";
 import LandingPage from "../components/marketing/LandingPage";
+import { lazyWithReload, ChartRenderer } from "../components/workspace/lazy";
+import { BrandMark } from "../components/workspace/BrandMark";
+import { SkeletonLine, SkeletonBlock } from "../components/workspace/Skeleton";
+import { fmtN } from "../components/workspace/format";
+import { Sidebar } from "../components/workspace/Sidebar";
+import { PageOverview } from "../components/workspace/PageOverview";
 const PageAlerts = lazyWithReload(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageAlerts })));
 const PageConnections = lazyWithReload(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageConnections })));
 const PageRelationships = lazyWithReload(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageRelationships })));
@@ -66,25 +50,6 @@ const PageOutcomes = lazyWithReload(() => import("../components/governance/Gover
 const PageAuditLog = lazyWithReload(() => import("../components/governance/GovernancePages").then(m => ({ default: m.PageAuditLog })));
 const PageTeamWorkspace = lazyWithReload(() => import("../components/team/TeamWorkspace").then(m => ({ default: m.PageTeamWorkspace })));
 
-const fmtN = (n: number) => Math.round(n).toLocaleString('en-GB');
-
-function BrandMark({ compact = false }: { compact?: boolean }) {
-  return <div className={`brand-mark ${compact ? 'h-9 w-9' : 'h-12 w-12'}`} aria-label="Verd.io">
-    <svg viewBox="0 0 48 48" role="img" aria-hidden="true">
-      <path className="brand-path" d="M10.5 13.5 22.8 34.5 36.5 10.5" />
-      <path className="brand-decision" d="M22.8 34.5V24.2" />
-      <circle className="brand-node" cx="10.5" cy="13.5" r="2.4" />
-      <circle className="brand-node" cx="36.5" cy="10.5" r="2.4" />
-      <circle className="brand-focus" cx="22.8" cy="34.5" r="3.1" />
-    </svg>
-  </div>;
-}
-
-function SkeletonLine({ width = '100%' }: { width?: string }) { return <div className="h-3 animate-pulse bg-slate-200 rounded" style={{ width }} />; }
-function SkeletonBlock({ lines = 3 }: { lines?: number }) {
-  const widths = ['100%', '92%', '68%', '80%', '55%'];
-  return <div className="space-y-2">{Array.from({ length: lines }).map((_, i) => <SkeletonLine key={i} width={widths[i % widths.length]} />)}</div>;
-}
 function findRiskExplanation(ai: AIInsights | null, title: string, idx: number) { if (!ai) return null; return ai.riskExplanations[idx] || ai.riskExplanations.find(r => r.title === title) || null; }
 function findRecommendation(ai: AIInsights | null, title: string, idx: number) { if (!ai) return null; return ai.recommendations[idx] || ai.recommendations.find(r => r.title === title) || null; }
 function findNarrative(ai: AIInsights | null, id: string, idx: number) { if (!ai) return null; return ai.analysisNarratives[idx] || ai.analysisNarratives.find(n => n.analysisId === id) || null; }
@@ -202,58 +167,6 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
   );
 }
 
-const PAGES = [
-  { id: 'overview', label: 'Executive Workspace', icon: Home, group: 'WORKSPACE' },
-  { id: 'analyses', label: 'Intelligence', icon: BarChart3, group: 'INTELLIGENCE' },
-  { id: 'forecast', label: 'Predictions', icon: TrendingUp, group: 'INTELLIGENCE' },
-  { id: 'risks', label: 'Risks & Opportunities', icon: ShieldAlert, group: 'INTELLIGENCE' },
-  { id: 'recs', label: 'Decisions', icon: Brain, group: 'INTELLIGENCE' },
-  { id: 'execution', label: 'Execution', icon: ClipboardCheck, group: 'WORKSPACE' },
-  { id: 'advisor', label: 'AI Advisor', icon: Sparkles, badge: 'AI', group: 'INTELLIGENCE' },
-  { id: 'scenarios', label: 'Scenario Planning', icon: SlidersHorizontal, group: 'INTELLIGENCE' },
-  { id: 'customers', label: 'Customer Intelligence', icon: Users, group: 'EXPLORE' },
-  { id: 'seasonality', label: 'Seasonality', icon: Activity, group: 'EXPLORE' },
-  { id: 'products', label: 'Products & Markets', icon: Package, group: 'EXPLORE' },
-  { id: 'health', label: 'Health Detail', icon: CheckCircle, group: 'EXPLORE' },
-  { id: 'profile', label: 'Data Hub', icon: Layers, group: 'DATA' },
-  { id: 'connections', label: 'Connections', icon: Plug, group: 'DATA' },
-  { id: 'relationships', label: 'Data Relationships', icon: Network, group: 'DATA' },
-  { id: 'governance', label: 'Governance', icon: ShieldCheck, group: 'DATA' },
-  { id: 'alerts', label: 'Alerts & Reports', icon: Bell, group: 'DATA' },
-];
-
-function Sidebar({ page, setPage, result, onReset, open, onClose }: { page: string; setPage: (p: string) => void; result: PipelineResult; onReset: () => void; open: boolean; onClose: () => void }) {
-  const groups = ['WORKSPACE', 'INTELLIGENCE', 'EXPLORE', 'DATA'];
-  return (
-    <><button aria-label="Close navigation" onClick={onClose} className={`mobile-scrim ${open ? 'is-open' : ''}`} /><aside className={`app-sidebar fixed left-0 top-0 h-screen w-[272px] flex flex-col z-50 ${open ? 'is-open' : ''}`}>
-      <div className="px-5 h-[72px] flex items-center border-b border-slate-200">
-        <div className="flex items-center gap-3">
-          <BrandMark compact />
-          <div><div className="font-semibold text-slate-950 text-[15px] tracking-tight">Verd.io</div><div className="text-[9px] text-slate-500 tracking-[0.16em] font-semibold">DECISION INTELLIGENCE</div></div>
-        </div>
-        <button aria-label="Close navigation" onClick={onClose} className="ml-auto text-slate-400 lg:hidden"><X size={19}/></button>
-      </div>
-      <nav className="flex-1 px-3 py-4 overflow-y-auto">
-        {groups.map(group => <div key={group} className="mb-4"><p className="px-3 mb-1.5 text-[9px] tracking-[0.18em] font-bold text-slate-600">{group}</p>{PAGES.filter(p=>p.group===group).map(({ id, label, icon: Icon, badge }) => (
-          <button key={id} onClick={() => { setPage(id); onClose(); }} className={`nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-[12px] font-medium text-left ${page === id ? 'is-active' : ''}`}>
-            <span className="nav-icon"><Icon size={15} strokeWidth={1.8}/></span>
-            <span className="flex-1">{label}</span>
-            {badge && <span className="nav-badge">{badge}</span>}
-          </button>
-        ))}</div>)}
-      </nav>
-      <div className="p-3 border-t border-slate-200">
-        <div className="sidebar-score rounded-[14px] p-3.5">
-          <div className="flex items-center justify-between"><p className="text-[9px] font-bold text-slate-500 tracking-[0.14em]">BUSINESS HEALTH</p><span className="text-xs font-semibold text-blue-700">{result.decision.health.total}/100</span></div>
-          <div className="mt-2.5 h-1 rounded-full bg-blue-100 overflow-hidden"><div className="h-full rounded-full bg-blue-500" style={{ width: `${result.decision.health.total}%` }} /></div>
-          <p className="text-[10px] text-slate-500 mt-2">Data quality {result.quality.overallScore}/100</p>
-        </div>
-      </div>
-      <div className="px-3 pb-3"><button onClick={onReset} className="sidebar-upload w-full py-2.5 rounded-[10px] text-xs font-semibold flex items-center justify-center gap-2"><UploadCloud size={14}/> New dataset</button></div>
-    </aside></>
-  );
-}
-
 function MetricCard({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'green' | 'red' | 'amber' }) {
   const toneCls = tone === 'red' ? 'bg-red-50 text-red-700 border-red-200' : tone === 'amber' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-blue-50 text-blue-700 border-blue-200';
   return (
@@ -261,121 +174,6 @@ function MetricCard({ label, value, sub, tone }: { label: string; value: string;
       <p className="text-[10px] font-bold tracking-widest text-slate-500 uppercase">{label}</p>
       <p className="mt-2 text-[22px] font-bold text-slate-900 leading-none tracking-tight">{value}</p>
       {sub && <span className={`mt-2 inline-flex text-[11px] font-medium px-2 py-0.5 rounded-full border ${tone ? toneCls : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{sub}</span>}
-    </div>
-  );
-}
-
-const formatExecutiveCurrency=(value:number)=>new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP',notation:'compact',maximumFractionDigits:1}).format(value);
-
-function getRevenueView(result: PipelineResult) {
-  const revenueColumn=bestColumnOfRole(result.semantics.columns,'revenue');
-  const connectedRevenue=result.organization?.metrics?.find(metric=>metric.id==='connected-revenue')?.value;
-  const total=connectedRevenue??(revenueColumn?result.engineeredRows.reduce((sum,row)=>sum+(Number(row[revenueColumn])||0),0):0);
-  const series=result.statistics.timeSeries.find(item=>item.measureColumn===revenueColumn)
-    ?? result.statistics.timeSeries.find(item=>/revenue|sales|amount/i.test(item.measureColumn));
-  const latest=series?.points.at(-1)?.value ?? 0;
-  const previous=series?.points.at(-2)?.value ?? 0;
-  const changePct=previous?((latest-previous)/Math.abs(previous))*100:0;
-  const revenueForecast=result.ml.forecast && (!revenueColumn || result.ml.forecast.measureColumn===revenueColumn) ? result.ml.forecast : null;
-  return {revenueColumn,connectedRevenue,total,series,latest,changePct,revenueForecast};
-}
-
-function ExecutiveRevenue({ result }: { result: PipelineResult }) {
-  const revenue=getRevenueView(result);
-  if(!revenue.revenueColumn&&!revenue.connectedRevenue)return <section className="executive-revenue-empty"><CircleDollarSign size={23}/><div><h2>Revenue data is not available</h2><p>Map a numeric sales or revenue field in Data Hub to activate this executive view.</p></div></section>;
-  const chartData=[
-    ...(revenue.series?.points.map(point=>({period:point.label,revenue:point.value,forecast:null}))??[]),
-    ...(revenue.revenueForecast?.points.map(point=>({period:point.periodLabel,revenue:null,forecast:point.value}))??[]),
-  ];
-  const projected=revenue.revenueForecast?.holtNextPeriod??0;
-  return <div className="executive-revenue-view">
-    <section className="revenue-hero-card">
-      <div><span>Recognised revenue</span><strong>{formatExecutiveCurrency(revenue.total)}</strong><p>{revenue.connectedRevenue!==undefined?'Reconciled across the connected sales source':`Calculated from ${revenue.revenueColumn}`}</p></div>
-      <div className={`revenue-movement ${revenue.changePct>=0?'is-positive':'is-negative'}`}><TrendingUp size={17}/><span>{revenue.changePct>=0?'+':''}{revenue.changePct.toFixed(1)}%</span><small>latest period movement</small></div>
-    </section>
-    <section className="revenue-support-kpis">
-      <article><span>Latest period</span><strong>{revenue.latest?formatExecutiveCurrency(revenue.latest):'Not available'}</strong><small>{revenue.series?.points.at(-1)?.label??'No dated revenue series'}</small></article>
-      <article><span>Next-period outlook</span><strong>{projected?formatExecutiveCurrency(projected):'Not available'}</strong><small>{revenue.revenueForecast?'Holt-smoothed base forecast':'More history is required'}</small></article>
-      <article><span>Revenue history</span><strong>{revenue.series?.points.length??0}<em> periods</em></strong><small>{revenue.series?'Available for trend review':'A date field was not detected'}</small></article>
-    </section>
-    {chartData.length>0?<section className="revenue-chart-panel"><div><span>Revenue performance</span><h2>Historical trend and forward outlook</h2><p>Actual recognised revenue is shown alongside the current modelled forecast.</p></div><ChartRenderer chart={{chartType:'line',title:'',xKey:'period',seriesKeys:['revenue','forecast'],data:chartData,formatValue:'currency'} as ChartSpec}/></section>:null}
-    <section className="revenue-evidence"><ShieldCheck size={17}/><div><strong>Revenue evidence</strong><p>Values are derived from the active mapped revenue field. Forecasts are planning estimates and should be reviewed alongside pipeline, pricing and operational context.</p></div></section>
-  </div>;
-}
-
-function PageOverview({ r }: { r: PipelineResult }) {
-  const h = r.decision.health.total; const topRisk = r.decision.risks[0]; const topRec = r.decision.recommendations[0];
-  const [section,setSection]=useState<'overview'|'revenue'>('overview');
-  const [now,setNow]=useState(()=>new Date());
-  useEffect(()=>{const timer=window.setInterval(()=>setNow(new Date()),60_000);return()=>window.clearInterval(timer)},[]);
-  const greeting=getTimeGreeting(now);
-  const dateLabel=new Intl.DateTimeFormat(undefined,{weekday:'long',day:'numeric',month:'long'}).format(now);
-  const healthLabel=h>=80?'Strong':h>=60?'Monitored':'Needs attention';
-  const revenue=getRevenueView(r);
-  const nextPeriod=revenue.revenueForecast?.holtNextPeriod??0;
-  return (
-    <div className="executive-overview">
-      <header className="executive-heading">
-        <div>
-          <div className="eyebrow"><span className="eyebrow-dot"/> EXECUTIVE WORKSPACE</div>
-          <h1>{greeting}<span>.</span></h1>
-          <p>{dateLabel} · Your latest organisational signals are ready for review.</p>
-        </div>
-        <button className="executive-methodology">Decision methodology <ArrowUpRight size={14}/></button>
-      </header>
-      <nav className="executive-view-tabs" aria-label="Executive workspace views">
-        <button className={section==='overview'?'is-active':''} onClick={()=>setSection('overview')}><Gauge size={14}/>Overview</button>
-        <button className={section==='revenue'?'is-active':''} onClick={()=>setSection('revenue')}><CircleDollarSign size={14}/>Revenue</button>
-      </nav>
-
-      {section==='revenue'?<ExecutiveRevenue result={r}/>:<>
-      <section className="executive-command-card">
-        <div className="executive-command-main">
-          <div className="executive-command-meta">
-            <span className={`status-pill ${h >= 80 ? 'is-good' : h >= 60 ? 'is-watch' : 'is-risk'}`}><i/>{h >= 80 ? 'Business performing strongly' : h >= 60 ? 'Performance requires monitoring' : 'Management attention required'}</span>
-            <span className="analysis-freshness"><Activity size={12}/> Live analysis</span>
-          </div>
-          <p className="executive-kicker">Today’s decision brief</p>
-          <h2>{topRisk ? topRisk.title : 'Your business signals are ready to review.'}</h2>
-          <p className="executive-command-copy">Verd.io reviewed {fmtN(r.source.rowCount)} records across {r.profile.columnCount} classified fields. {topRec ? `The recommended next move is to ${topRec.title.toLowerCase()}.` : 'No immediate intervention has been identified.'}</p>
-          <div className="executive-ai-brief">
-            <span><BrainCircuit size={17}/></span>
-            <div>
-              <div className="executive-ai-label">Verd.io intelligence {r.aiLoading?<small>Generating</small>:<small className="is-ready">Ready</small>}</div>
-              {r.aiLoading?<SkeletonBlock lines={2}/>:<p>{r.aiInsights?.executiveSummary || 'AI analysis will appear here when the executive summary is available.'}</p>}
-            </div>
-          </div>
-        </div>
-        <aside className="executive-health">
-          <div className="health-ring" style={{'--score': `${h * 3.6}deg`} as React.CSSProperties}><div><strong>{h}</strong><span>OUT OF 100</span></div></div>
-          <p>Business health</p>
-          <strong>{healthLabel}</strong>
-          <small>Combined operational, quality and risk assessment</small>
-        </aside>
-      </section>
-
-      <section className="executive-kpis" aria-label="Executive key performance indicators">
-        <article><span className="executive-kpi-icon"><CircleDollarSign size={16}/></span><div><p>Recognised revenue</p><strong>{revenue.total?formatExecutiveCurrency(revenue.total):'—'}</strong><small>{revenue.revenueColumn?'Mapped revenue evidence':'Revenue field not detected'}</small></div></article>
-        <article><span className="executive-kpi-icon"><TrendingUp size={16}/></span><div><p>Revenue momentum</p><strong>{revenue.series?`${revenue.changePct>=0?'+':''}${revenue.changePct.toFixed(1)}%`:'—'}</strong><small>Latest period movement</small></div></article>
-        <article><span className="executive-kpi-icon"><BrainCircuit size={16}/></span><div><p>Next-period outlook</p><strong>{nextPeriod?formatExecutiveCurrency(nextPeriod):'—'}</strong><small>{nextPeriod?'Modelled base forecast':'Forecast not available'}</small></div></article>
-        <article><span className="executive-kpi-icon"><ShieldAlert size={16}/></span><div><p>Active risks</p><strong>{r.decision.risks.length}</strong><small>{r.decision.risks.filter(risk=>risk.level==='high').length} high-priority signals</small></div></article>
-      </section>
-
-      <section className="executive-decisions">
-        <article className="executive-decision-card is-priority">
-          <div className="decision-card-heading"><span><Target size={16}/></span><p>Recommended action</p><em>Priority 01</em></div>
-          <h3>{topRec?.title || 'No immediate recommendation'}</h3>
-          <p>{topRec?.desc || 'Continue monitoring the current business signals.'}</p>
-          <footer><span>Next best action</span><ArrowUpRight size={15}/></footer>
-        </article>
-        <article className="executive-decision-card is-risk">
-          <div className="decision-card-heading"><span><ShieldAlert size={16}/></span><p>Risk requiring attention</p><em>Monitor</em></div>
-          <h3>{topRisk?.title || 'No material risk identified'}</h3>
-          <p>{topRisk?.desc || 'No critical risk is currently affecting the executive assessment.'}</p>
-          <footer><span>Review supporting evidence</span><ArrowUpRight size={15}/></footer>
-        </article>
-      </section>
-      </>}
     </div>
   );
 }
