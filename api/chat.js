@@ -9,10 +9,13 @@
 //      the server builds the prompt and sets the token limit.
 //   4. Cheap pre-check for override / off-topic / other-user requests, before any tokens are spent.
 //   5. Per-user and global daily quota, atomically in Postgres via consume_ai_quota.
-//   6. Provider call through the neutral adapter, then an output scrub.
+//   6. Provider call through the neutral adapter (with model fallback), then an output scrub.
 // Isolation: the model has no tools or database access, the server never queries user data
 // for the AI, nothing is stored server-side about a conversation, and prompts and replies
 // are never logged.
+// Every non-200 response writes one structured `ai_chat` log line with a stable `reason` so an
+// operator can tell failures apart. The response bodies stay fixed generic strings: reasons are
+// for server logs only (see docs/ai-setup.md).
 
 import { createHash } from 'node:crypto';
 import { aiConfig, getProvider, ProviderError } from './_lib/aiProvider.js';
@@ -150,7 +153,13 @@ async function consumeQuota(supabaseUrl, anonKey, jwt, task) {
     }),
     signal: AbortSignal.timeout(SUPABASE_TIMEOUT_MS),
   });
-  if (!response.ok) throw new Error('quota unavailable');
+  if (!response.ok) {
+    // PostgREST answers 404 / PGRST202 when the function is not in the schema. Only the status and
+    // that code are inspected; the body is never logged.
+    const body = await response.json().catch(() => null);
+    const missing = response.status === 404 || body?.code === 'PGRST202';
+    throw Object.assign(new Error('quota unavailable'), { reason: missing ? 'quota_rpc_missing' : 'quota_rpc_failed', status: response.status });
+  }
   return response.json();
 }
 
@@ -168,36 +177,37 @@ export default async function handler(req, res) {
     res.setHeader('Access-Control-Max-Age', '600');
   }
 
-  if (req.method === 'OPTIONS') return allowed ? res.status(204).end() : res.status(403).json({ error: 'Forbidden' });
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed, use POST' });
-  if (!allowed) return res.status(403).json({ error: 'Forbidden' });
-
   let userHash = null;
   let task = null;
-  // Fixed error strings only. Logs: hashed user id, status, token counts, latency. Never prompts or replies.
+  // Fixed error strings only. Logs: hashed user id, status, reason, token counts, latency. Never prompts, replies, keys or provider error bodies.
   const finish = (status, body, extra = {}) => {
     console.log(JSON.stringify({ event: 'ai_chat', user: userHash, task, status, latencyMs: Date.now() - started, ...extra }));
     return res.status(status).json(body);
   };
-  const busy = () => finish(503, { error: 'Assistant busy', fallback: true });
+  const busy = (reason, extra) => finish(503, { error: 'Assistant busy', fallback: true }, { reason, ...extra });
+
+  if (req.method === 'OPTIONS') return allowed ? res.status(204).end() : finish(403, { error: 'Forbidden' }, { reason: 'origin_forbidden' });
+  if (req.method !== 'POST') return finish(405, { error: 'Method not allowed, use POST' }, { reason: 'method_not_allowed' });
+  if (!allowed) return finish(403, { error: 'Forbidden' }, { reason: 'origin_forbidden' });
 
   const jwt = /^Bearer\s+(\S+)$/i.exec(req.headers?.authorization || '')?.[1];
-  if (!jwt) return finish(401, { error: 'Sign in to use the assistant' });
+  if (!jwt) return finish(401, { error: 'Sign in to use the assistant' }, { reason: 'no_token' });
 
   const supabaseUrl = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
   const anonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
   if (!supabaseUrl || !anonKey) {
-    console.error('AI chat: Supabase URL or anon key not configured');
-    return busy();
+    return busy('supabase_not_configured', {
+      supabaseUrlSet: Boolean(supabaseUrl), anonKeySet: Boolean(anonKey),
+    });
   }
 
   let user;
-  try { user = await verifyUser(supabaseUrl, anonKey, jwt); } catch { return busy(); }
-  if (!user) return finish(401, { error: 'Sign in to use the assistant' });
+  try { user = await verifyUser(supabaseUrl, anonKey, jwt); } catch { return busy('auth_unavailable'); }
+  if (!user) return finish(401, { error: 'Sign in to use the assistant' }, { reason: 'invalid_token' });
   userHash = hashUser(user.id);
 
   const checked = validate(req.body);
-  if (checked.error) return finish(400, { error: 'Invalid request' });
+  if (checked.error) return finish(400, { error: 'Invalid request' }, { reason: 'bad_request' });
   const request = checked.value;
   task = request.task;
 
@@ -207,46 +217,52 @@ export default async function handler(req, res) {
     if (refusal) return finish(200, { result: refusal, source: 'ai' }, { refused: true });
   }
 
-  const provider = getProvider(aiConfig());
-  if (!provider) {
-    console.error('AI chat: provider not configured');
-    return busy();
-  }
+  const config = aiConfig();
+  const provider = getProvider(config);
+  if (!provider) return busy('provider_not_configured', { provider: config.provider });
 
   const gapMs = Number.parseInt(process.env.AI_BURST_GAP_MS ?? '', 10);
   const burstGapMs = Number.isFinite(gapMs) && gapMs >= 0 ? gapMs : 1000;
   const lastCall = lastCallByUser.get(user.id);
   if (burstGapMs > 0 && lastCall !== undefined && started - lastCall < burstGapMs) {
     res.setHeader('Retry-After', String(MIN_GAP_SECONDS));
-    return finish(429, { error: 'Please wait a moment' });
+    return finish(429, { error: 'Please wait a moment' }, { reason: 'too_fast', guard: 'memory' });
   }
   lastCallByUser.set(user.id, started);
   if (lastCallByUser.size > 2000) lastCallByUser.clear();
 
   let quota;
-  try { quota = await consumeQuota(supabaseUrl, anonKey, jwt, task); } catch { return busy(); }
+  try {
+    quota = await consumeQuota(supabaseUrl, anonKey, jwt, task);
+  } catch (error) {
+    // A network failure or timeout has no HTTP status.
+    return busy(error.reason || 'quota_rpc_failed', typeof error.status === 'number' ? { upstreamStatus: error.status } : {});
+  }
   if (quota === 'too_fast') {
     res.setHeader('Retry-After', String(MIN_GAP_SECONDS));
-    return finish(429, { error: 'Please wait a moment' });
+    return finish(429, { error: 'Please wait a moment' }, { reason: 'too_fast', guard: 'database' });
   }
   if (quota === 'user_limit') {
     res.setHeader('Retry-After', String(secondsUntilUtcMidnight()));
-    return finish(429, { error: 'Daily limit reached' });
+    return finish(429, { error: 'Daily limit reached' }, { reason: 'quota_user_limit' });
   }
-  if (quota === 'global_limit') return busy();
-  if (quota !== 'ok') return busy();
+  if (quota === 'global_limit') return busy('quota_global_limit');
+  if (quota !== 'ok') return busy('quota_unexpected_answer');
 
   let completion;
   try {
     const { system, messages } = buildMessages(request);
     completion = await provider.complete({ system, messages, maxTokens: MAX_TOKENS[task] });
   } catch (error) {
-    if (error instanceof ProviderError && error.kind === 'busy') return busy();
-    return finish(502, { error: 'Assistant unavailable', fallback: true });
+    const details = error instanceof ProviderError
+      ? { reason: error.reason, ...(error.status !== undefined ? { upstreamStatus: error.status } : {}), ...(error.model ? { model: error.model } : {}) }
+      : { reason: 'internal_error' };
+    if (error instanceof ProviderError && error.kind === 'busy') return finish(503, { error: 'Assistant busy', fallback: true }, details);
+    return finish(502, { error: 'Assistant unavailable', fallback: true }, details);
   }
 
-  const usage = { inputTokens: completion.usage?.inputTokens, outputTokens: completion.usage?.outputTokens };
+  const usage = { model: completion.model, inputTokens: completion.usage?.inputTokens, outputTokens: completion.usage?.outputTokens };
   const result = scrubAnswer(task, completion.text);
-  if (result === null) return finish(502, { error: 'Assistant unavailable', fallback: true }, usage);
+  if (result === null) return finish(502, { error: 'Assistant unavailable', fallback: true }, { reason: 'scrubbed_reply', ...usage });
   return finish(200, { result, source: 'ai' }, usage);
 }
