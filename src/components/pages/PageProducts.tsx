@@ -2,10 +2,11 @@ import { computeCategoryBreakdown } from "../../lib/analysis/categoryBreakdown";
 import { bestColumnOfRole, primaryMeasureColumn } from "../../lib/analysis/pickColumns";
 import type { PipelineResult } from "../../types/pipeline";
 import { fmtN } from "../workspace/format";
+import { PageEmpty, PageHead } from "./PageParts";
 
 export function PageProducts({ r }: { r: PipelineResult }) {
   const measureCol = primaryMeasureColumn(r.semantics.columns, r.engineeredRows); const productCol = bestColumnOfRole(r.semantics.columns, 'product');
-  if (!measureCol || !productCol) return <div className="bg-white rounded-[16px] border p-6 text-sm text-slate-500">No product breakdown.</div>;
+  if (!measureCol || !productCol) return <PageEmpty message="No product breakdown." />;
   const rows = computeCategoryBreakdown(r.engineeredRows, productCol, measureCol).slice(0,12);
-  return <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm"><table className="w-full text-sm"><thead><tr className="text-left border-b border-slate-100">{['#','Product','Value','Orders','Share'].map(h=><th key={h} className="pb-2 text-[10px] text-slate-400 uppercase tracking-wider">{h}</th>)}</tr></thead><tbody>{rows.map((row,i)=><tr key={row.label} className="border-t border-slate-100"><td className="py-2.5"><span className="w-6 h-6 rounded-full bg-slate-100 inline-flex items-center justify-center text-[10px] font-bold">{i+1}</span></td><td className="py-2.5 font-semibold">{row.label}</td><td className="py-2.5 font-bold">£{row.value.toLocaleString()}</td><td className="py-2.5 text-slate-500">{fmtN(row.count)}</td><td className="py-2.5"><span className="text-xs">{row.pct}%</span></td></tr>)}</tbody></table></div>;
+  return <div className="v2-view"><PageHead eyebrow="Products & markets" title="Product breakdown"><span className="v2-tag"><b>{productCol}</b> · {measureCol}</span></PageHead><div className="v2-table-wrap"><table className="v2-table"><caption>Top {rows.length} products</caption><thead><tr><th scope="col">#</th><th scope="col">Product</th><th scope="col" className="num">Value</th><th scope="col" className="num">Orders</th><th scope="col">Share</th></tr></thead><tbody>{rows.map((row,i)=><tr key={row.label}><td className="v2-tag">{i+1}</td><th scope="row">{row.label}</th><td className="num">£{row.value.toLocaleString()}</td><td className="num">{fmtN(row.count)}</td><td className="read"><span className="v2-bar" aria-hidden="true"><i style={{width:`${row.pct}%`}} /></span><span className="v2-tag">{row.pct}%</span></td></tr>)}</tbody></table></div></div>;
 }

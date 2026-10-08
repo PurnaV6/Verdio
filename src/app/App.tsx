@@ -164,11 +164,18 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
   );
 }
 
-function PageLoadingFallback() { return <div role="status" aria-live="polite" className="flex items-center justify-center py-16"><div className="h-8 w-8 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" /><span className="sr-only">Loading…</span></div>; }
+function PageLoadingFallback() { return <div role="status" aria-live="polite" className="v2-loading"><div className="v2-spinner" aria-hidden="true" /><span className="v2-tag">Loading…</span></div>; }
 
 function WorkspaceHub({ tabs, initial }: { tabs: { id: string; label: string; icon: typeof ClipboardCheck; content: React.ReactNode }[]; initial: string }) {
   const [active, setActive] = useState(initial);
-  return <div className="space-y-5"><nav className="workspace-tabs" aria-label="Workspace sections">{tabs.map(({id,label,icon:Icon})=><button key={id} className={active===id?'is-active':''} onClick={()=>setActive(id)}><Icon size={14}/>{label}</button>)}</nav><ErrorBoundary><Suspense fallback={<PageLoadingFallback />}>{tabs.find(tab=>tab.id===active)?.content}</Suspense></ErrorBoundary></div>;
+  function onTabKeyDown(e: React.KeyboardEvent<HTMLButtonElement>) {
+    const i=tabs.findIndex(tab=>tab.id===active);
+    const next=e.key==='ArrowRight'?tabs[(i+1)%tabs.length]:e.key==='ArrowLeft'?tabs[(i+tabs.length-1)%tabs.length]:e.key==='Home'?tabs[0]:e.key==='End'?tabs[tabs.length-1]:null;
+    if(!next)return;
+    e.preventDefault(); setActive(next.id);
+    document.getElementById(`hub-tab-${next.id}`)?.focus();
+  }
+  return <div className="space-y-5"><div className="v2-tabs v2-hub-tabs" role="tablist" aria-label="Workspace sections">{tabs.map(({id,label,icon:Icon})=><button key={id} type="button" role="tab" id={`hub-tab-${id}`} aria-selected={active===id} aria-controls={`hub-panel-${id}`} tabIndex={active===id?0:-1} onKeyDown={onTabKeyDown} onClick={()=>setActive(id)}><Icon size={14} aria-hidden="true"/>{label}</button>)}</div><div role="tabpanel" id={`hub-panel-${active}`} aria-labelledby={`hub-tab-${active}`}><ErrorBoundary><Suspense fallback={<PageLoadingFallback />}>{tabs.find(tab=>tab.id===active)?.content}</Suspense></ErrorBoundary></div></div>;
 }
 
 function PageExecutionHub({ r }: { r: PipelineResult }) {

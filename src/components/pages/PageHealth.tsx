@@ -1,21 +1,26 @@
 import type { PipelineResult } from "../../types/pipeline";
+import { StateMark } from "../workspace/StateMark";
+import { healthReading } from "../workspace/status";
+import { PageHead } from "./PageParts";
 
 export function PageHealth({ r }: { r: PipelineResult }) {
   const h = r.decision.health;
+  const reading = healthReading(h.total);
   return (
-    <div className="bg-white rounded-[16px] border border-slate-200 p-6 shadow-sm">
-      <div className="flex gap-8 items-start flex-wrap">
-        <div className="text-5xl font-black text-slate-900">{h.total}<span className="text-lg text-slate-400 font-normal">/100</span></div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 flex-1">
-          {h.pillars.map(p => (
-            <div key={p.name} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{p.name}</p>
-              <p className="text-xl font-black mt-1 text-slate-900">{p.score}<span className="text-sm text-slate-400 font-normal">/{p.max}</span></p>
-              <div className="h-1.5 bg-slate-200 rounded-full mt-2 overflow-hidden"><div className="h-full bg-indigo-900 rounded-full" style={{ width: `${(p.score / p.max) * 100}%` }} /></div>
-            </div>
-          ))}
+    <div className="v2-view">
+      <PageHead eyebrow="Health detail" title="Business health" />
+      <section className="v2-rev-hero" aria-label="Overall health score">
+        <div>
+          <p className="v2-eyebrow">Overall score</p>
+          <p className="v2-rev-fig">{h.total}<span className="v2-unit"> / 100</span></p>
+          <span className="v2-bar v2-bar-wide" aria-hidden="true"><i style={{ width: `${h.total}%` }} /></span>
         </div>
-      </div>
+        <div className="v2-rev-move">
+          <p className="v2-eyebrow">Reading</p>
+          <StateMark tone={reading.tone} label={reading.label} />
+        </div>
+      </section>
+      <div className="v2-table-wrap"><table className="v2-table"><caption>Health pillars</caption><thead><tr><th scope="col">Pillar</th><th scope="col" className="num">Score</th><th scope="col">Share of maximum</th></tr></thead><tbody>{h.pillars.map(p => <tr key={p.name}><th scope="row">{p.name}</th><td className="num">{p.score}<span className="v2-unit"> / {p.max}</span></td><td className="read"><span className="v2-bar v2-bar-wide" aria-hidden="true"><i style={{ width: `${(p.score / p.max) * 100}%` }} /></span></td></tr>)}</tbody></table></div>
     </div>
   );
 }

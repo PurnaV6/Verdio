@@ -1,8 +1,14 @@
 import type { PipelineResult } from "../../types/pipeline";
 import { SkeletonBlock } from "../workspace/Skeleton";
+import { StateMark } from "../workspace/StateMark";
+import type { Tone } from "../workspace/status";
 import { findRiskExplanation } from "./aiLookup";
+import { PageEmpty, PageHead } from "./PageParts";
+
+// high = oxide triangle, medium = brass dot, low = verd check
+const LEVEL: Record<string, { tone: Tone; label: string }> = { high: { tone: 'risk', label: 'High risk' }, medium: { tone: 'watch', label: 'Medium risk' }, low: { tone: 'ok', label: 'Low risk' } };
 
 export function PageRisks({ r }: { r: PipelineResult }) {
-  if (!r.decision.risks.length) return <div className="bg-white rounded-[16px] border p-6 text-sm text-slate-500">No risks.</div>;
-  return <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm space-y-3">{r.decision.risks.map((risk,i)=>{ const exp=findRiskExplanation(r.aiInsights, risk.title, i); return <div key={i} className="p-4 rounded-xl border border-slate-200 border-l-4" style={{borderLeftColor: risk.level==='high'?'#DC2626': risk.level==='medium'?'#D97706':'#312E81'}}><span className="text-[10px] font-bold uppercase text-slate-500">{risk.level} risk</span><p className="font-bold text-sm mt-1 text-slate-900">{risk.title}</p>{r.aiLoading?<SkeletonBlock lines={2}/>:exp?<p className="text-xs text-slate-600 mt-1 leading-5">{exp.impact} • {exp.action}</p>:<p className="text-xs text-slate-500 mt-1">{risk.desc}</p>}</div>; })}</div>;
+  if (!r.decision.risks.length) return <PageEmpty message="No risks." />;
+  return <div className="v2-view"><PageHead eyebrow="Risks & opportunities" title="Risks">{r.decision.risks.length} identified from the active dataset.</PageHead><ol className="v2-ledger" aria-label="Risks">{r.decision.risks.map((risk,i)=>{ const exp=findRiskExplanation(r.aiInsights, risk.title, i); const lv=LEVEL[risk.level]||LEVEL.low; return <li key={i}><div className="v2-ledger-state"><StateMark tone={lv.tone} label={lv.label}/></div><div><h2 className="v2-ledger-title">{risk.title}</h2>{r.aiLoading?<SkeletonBlock lines={2}/>:exp?<p className="v2-ledger-copy">{exp.impact} • {exp.action}</p>:<p className="v2-ledger-copy">{risk.desc}</p>}{(risk.sourceColumns?.length??0)>0&&<p className="v2-tag"><b>{risk.sourceColumns.join(', ')}</b> · risk detection</p>}</div></li>; })}</ol></div>;
 }
