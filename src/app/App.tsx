@@ -2,22 +2,13 @@ import { useState, useCallback, useEffect, useRef, Suspense } from "react";
 import { runDataPipeline } from "../lib/dataPipeline/runDataPipeline";
 import { generateAIInsights } from "../services/ai";
 
-import { computeCategoryBreakdown } from "../lib/analysis/categoryBreakdown";
-import { bestColumnOfRole, primaryMeasureColumn } from "../lib/analysis/pickColumns";
-import { buildAdvisorContext } from "../lib/analysis/factSummary";
-import { parseChartTagsFromAI, localAnalysisFallback } from "../lib/analysis/chatChartIntent";
-import type { ChartSpec } from "../types/analysis";
-import { runForecast } from "../lib/ml/forecastEngine";
-import { labelForMeasure } from "../lib/labels";
 import type { PipelineResult } from "../types/pipeline";
-import type { EnrichedRecommendation as EnrichedRec, VDEResult } from "../lib/decision/verdioDecisionEngine";
-import type { AIInsights } from "../types/aiInsights";
 import {
-  Sparkles, Database,
+  Database,
   RefreshCw, Users, Activity,
   ArrowUpRight, FileText, Menu, Settings, X, UploadCloud, PlayCircle, Building2,
   Trash2, FolderOpen, Mail, Download, ChevronRight,
-  ShieldCheck, Network, Files, ClipboardCheck, Target, Gauge, ScrollText, Stamp, BrainCircuit, CircleDollarSign
+  ShieldCheck, Network, Files, ClipboardCheck, Target, Gauge, ScrollText, Stamp, BrainCircuit
 } from "lucide-react";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { saveToHistory } from "../lib/history/historyStore";
@@ -29,10 +20,20 @@ import { createSampleBusinessFile } from "../lib/demo/sampleBusinessDataset";
 import { deleteProject, listProjects, recordProjectOpened, saveProject, type SavedProject } from "../lib/projects/projectStore";
 import type { BusinessRole } from "../types/semantic";
 import LandingPage from "../components/marketing/LandingPage";
-import { lazyWithReload, ChartRenderer } from "../components/workspace/lazy";
 import { BrandMark } from "../components/workspace/BrandMark";
-import { SkeletonLine, SkeletonBlock } from "../components/workspace/Skeleton";
 import { fmtN } from "../components/workspace/format";
+import { lazyWithReload } from "../components/workspace/lazy";
+import { PageAnalyses } from "../components/pages/PageAnalyses";
+import { PageForecast } from "../components/pages/PageForecast";
+import { PageCustomers } from "../components/pages/PageCustomers";
+import { PageSeasonality } from "../components/pages/PageSeasonality";
+import { PageHealth } from "../components/pages/PageHealth";
+import { PageProducts } from "../components/pages/PageProducts";
+import { PageRisks } from "../components/pages/PageRisks";
+import { PageRecs } from "../components/pages/PageRecs";
+import { PageDataProfile } from "../components/pages/PageDataProfile";
+import { PageQuality } from "../components/pages/PageQuality";
+import { PageAdvisor } from "../components/pages/PageAdvisor";
 import { Sidebar } from "../components/workspace/Sidebar";
 import { PageOverview } from "../components/workspace/PageOverview";
 const PageAlerts = lazyWithReload(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageAlerts })));
@@ -49,10 +50,6 @@ const PageModelAssurance = lazyWithReload(() => import("../components/governance
 const PageOutcomes = lazyWithReload(() => import("../components/governance/GovernancePages").then(m => ({ default: m.PageOutcomes })));
 const PageAuditLog = lazyWithReload(() => import("../components/governance/GovernancePages").then(m => ({ default: m.PageAuditLog })));
 const PageTeamWorkspace = lazyWithReload(() => import("../components/team/TeamWorkspace").then(m => ({ default: m.PageTeamWorkspace })));
-
-function findRiskExplanation(ai: AIInsights | null, title: string, idx: number) { if (!ai) return null; return ai.riskExplanations[idx] || ai.riskExplanations.find(r => r.title === title) || null; }
-function findRecommendation(ai: AIInsights | null, title: string, idx: number) { if (!ai) return null; return ai.recommendations[idx] || ai.recommendations.find(r => r.title === title) || null; }
-function findNarrative(ai: AIInsights | null, id: string, idx: number) { if (!ai) return null; return ai.analysisNarratives[idx] || ai.analysisNarratives.find(n => n.analysisId === id) || null; }
 
 function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
   const [dragging, setDragging] = useState(false);
@@ -167,111 +164,6 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
   );
 }
 
-function MetricCard({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'green' | 'red' | 'amber' }) {
-  const toneCls = tone === 'red' ? 'bg-red-50 text-red-700 border-red-200' : tone === 'amber' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-blue-50 text-blue-700 border-blue-200';
-  return (
-    <div className="rounded-[14px] bg-white border border-slate-200 p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-      <p className="text-[10px] font-bold tracking-widest text-slate-500 uppercase">{label}</p>
-      <p className="mt-2 text-[22px] font-bold text-slate-900 leading-none tracking-tight">{value}</p>
-      {sub && <span className={`mt-2 inline-flex text-[11px] font-medium px-2 py-0.5 rounded-full border ${tone ? toneCls : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{sub}</span>}
-    </div>
-  );
-}
-
-function PageAnalyses({ r }: { r: PipelineResult }) {
-  const filtered = r.analyses.filter(a => !['comparison', 'concentration_analysis', 'segmentation'].includes(a.capability));
-  const revenueColumn=bestColumnOfRole(r.semantics.columns,'revenue');
-  const connectedRevenue=r.organization?.metrics?.find(metric=>metric.id==='connected-revenue')?.value;
-  const revenue=connectedRevenue??(revenueColumn?r.engineeredRows.reduce((sum,row)=>sum+(Number(row[revenueColumn])||0),0):0);
-  const inventoryCoverage=r.organization?.metrics?.find(metric=>metric.id==='inventory-demand-coverage');
-  const stockReview=r.organization?.metrics?.find(metric=>metric.id==='products-requiring-review');
-  return <div className="space-y-5"><section className="bi-heading"><div><div className="eyebrow"><span className="eyebrow-dot"/> BUSINESS INTELLIGENCE</div><h1>Commercial performance</h1><p>Decision-ready KPIs and analytical evidence from the active organisational workspace.</p></div>{r.organization&&<span><Network size={14}/>{r.organization.datasets.length} connected sources</span>}</section><section className="bi-kpi-grid"><article className="bi-revenue-kpi"><div><CircleDollarSign size={20}/><span>Recognised revenue</span></div><strong>{revenue?new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP',maximumFractionDigits:0}).format(revenue):'Not available'}</strong><p>{connectedRevenue!==undefined?'Connected sales source · reconciled organisational context':revenueColumn?`Calculated from ${revenueColumn}`:'A revenue measure was not detected'}</p></article><article><span>{inventoryCoverage?'Inventory coverage':'Transactions analysed'}</span><strong>{inventoryCoverage?`${inventoryCoverage.value.toFixed(1)}%`:r.source.rowCount.toLocaleString('en-GB')}</strong><p>{inventoryCoverage?'Against demand represented in the sales period':`${r.profile.columnCount} classified columns`}</p></article><article><span>{stockReview?'Products requiring review':'Data quality'}</span><strong>{stockReview?Math.round(stockReview.value):`${r.quality.overallScore}/100`}</strong><p>{stockReview?'Validate lead times and safety stock':'Decision-grade source integrity'}</p></article><article><span>Analytical coverage</span><strong>{r.capabilities.available.length}/{r.capabilities.capabilities.length}</strong><p>Capability-gated analyses available</p></article></section>{filtered.length?<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{filtered.map((a, i) => { const narrative = findNarrative(r.aiInsights, a.id, i); return <div key={a.id} className="bg-white rounded-[16px] border border-slate-200 p-4 shadow-sm"><ChartRenderer chart={a.chart} /><div className="mt-2">{r.aiLoading ? <SkeletonLine width="60%" /> : narrative ? <p className="text-xs text-slate-500 leading-5"><span className="font-semibold text-indigo-700">AI: </span>{narrative.narrative}</p> : <p className="text-xs text-slate-400">{a.explanation}</p>}</div></div>; })}</div>:<div className="bg-white rounded-[16px] border p-6 text-sm text-slate-500">No analyses could be generated.</div>}</div>;
-}
-
-function PageForecast({ r }: { r: PipelineResult }) {
-  const [scenario, setScenario] = useState<'base' | 'optimistic' | 'conservative'>('base');
-  if (!r.ml.forecast) return <div className="bg-white rounded-[16px] border p-6 text-sm text-slate-500">Forecasting isn't available.</div>;
-  const ts = r.statistics.timeSeries.find(t => t.measureColumn === r.ml.forecast!.measureColumn);
-  const forecast = runForecast(ts ?? { measureColumn: r.ml.forecast.measureColumn, dateColumn: '', points: [] }, scenario as any);
-  const measureLabel = labelForMeasure(forecast.measureColumn);
-  const chartData = [...(ts?.points.map(p => ({ period: p.label, historical: p.value, forecast: null })) || []), ...forecast.points.map(p => ({ period: p.periodLabel, historical: null, forecast: p.value }))];
-  return (
-    <div className="space-y-4">
-      <div className="bg-white rounded-[16px] border p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-4"><div><p className="text-[11px] font-bold tracking-widest text-slate-600">{measureLabel.toUpperCase()} FORECAST</p><p className="text-[11px] text-slate-400">Linear + Holt smoothing</p></div><div className="flex gap-1.5">{(['base', 'optimistic', 'conservative'] as const).map(s => <button key={s} onClick={() => setScenario(s)} className={`px-3 py-1.5 rounded-full text-[11px] font-bold border ${scenario === s ? 'bg-indigo-900 text-white border-indigo-900' : 'text-slate-500 border-slate-200 hover:border-indigo-300'}`}>{s}</button>)}</div></div>
-        <ChartRenderer chart={{ chartType: 'line', title: '', xKey: 'period', seriesKeys: ['historical', 'forecast'], data: chartData, formatValue: 'currency' } as any} />
-      </div>
-      <div className="grid grid-cols-3 gap-3">
-        <MetricCard label="6-Period Projection" value={`£${forecast.points.reduce((s, p) => s + p.value, 0).toLocaleString('en-GB')}`} sub={`${scenario}`} />
-        <MetricCard label="Monthly Trend" value={`${forecast.monthlyTrendPct >= 0 ? '+' : ''}${forecast.monthlyTrendPct}%`} tone={forecast.monthlyTrendPct >= 0 ? 'green' : 'red'} />
-        <MetricCard label="Holt Next Period" value={`£${Math.round(forecast.holtNextPeriod).toLocaleString('en-GB')}`} />
-      </div>
-    </div>
-  );
-}
-
-function PageCustomers({ r }: { r: PipelineResult }) {
-  if (!r.ml.segmentation || !r.ml.segmentation.segments.length) return <div className="bg-white rounded-[16px] border p-6 text-sm text-slate-500">Segmentation not available.</div>;
-  const seg = r.ml.segmentation;
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-4 gap-3"><MetricCard label="Total Customers" value={fmtN(seg.segments.length)} /><MetricCard label="Churn Risk" value={`${seg.churnRiskScore}/100`} tone={seg.churnRiskScore >= 60 ? 'red' : 'amber'} /><MetricCard label="Revenue at Risk" value={`£${Math.round(seg.revenueAtRisk).toLocaleString()}`} tone="red" /><MetricCard label="At Risk" value={fmtN(seg.segments.filter(s=>s.segment==='atRisk' || s.segment==='lost').length)} /></div>
-      <div className="bg-white rounded-[16px] border p-5 shadow-sm overflow-auto"><table className="w-full text-sm"><thead><tr className="text-left border-b">{['Customer','Segment','Total','Orders','RFM'].map(h=><th key={h} className="pb-2 text-[10px] text-slate-400 uppercase">{h}</th>)}</tr></thead><tbody>{seg.segments.slice(0,12).map(s=><tr key={s.id} className="border-t border-slate-100"><td className="py-2.5 font-semibold">{s.id}</td><td><span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100">{s.segment}</span></td><td className="font-bold">£{s.monetary.toLocaleString()}</td><td className="text-slate-500">{s.frequency}</td><td><div className="w-14 h-1.5 bg-slate-200 rounded-full overflow-hidden"><div className="h-full bg-indigo-900" style={{width:`${(s.rfmScore/9)*100}%`}} /></div></td></tr>)}</tbody></table></div>
-    </div>
-  );
-}
-
-function PageSeasonality({ r }: { r: PipelineResult }) {
-  const s = r.statistics.seasonality; if (!s) return <div className="bg-white rounded-[16px] border p-6 text-sm text-slate-500">Seasonality not available.</div>;
-  return <div className="grid grid-cols-1 lg:grid-cols-2 gap-4"><div className="bg-white rounded-[16px] border p-4"><ChartRenderer chart={{ chartType: 'bar', title: 'By Day of Week', xKey: 'label', yKey: 'value', data: s.byDayOfWeek, formatValue: 'currency' } as any} /></div><div className="bg-white rounded-[16px] border p-4"><ChartRenderer chart={{ chartType: 'bar', title: 'By Month', xKey: 'label', yKey: 'value', data: s.byMonthOfYear, formatValue: 'currency' } as any} /></div></div>;
-}
-
-function PageHealth({ r }: { r: PipelineResult }) {
-  const h = r.decision.health;
-  return (
-    <div className="bg-white rounded-[16px] border border-slate-200 p-6 shadow-sm">
-      <div className="flex gap-8 items-start flex-wrap">
-        <div className="text-5xl font-black text-slate-900">{h.total}<span className="text-lg text-slate-400 font-normal">/100</span></div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 flex-1">
-          {h.pillars.map(p => (
-            <div key={p.name} className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{p.name}</p>
-              <p className="text-xl font-black mt-1 text-slate-900">{p.score}<span className="text-sm text-slate-400 font-normal">/{p.max}</span></p>
-              <div className="h-1.5 bg-slate-200 rounded-full mt-2 overflow-hidden"><div className="h-full bg-indigo-900 rounded-full" style={{ width: `${(p.score / p.max) * 100}%` }} /></div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PageProducts({ r }: { r: PipelineResult }) {
-  const measureCol = primaryMeasureColumn(r.semantics.columns, r.engineeredRows); const productCol = bestColumnOfRole(r.semantics.columns, 'product');
-  if (!measureCol || !productCol) return <div className="bg-white rounded-[16px] border p-6 text-sm text-slate-500">No product breakdown.</div>;
-  const rows = computeCategoryBreakdown(r.engineeredRows, productCol, measureCol).slice(0,12);
-  return <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm"><table className="w-full text-sm"><thead><tr className="text-left border-b border-slate-100">{['#','Product','Value','Orders','Share'].map(h=><th key={h} className="pb-2 text-[10px] text-slate-400 uppercase tracking-wider">{h}</th>)}</tr></thead><tbody>{rows.map((row,i)=><tr key={row.label} className="border-t border-slate-100"><td className="py-2.5"><span className="w-6 h-6 rounded-full bg-slate-100 inline-flex items-center justify-center text-[10px] font-bold">{i+1}</span></td><td className="py-2.5 font-semibold">{row.label}</td><td className="py-2.5 font-bold">£{row.value.toLocaleString()}</td><td className="py-2.5 text-slate-500">{fmtN(row.count)}</td><td className="py-2.5"><span className="text-xs">{row.pct}%</span></td></tr>)}</tbody></table></div>;
-}
-
-function PageRisks({ r }: { r: PipelineResult }) {
-  if (!r.decision.risks.length) return <div className="bg-white rounded-[16px] border p-6 text-sm text-slate-500">No risks.</div>;
-  return <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm space-y-3">{r.decision.risks.map((risk,i)=>{ const exp=findRiskExplanation(r.aiInsights, risk.title, i); return <div key={i} className="p-4 rounded-xl border border-slate-200 border-l-4" style={{borderLeftColor: risk.level==='high'?'#DC2626': risk.level==='medium'?'#D97706':'#312E81'}}><span className="text-[10px] font-bold uppercase text-slate-500">{risk.level} risk</span><p className="font-bold text-sm mt-1 text-slate-900">{risk.title}</p>{r.aiLoading?<SkeletonBlock lines={2}/>:exp?<p className="text-xs text-slate-600 mt-1 leading-5">{exp.impact} • {exp.action}</p>:<p className="text-xs text-slate-500 mt-1">{risk.desc}</p>}</div>; })}</div>;
-}
-
-function PageRecs({ r }: { r: PipelineResult }) {
-  const recs = r.decision.recommendations as EnrichedRec[]; if (!recs.length) return <div className="bg-white rounded-[16px] border p-6 text-sm text-slate-500">No recommendations.</div>;
-  const vdeMeta = (r as any)._vdeMeta as VDEResult | undefined;
-  return (
-    <div className="space-y-4">
-      {vdeMeta && <div className="bg-indigo-900 rounded-[16px] p-5 text-white"><p className="text-[11px] tracking-widest opacity-70">VERD.IO DECISION ENGINE v2 • FINANCIALLY RANKED</p><p className="text-sm mt-2 leading-6 opacity-90">{vdeMeta.summary}</p><div className="grid grid-cols-3 gap-3 mt-4"><div className="bg-white/10 rounded-xl p-3"><p className="text-[10px] opacity-60">VALUE AT RISK</p><p className="font-bold">£{vdeMeta.totalValueAtRisk?.toLocaleString()}</p></div><div className="bg-white/10 rounded-xl p-3"><p className="text-[10px] opacity-60">OPPORTUNITY</p><p className="font-bold text-amber-300">£{vdeMeta.totalOpportunityValue?.toLocaleString()}</p></div><div className="bg-white/10 rounded-xl p-3"><p className="text-[10px] opacity-60">ACTIONS</p><p className="font-bold">{recs.length}</p></div></div></div>}
-      <div className="space-y-3">{recs.map((rec,i)=>{ const ai=findRecommendation(r.aiInsights, rec.title, i); return <article key={i} className="decision-evidence-card"><div className="flex gap-3"><div className="w-8 h-8 rounded-full bg-indigo-900 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">{i+1}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-bold text-[13px] text-slate-900">{rec.title}</p><span className="evidence-confidence">{Math.round(rec.confidence*100)}% confidence</span></div>{r.aiLoading?<SkeletonLine width="70%"/>:ai?<p className="text-xs text-slate-600 mt-1 leading-5">{ai.action}</p>:<p className="text-xs text-slate-500 mt-1 leading-5">{rec.desc}</p>}</div></div>{rec.financialImpact && <div className="evidence-grid"><div><span>Estimated impact</span><strong>£{rec.financialImpact.estimatedValue.toLocaleString()}</strong><small>Range £{rec.financialImpact.rangeLow.toLocaleString()}–£{rec.financialImpact.rangeHigh.toLocaleString()}</small></div><div><span>Calculation basis</span><p>{rec.financialImpact.basis}</p></div><div><span>Supporting data</span><p>{rec.sourceColumns.length ? rec.sourceColumns.join(', ') : 'Business-wide operating baseline'}</p></div></div>}<details className="evidence-details"><summary>View assumptions and decision evidence</summary><div><p><b>Priority:</b> {rec.priorityScore}/100 · <b>Urgency:</b> {rec.urgency.replace('_',' ')} · <b>Estimated effort:</b> {rec.effortDays} days</p><p>Confidence combines data completeness, validity and the quality of the source columns. Financial impact is an indicative planning range, not a guaranteed outcome.</p></div></details></article>; })}</div>
-    </div>
-  );
-}
-
-function PageDataProfile({ r }: { r: PipelineResult }) { return <div className="bg-white rounded-[16px] border border-slate-200 p-5 shadow-sm overflow-auto"><table className="w-full text-sm"><thead><tr className="text-left border-b border-slate-100">{['Column','Type','Role','Conf'].map(h=><th key={h} className="pb-2 text-[10px] text-slate-400 uppercase">{h}</th>)}</tr></thead><tbody>{r.semantics.columns.map(c=><tr key={c.columnName} className="border-t border-slate-100"><td className="py-2 font-medium">{c.columnName}</td><td className="text-slate-500">{c.dataType}</td><td><span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">{c.businessRole}</span></td><td className="text-slate-600">{Math.round(c.confidence*100)}%</td></tr>)}</tbody></table></div>; }
-function PageQuality({ r }: { r: PipelineResult }) { return <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[{l:'Overall',v:r.quality.overallScore},{l:'Completeness',v:r.quality.completenessScore},{l:'Validity',v:r.quality.validityScore},{l:'Consistency',v:r.quality.consistencyScore}].map(s=><div key={s.l} className="bg-white rounded-[16px] border border-slate-200 p-4 shadow-sm"><p className="text-[10px] font-bold text-slate-400 tracking-widest">{s.l.toUpperCase()}</p><p className="text-2xl font-black mt-1 text-slate-900">{s.v}</p></div>)}</div>; }
-
 function PageLoadingFallback() { return <div role="status" aria-live="polite" className="flex items-center justify-center py-16"><div className="h-8 w-8 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" /><span className="sr-only">Loading…</span></div>; }
 
 function WorkspaceHub({ tabs, initial }: { tabs: { id: string; label: string; icon: typeof ClipboardCheck; content: React.ReactNode }[]; initial: string }) {
@@ -285,23 +177,6 @@ function PageExecutionHub({ r }: { r: PipelineResult }) {
 
 function PageGovernanceHub({ r }: { r: PipelineResult }) {
   return <WorkspaceHub initial="evidence" tabs={[{id:'evidence',label:'Evidence',icon:ScrollText,content:<PageEvidence r={r}/>},{id:'models',label:'Models',icon:BrainCircuit,content:<PageModelAssurance r={r}/>},{id:'quality',label:'Data Quality',icon:Database,content:<PageQuality r={r}/>},{id:'team',label:'Team & Roles',icon:Users,content:<PageTeamWorkspace/>},{id:'audit',label:'Audit Log',icon:Activity,content:<PageAuditLog/>},{id:'trust',label:'Trust',icon:ShieldCheck,content:<PageTrustCenter r={r}/>}]} />;
-}
-
-function PageAdvisor({ r }: { r: PipelineResult }) {
-  const [messages, setMessages] = useState<{ role: 'ai' | 'user'; text?: string; charts?: ChartSpec[]; sources?: string[] }[]>([{ role: 'ai', text: `Full analysis loaded — ${r.source.rowCount} rows, ${r.analyses.length} charts, health ${r.decision.health.total}/100. Choose a decision task below or ask a specific question.`, sources: [r.source.fileName, 'Verd.io decision engine'] }]);
-  const [input, setInput] = useState(''); const [loading, setLoading] = useState(false); const PROXY = '/api/chat'; const context = buildAdvisorContext(r);
-  const quickActions = ['Explain the highest risk', 'Create a 30-day action plan', 'Compare recent performance', 'Summarise for the board'];
-  async function send(prompt?: string) {
-    const userMsg = (prompt || input).trim(); if (!userMsg) return; setInput(''); setMessages(m => [...m, { role: 'user', text: userMsg }]); setLoading(true);
-    try {
-      const groundedPrompt = `${userMsg}\n\nUse only the supplied Verd.io analysis. State the supporting metric or analysis and finish with a concrete next action. Add [CHART:analysis_id] when a chart supports the answer.`;
-      const res = await fetch(PROXY, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: [{ role: 'system', content: context }, { role: 'user', content: groundedPrompt }], max_tokens: 700 }) });
-      const data = await res.json(); const txt = data.choices?.[0]?.message?.content; if (!txt) throw new Error('empty');
-      const { cleanText, charts } = parseChartTagsFromAI(txt, r); setMessages(m => [...m, { role: 'ai', text: cleanText, charts, sources: [r.source.fileName, ...charts.map(c=>c.title || 'Supporting analysis')] }]);
-    } catch { const fb = localAnalysisFallback(userMsg, r); setMessages(m => [...m, { role: 'ai', text: fb.text, charts: fb.charts, sources: [r.source.fileName, 'Local analysis fallback'] }]); }
-    setLoading(false);
-  }
-  return <div className="advisor-workspace"><div className="advisor-actions"><div><strong>Decision tasks</strong><span>Grounded in {r.source.fileName}</span></div>{quickActions.map(action=><button key={action} disabled={loading} onClick={()=>send(action)}>{action}<ChevronRight size={13}/></button>)}</div><div className="advisor-conversation"><div className="advisor-messages">{messages.map((msg,i)=><div key={i} className={`flex ${msg.role==='user'?'justify-end':''}`}><div className={`advisor-message ${msg.role==='user'?'is-user':'is-ai'}`}>{msg.text}{msg.charts?.map((c,j)=><div key={j} className="mt-3 bg-white border rounded-xl p-2"><ChartRenderer chart={c} /></div>)}{msg.sources&&<div className="advisor-sources"><span>Evidence</span>{msg.sources.map(source=><small key={source}>{source}</small>)}</div>}</div></div>)}{loading && <div className="advisor-thinking"><Sparkles size={13}/> Analysing the supporting evidence…</div>}</div><div className="advisor-input"><input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&send()} placeholder="Ask about a risk, forecast, customer segment or decision…" /><button disabled={loading} onClick={()=>send()}>Send</button></div></div></div>;
 }
 
 function ProjectLibrary({ open, onClose, onOpen }: { open: boolean; onClose: () => void; onOpen: (project: SavedProject) => void }) {
