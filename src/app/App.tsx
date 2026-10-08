@@ -268,8 +268,8 @@ export default function App() {
   return (
     <div className="app-shell min-h-screen">
       <Sidebar page={page} setPage={setPage} result={result} onReset={reset} open={navOpen} onClose={()=>setNavOpen(false)} />
-      <div className="app-content lg:ml-[272px]">
-        <header className="app-header sticky top-0 z-30 px-4 md:px-7 h-[72px] flex items-center justify-between gap-3">
+      <div className="app-content lg:ml-[184px]">
+        <header className="app-header sticky top-0 z-30 px-4 md:px-5 h-[52px] flex items-center justify-between gap-3">
           <div className="flex items-center min-w-0"><button aria-label="Open navigation" onClick={()=>setNavOpen(true)} className="header-icon mr-3 lg:hidden"><Menu size={18}/></button><div className="min-w-0"><p className="v2-header-title truncate">{pageLabel(page)}</p><p className="v2-header-source truncate">{result.organization?`${result.organization.datasets.length} connected datasets · `:''}{result.source.fileName} · {fmtN(result.source.rowCount)} rows · Analysed this session</p></div></div>
           <div className="v2-header-actions flex items-center gap-2">
             <button onClick={() => setExportOpen(true)} className="header-action hidden md:flex"><FileText size={14}/> Export report</button>
