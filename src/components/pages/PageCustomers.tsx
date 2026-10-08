@@ -3,6 +3,7 @@ import { fmtN } from "../workspace/format";
 import { StateMark } from "../workspace/StateMark";
 import { MetricCard } from "./MetricCard";
 import { Figures, PageEmpty, PageHead } from "./PageParts";
+import { pageLabel } from "../workspace/navigation";
 
 export function PageCustomers({ r }: { r: PipelineResult }) {
   if (!r.ml.segmentation || !r.ml.segmentation.segments.length) return <PageEmpty message="Segmentation not available." />;
@@ -10,7 +11,7 @@ export function PageCustomers({ r }: { r: PipelineResult }) {
   const shown = seg.segments.slice(0, 12);
   return (
     <div className="v2-view">
-      <PageHead eyebrow="Customer intelligence" title="Customer segments">Showing {shown.length} of {fmtN(seg.segments.length)} customers.</PageHead>
+      <PageHead eyebrow="Customer segments" title={pageLabel('customers')}>Showing {shown.length} of {fmtN(seg.segments.length)} customers.</PageHead>
       <Figures label="Customer figures">
         <MetricCard label="Total Customers" value={fmtN(seg.segments.length)} />
         <MetricCard label="Churn Risk" value={`${seg.churnRiskScore}/100`} tone={seg.churnRiskScore >= 60 ? 'red' : 'amber'} toneLabel={seg.churnRiskScore >= 60 ? 'High' : 'Watch'} />

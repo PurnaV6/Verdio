@@ -7,7 +7,7 @@ import { ExecutiveRevenue } from "./ExecutiveRevenue";
 import { SkeletonBlock } from "./Skeleton";
 import { StateMark } from "./StateMark";
 import { fmtN, formatExecutiveCurrency } from "./format";
-import { getRevenueView } from "./revenue";
+import { getRevenueView, NO_EARLIER_PERIOD } from "./revenue";
 import { healthReading } from "./status";
 
 type Section = 'overview' | 'revenue';
@@ -26,7 +26,8 @@ export function PageOverview({ r }: { r: PipelineResult }) {
   const highRisks=r.decision.risks.filter(risk=>risk.level==='high').length;
   const recConfidence=(topRec as Partial<EnrichedRecommendation>|undefined)?.confidence;
   const fileName=r.source.fileName;
-  const moveKnown=Boolean(revenue.series);
+  const change=revenue.changePct;
+  const moveKnown=change!==null;
 
   function onTabKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
     const i=SECTIONS.indexOf(section);
@@ -83,7 +84,7 @@ export function PageOverview({ r }: { r: PipelineResult }) {
             <tr><th scope="row">Business health</th><td className="num">{h} / 100</td><td className="read"><span className="v2-bar" aria-hidden="true"><i style={{width:`${h}%`}}/></span><StateMark tone={health.tone} label={health.label}/></td><td className="v2-tag">combined operational, quality and risk assessment</td></tr>
             <tr><th scope="row">Data quality</th><td className="num">{r.quality.overallScore} / 100</td><td className="read"><span className="v2-bar" aria-hidden="true"><i style={{width:`${r.quality.overallScore}%`}}/></span></td><td className="v2-tag"><b>quality check</b> · completeness, validity, consistency</td></tr>
             <tr><th scope="row">Recognised revenue</th><td className="num">{revenue.total?formatExecutiveCurrency(revenue.total):'—'}</td><td className="read"><span className="v2-none" aria-hidden="true">—</span><span className="sr-only">Not rated</span></td><td className="v2-tag">{revenue.revenueColumn?<><b>{revenue.revenueColumn}</b> · mapped revenue evidence</>:'Revenue field not detected'}</td></tr>
-            <tr><th scope="row">Revenue momentum</th><td className="num">{moveKnown?`${revenue.changePct>=0?'+':''}${revenue.changePct.toFixed(1)}%`:'—'}</td><td className="read">{moveKnown?<StateMark tone={revenue.changePct<0?'watch':'ok'} label={revenue.changePct>0?'Rising':revenue.changePct<0?'Declining':'Flat'}/>:<><span className="v2-none" aria-hidden="true">—</span><span className="sr-only">Not rated</span></>}</td><td className="v2-tag">{moveKnown?<><b>{revenue.series?.measureColumn}</b> · latest period movement</>:'No dated revenue series'}</td></tr>
+            <tr><th scope="row">Revenue momentum</th><td className="num">{moveKnown?`${change>=0?'+':''}${change.toFixed(1)}%`:'—'}</td><td className="read">{moveKnown?<StateMark tone={change<0?'watch':'ok'} label={change>0?'Rising':change<0?'Declining':'Flat'}/>:<><span className="v2-none" aria-hidden="true">—</span><span className="sr-only">Not rated</span></>}</td><td className="v2-tag">{moveKnown?<><b>{revenue.series?.measureColumn}</b> · latest period movement</>:revenue.series?NO_EARLIER_PERIOD:'No dated revenue series'}</td></tr>
             <tr><th scope="row">Next-period outlook</th><td className="num">{nextPeriod?formatExecutiveCurrency(nextPeriod):'—'}</td><td className="read"><span className="v2-none" aria-hidden="true">—</span><span className="sr-only">Not rated</span></td><td className="v2-tag">{nextPeriod?<><b>{revenue.revenueForecast?.measureColumn}</b> · modelled base forecast</>:'Forecast not available'}</td></tr>
             <tr><th scope="row">Active risks</th><td className="num">{r.decision.risks.length}</td><td className="read">{highRisks>0?<StateMark tone="risk" label={`${highRisks} high-priority`}/>:r.decision.risks.length>0?<StateMark tone="watch" label="Monitor"/>:<StateMark tone="ok" label="None active"/>}</td><td className="v2-tag"><b>risk detection</b> · {highRisks} high-priority signals</td></tr>
           </tbody>

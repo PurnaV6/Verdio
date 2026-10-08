@@ -83,8 +83,8 @@ describe("computeHealthScore", () => {
       segmentation: {
         customerColumn: "customer", dateColumn: "date", measureColumn: "revenue",
         segments: [
-          { id: "a", monetary: 500, frequency: 5, segment: "champion", rfmScore: 9 },
-          { id: "b", monetary: 400, frequency: 4, segment: "loyal", rfmScore: 8 },
+          { id: "a", monetary: 500, frequency: 5, recencyMonths: 0, segment: "champion", rfmScore: 9 },
+          { id: "b", monetary: 400, frequency: 4, recencyMonths: 0, segment: "loyal", rfmScore: 8 },
         ],
         churnRiskScore: 10, revenueAtRisk: 0,
       },
@@ -94,8 +94,8 @@ describe("computeHealthScore", () => {
       segmentation: {
         customerColumn: "customer", dateColumn: "date", measureColumn: "revenue",
         segments: [
-          { id: "a", monetary: 500, frequency: 1, segment: "new", rfmScore: 3 },
-          { id: "b", monetary: 400, frequency: 1, segment: "new", rfmScore: 3 },
+          { id: "a", monetary: 500, frequency: 1, recencyMonths: 0, segment: "new", rfmScore: 3 },
+          { id: "b", monetary: 400, frequency: 1, recencyMonths: 0, segment: "new", rfmScore: 3 },
         ],
         churnRiskScore: 60, revenueAtRisk: 400,
       },
