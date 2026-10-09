@@ -112,7 +112,7 @@ button { cursor: pointer; }
 .verdio-chart { overflow:hidden; }
 .verdio-chart .recharts-default-legend { display:flex; justify-content:center; flex-wrap:wrap; gap:5px 13px; }
 .verdio-chart .recharts-legend-item { margin-right:0!important; }
-.verdio-chart .recharts-tooltip-label { margin-bottom:5px!important; color:#495460; font-weight:700; }
+.verdio-chart .recharts-tooltip-label { margin-bottom:5px!important; color:var(--vc-ink); font-weight:700; }
 .verdio-chart table { border-collapse:collapse; }
 
 .header-icon { height: 36px; width: 36px; align-items: center; justify-content: center; border: 1px solid var(--vc-line); border-radius: 10px; background: white; color: #606971; transition: .18s ease; }
@@ -789,3 +789,68 @@ button { cursor: pointer; }
 
 /* Hub tab strip: .v2-hub-tabs zeroes its margin (and, being unlayered, beats the space-y utility), so give the hub its own gap. */
 .v2-op-hub > .v2-hub-tabs { margin-bottom: 24px; }
+
+/* ---------- Chart kit (v2-kc-) ---------- */
+/* Prefixed v2-kc-. Components live in src/components/charts/kit. Every colour is a --vc-* token, so the accent switch
+   recolours the charts; nothing animates, so there is nothing for prefers-reduced-motion to remove. */
+.v2-kc { margin: 0; min-width: 0; color: var(--vc-ink); }
+.v2-kc-head { margin-bottom: 10px; }
+.v2-kc-title { margin: 0; font: 500 12px/1.35 var(--v-font-data); letter-spacing: .06em; text-transform: uppercase; color: var(--vc-muted); }
+.v2-kc-head small { display: block; margin-top: 4px; font-size: 12.5px; line-height: 1.4; color: var(--vc-muted); }
+.v2-kc-box { position: relative; min-width: 0; }
+.v2-kc-plot { position: relative; min-width: 0; }
+.v2-kc-plot:focus-visible { outline: 2px solid var(--vc-accent); outline-offset: 2px; border-radius: 2px; }
+.v2-kc-svg { display: block; width: 100%; height: auto; max-width: 100%; touch-action: pan-y; }
+.v2-kc-axis { font: 400 11px var(--v-font-data); fill: var(--vc-muted); }
+.v2-kc-grid { stroke: var(--vc-line); stroke-width: 1; }
+.v2-kc-line { fill: none; stroke: var(--vc-accent); stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
+.v2-kc-line.is-forecast { stroke-dasharray: 5 4; stroke-linecap: butt; }
+.v2-kc-band { fill: var(--vc-accent-2); fill-opacity: .2; stroke: var(--vc-accent-2); stroke-width: 1; }
+.v2-kc-dot { fill: var(--vc-accent); stroke: var(--vc-panel); stroke-width: 2; pointer-events: none; }
+.v2-kc-dot.is-hollow { fill: var(--vc-panel); stroke: var(--vc-accent); }
+.v2-kc-cross { stroke: var(--vc-muted); stroke-width: 1; stroke-dasharray: 3 3; pointer-events: none; }
+.v2-kc-direct { font: 600 11.5px var(--v-font-data); fill: var(--vc-accent); pointer-events: none; }
+.v2-kc-direct.is-ink { fill: var(--vc-ink); }
+.v2-kc-bar { fill: var(--vc-accent-2); }
+.v2-kc-bar.is-top { fill: var(--vc-accent); }
+.v2-kc-bar.is-active { stroke: var(--vc-ink); stroke-width: 1.5; }
+.v2-kc-track { fill: var(--vc-line); }
+.v2-kc-seg { stroke: var(--vc-ink); stroke-width: 1; }
+.v2-kc-seg.is-active { stroke-width: 2.5; }
+.v2-kc-tip { position: absolute; top: 6px; left: 0; z-index: 2; display: grid; gap: 1px; width: max-content; max-width: min(240px, calc(100% - 8px)); padding: 6px 9px; border: 1px solid var(--vc-line); border-radius: 6px; background: var(--vc-panel); box-shadow: 0 4px 14px color-mix(in srgb, var(--vc-ink) 14%, transparent); font: 12px/1.4 var(--v-font-data); color: var(--vc-ink); pointer-events: none; }
+.v2-kc-tip small { font-size: 11px; color: var(--vc-muted); }
+.v2-kc-live { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.v2-kc-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 8px 0 0; padding: 0; list-style: none; font-size: 12px; line-height: 1.4; color: var(--vc-muted); }
+.v2-kc-legend li { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.v2-kc-legend svg { flex: none; }
+.v2-kc-table { margin-top: 8px; font-size: 12.5px; color: var(--vc-muted); }
+.v2-kc-table summary { cursor: pointer; }
+.v2-kc-table summary:focus-visible, .v2-kc-tbl:focus-visible { outline: 2px solid var(--vc-accent); outline-offset: 2px; border-radius: 2px; }
+.v2-kc-tbl { max-height: 240px; margin-top: 6px; overflow: auto; }
+.v2-kc-tbl table { width: 100%; border-collapse: collapse; font: 12px var(--v-font-data); color: var(--vc-ink); }
+.v2-kc-tbl caption { padding: 2px 0 4px; text-align: left; caption-side: top; color: var(--vc-muted); }
+.v2-kc-tbl th, .v2-kc-tbl td { padding: 3px 6px; border-bottom: 1px solid var(--vc-line); text-align: right; font-weight: 400; }
+.v2-kc-tbl thead th { color: var(--vc-muted); font-weight: 500; }
+.v2-kc-tbl th:first-child, .v2-kc-tbl td:first-child { text-align: left; }
+.v2-kc-empty { margin: 0; padding: 22px 12px; border: 1px dashed var(--vc-line); border-radius: 4px; text-align: center; font-size: 14px; color: var(--vc-muted); }
+.v2-kc-shares { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.v2-kc-share { display: grid; grid-template-columns: minmax(64px, 28%) minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 5px 6px; border-radius: 4px; font-size: 13px; line-height: 1.35; }
+.v2-kc-share.is-active { background: var(--vc-accent-tint); outline: 1px solid var(--vc-accent); }
+.v2-kc-share-label { min-width: 0; overflow-wrap: anywhere; }
+.v2-kc-share-track { display: block; width: 100%; height: 12px; }
+.v2-kc-share-val { font: 600 12px var(--v-font-data); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.v2-kc-share-val small { font-weight: 400; font-size: 11px; color: var(--vc-muted); }
+.v2-kc-kpi { min-width: 0; }
+.v2-kc-kpi-label { margin: 0; font: 600 11.5px/1.3 var(--v-font-data); letter-spacing: .08em; text-transform: uppercase; color: var(--vc-muted); }
+.v2-kc-kpi-val { margin: 3px 0 1px; font: 600 26px/1.15 var(--v-font-data); font-variant-numeric: tabular-nums; }
+.v2-kc-kpi-sub { font-size: 12.5px; color: var(--vc-muted); }
+.v2-kc-spark { display: block; width: 100%; height: 28px; margin-top: 6px; }
+.v2-kc-spark .v2-kc-line { stroke-width: 2; }
+@media (max-width: 480px) {
+  .v2-kc-share { grid-template-columns: minmax(0, 1fr) auto; row-gap: 4px; }
+  .v2-kc-share-track { grid-column: 1 / -1; grid-row: 2; }
+  .v2-kc-share-val { grid-column: 2; grid-row: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .v2-kc *, .v2-kc-kpi * { transition: none; animation: none; }
+}
