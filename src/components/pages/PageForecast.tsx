@@ -2,7 +2,7 @@ import { useState } from "react";
 import { runForecast } from "../../lib/ml/forecastEngine";
 import { labelForMeasure } from "../../lib/labels";
 import type { PipelineResult } from "../../types/pipeline";
-import { ChartRenderer } from "../workspace/lazy";
+import { TrendChart } from "../charts/kit";
 import { MetricCard } from "./MetricCard";
 import { Figures, PageEmpty, PageHead } from "./PageParts";
 import { pageLabel } from "../workspace/navigation";
@@ -13,13 +13,14 @@ export function PageForecast({ r }: { r: PipelineResult }) {
   const ts = r.statistics.timeSeries.find(t => t.measureColumn === r.ml.forecast!.measureColumn);
   const forecast = runForecast(ts ?? { measureColumn: r.ml.forecast.measureColumn, dateColumn: '', points: [] }, scenario as any);
   const measureLabel = labelForMeasure(forecast.measureColumn);
-  const chartData = [...(ts?.points.map(p => ({ period: p.label, historical: p.value, forecast: null })) || []), ...forecast.points.map(p => ({ period: p.periodLabel, historical: null, forecast: p.value }))];
+  const actual = ts?.points.map(p => ({ label: p.label, value: p.value })) ?? [];
+  const ahead = forecast.points.map(p => ({ label: p.periodLabel, value: p.value, low: p.low, high: p.high }));
   return (
     <div className="v2-view">
       <PageHead eyebrow={`${measureLabel} forecast`} title={pageLabel('forecast')}>Linear + Holt smoothing</PageHead>
       <div className="v2-seg" role="group" aria-label="Forecast scenario">{(['base', 'optimistic', 'conservative'] as const).map(s => <button key={s} type="button" aria-pressed={scenario === s} onClick={() => setScenario(s)}>{s}</button>)}</div>
       <section className="v2-panel" aria-label={`${measureLabel} forecast chart`}>
-        <ChartRenderer chart={{ chartType: 'line', title: '', xKey: 'period', seriesKeys: ['historical', 'forecast'], data: chartData, formatValue: 'currency' } as any} />
+        <TrendChart name={`Monthly ${measureLabel.toLowerCase()}`} actual={actual} forecast={ahead} format="currency" valueLabel={measureLabel} />
       </section>
       <Figures label="Forecast figures">
         <MetricCard label="6-Period Projection" value={`£${forecast.points.reduce((s, p) => s + p.value, 0).toLocaleString('en-GB')}`} sub={`${scenario}`} />
