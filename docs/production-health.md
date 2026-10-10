@@ -59,7 +59,8 @@ All six relations and the private `organization-projects` bucket must exist. Do 
 
 ## Failure interpretation
 
-- `ai` failed: check provider key, quota, model access and `AI_MODEL`.
+- `ai` failed: check provider key, quota, model access and `AI_MODEL`/`AI_MODELS` (the check probes the first model in the chain only; a retired first model is skipped automatically by `/api/chat`).
+- The top-level `ai` object is the assistant setup checklist (key set, models, whether `consume_ai_quota` exists, next step). See `docs/ai-setup.md`.
 - `supabase-auth` failed: check the Supabase URL and service-role key.
 - `supabase-database` failed: apply or repair the report-schedule migration.
 - `supabase-storage` failed: apply the shared-project migration and verify the bucket.

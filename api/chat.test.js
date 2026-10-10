@@ -57,6 +57,13 @@ function request({ body = validBody(), token, headers = {}, method = 'POST' } = 
   };
 }
 
+/** The structured ai_chat log lines written so far, parsed. */
+function logLines() {
+  return logSpy.mock.calls.map(args => JSON.parse(args[0])).filter(line => line.event === 'ai_chat');
+}
+
+function lastLog() { return logLines().at(-1); }
+
 async function call(req) {
   const res = response();
   await handler(req, res);
@@ -91,6 +98,7 @@ describe('authentication', () => {
     const res = await call(request({ token: '' }));
     expect(res.statusCode).toBe(401);
     expect(res.body).toEqual({ error: 'Sign in to use the assistant' });
+    expect(lastLog()).toMatchObject({ status: 401, reason: 'no_token' });
     expect(fetchMock).not.toHaveBeenCalled();
     expect(mockProviderState.calls).toHaveLength(0);
   });
@@ -99,8 +107,26 @@ describe('authentication', () => {
     const res = await call(request({ token: 'forged' }));
     expect(res.statusCode).toBe(401);
     expect(res.body).toEqual({ error: 'Sign in to use the assistant' });
+    expect(lastLog()).toMatchObject({ status: 401, reason: 'invalid_token' });
     expect(quotaCalls).toHaveLength(0);
     expect(mockProviderState.calls).toHaveLength(0);
+  });
+
+  it('is busy with reason auth_unavailable when Supabase auth errors out', async () => {
+    fetchMock.mockImplementation(async () => ({ ok: false, status: 500, json: async () => ({}) }));
+    const res = await call(request());
+    expect(res.statusCode).toBe(503);
+    expect(res.body).toEqual({ error: 'Assistant busy', fallback: true });
+    expect(lastLog()).toMatchObject({ status: 503, reason: 'auth_unavailable' });
+  });
+
+  it('is busy with reason supabase_not_configured and logs booleans only', async () => {
+    delete process.env.SUPABASE_URL;
+    const res = await call(request());
+    expect(res.statusCode).toBe(503);
+    expect(res.body).toEqual({ error: 'Assistant busy', fallback: true });
+    expect(lastLog()).toMatchObject({ reason: 'supabase_not_configured', supabaseUrlSet: false, anonKeySet: true });
+    expect(JSON.stringify(logLines())).not.toContain(ANON_KEY_VALUE);
   });
 
   it('verifies and rate-limits with the user token and anon key, never the service-role key', async () => {
@@ -127,6 +153,7 @@ describe('CORS', () => {
   it('rejects a foreign origin with 403 and no Access-Control-Allow-Origin header', async () => {
     const res = await call(request({ headers: { origin: 'https://evil.example' } }));
     expect(res.statusCode).toBe(403);
+    expect(lastLog()).toMatchObject({ status: 403, reason: 'origin_forbidden' });
     expect(res.headers['Access-Control-Allow-Origin']).toBeUndefined();
     expect(res.headers.Vary).toBe('Origin');
     expect(fetchMock).not.toHaveBeenCalled();
@@ -162,6 +189,7 @@ describe('CORS', () => {
   it('only accepts POST', async () => {
     const res = await call(request({ method: 'GET' }));
     expect(res.statusCode).toBe(405);
+    expect(lastLog()).toMatchObject({ status: 405, reason: 'method_not_allowed' });
   });
 });
 
@@ -190,6 +218,7 @@ describe('request shape', () => {
     const res = await call(request({ body: validBody(extra) }));
     expect(res.statusCode).toBe(400);
     expect(res.body).toEqual({ error: 'Invalid request' });
+    expect(lastLog()).toMatchObject({ status: 400, reason: 'bad_request' });
     expect(mockProviderState.calls).toHaveLength(0);
     expect(quotaCalls).toHaveLength(0);
   });
@@ -283,7 +312,9 @@ describe('scope limiting', () => {
     const res = await call(request());
     expect(res.statusCode).toBe(502);
     expect(res.body).toEqual({ error: 'Assistant unavailable', fallback: true });
+    expect(lastLog()).toMatchObject({ status: 502, reason: 'scrubbed_reply' });
     expect(JSON.stringify(res.body)).not.toContain('evil.example');
+    expect(JSON.stringify(logLines())).not.toContain('evil.example');
   });
 
   it('withholds insights JSON that contains links', async () => {
@@ -300,6 +331,7 @@ describe('limits', () => {
     expect(res.statusCode).toBe(429);
     expect(res.body).toEqual({ error: 'Daily limit reached' });
     expect(Number(res.headers['Retry-After'])).toBeGreaterThan(0);
+    expect(lastLog()).toMatchObject({ status: 429, reason: 'quota_user_limit' });
     expect(mockProviderState.calls).toHaveLength(0);
   });
 
@@ -308,6 +340,7 @@ describe('limits', () => {
     const res = await call(request());
     expect(res.statusCode).toBe(503);
     expect(res.body).toEqual({ error: 'Assistant busy', fallback: true });
+    expect(lastLog()).toMatchObject({ status: 503, reason: 'quota_global_limit' });
     expect(mockProviderState.calls).toHaveLength(0);
   });
 
@@ -318,6 +351,7 @@ describe('limits', () => {
     expect(first.statusCode).toBe(200);
     expect(second.statusCode).toBe(429);
     expect(second.headers['Retry-After']).toBeDefined();
+    expect(lastLog()).toMatchObject({ status: 429, reason: 'too_fast', guard: 'database' });
     expect(mockProviderState.calls).toHaveLength(1);
   });
 
@@ -327,6 +361,7 @@ describe('limits', () => {
     const second = await call(request({ token: 'good-burst' }));
     expect(first.statusCode).toBe(200);
     expect(second.statusCode).toBe(429);
+    expect(lastLog()).toMatchObject({ status: 429, reason: 'too_fast', guard: 'memory' });
     expect(quotaCalls).toHaveLength(1);
   });
 
@@ -337,16 +372,44 @@ describe('limits', () => {
     expect(JSON.parse(quotaCalls[0].options.body)).toEqual({ p_kind: 'advisor', p_user_max: 7, p_global_max: 123, p_min_gap_seconds: 3 });
   });
 
-  it('fails closed with the busy fallback when the quota check itself fails', async () => {
-    quotaAnswer = undefined;
+  function quotaFails(status, body) {
     fetchMock.mockImplementation(async url => {
       if (String(url).endsWith('/auth/v1/user')) return { ok: true, status: 200, json: async () => ({ id: 'user-x' }) };
-      return { ok: false, status: 404, json: async () => ({ message: 'function not found' }) };
+      return { ok: false, status, json: async () => body };
     });
+  }
+
+  it.each([
+    ['HTTP 404 (function missing)', 404, { message: 'function not found' }, 'quota_rpc_missing'],
+    ['PGRST202 under another status', 400, { code: 'PGRST202', message: 'Could not find the function' }, 'quota_rpc_missing'],
+    ['HTTP 500', 500, { message: 'SECRET-DB-ERROR-TEXT' }, 'quota_rpc_failed'],
+    ['HTTP 401', 401, {}, 'quota_rpc_failed'],
+  ])('fails closed with the busy fallback and a reason for a quota RPC %s', async (_label, status, body, reason) => {
+    quotaFails(status, body);
     const res = await call(request());
     expect(res.statusCode).toBe(503);
     expect(res.body).toEqual({ error: 'Assistant busy', fallback: true });
+    expect(lastLog()).toMatchObject({ status: 503, reason, upstreamStatus: status });
+    expect(JSON.stringify(logLines())).not.toContain('SECRET-DB-ERROR-TEXT');
     expect(mockProviderState.calls).toHaveLength(0);
+  });
+
+  it('logs quota_rpc_failed without a status when the quota call cannot connect', async () => {
+    fetchMock.mockImplementation(async url => {
+      if (String(url).endsWith('/auth/v1/user')) return { ok: true, status: 200, json: async () => ({ id: 'user-x' }) };
+      throw new Error('socket hang up');
+    });
+    const res = await call(request());
+    expect(res.statusCode).toBe(503);
+    expect(lastLog().reason).toBe('quota_rpc_failed');
+    expect(lastLog().upstreamStatus).toBeUndefined();
+  });
+
+  it('is busy with quota_unexpected_answer when the RPC returns something unknown', async () => {
+    quotaAnswer = 'maybe';
+    const res = await call(request());
+    expect(res.statusCode).toBe(503);
+    expect(lastLog().reason).toBe('quota_unexpected_answer');
   });
 });
 
@@ -356,6 +419,7 @@ describe('provider behaviour and responses', () => {
     const res = await call(request());
     expect(res.statusCode).toBe(502);
     expect(res.body).toEqual({ error: 'Assistant unavailable', fallback: true });
+    expect(lastLog()).toMatchObject({ status: 502, reason: 'provider_error', upstreamStatus: 500 });
   });
 
   it('returns the busy fallback when the provider is rate limited', async () => {
@@ -363,6 +427,7 @@ describe('provider behaviour and responses', () => {
     const res = await call(request());
     expect(res.statusCode).toBe(503);
     expect(res.body).toEqual({ error: 'Assistant busy', fallback: true });
+    expect(lastLog()).toMatchObject({ status: 503, reason: 'provider_rate_limited', upstreamStatus: 429 });
   });
 
   it('returns only { result, source } on success, with no model name or usage', async () => {
@@ -381,6 +446,7 @@ describe('provider behaviour and responses', () => {
     const res = await call(request());
     expect(res.statusCode).toBe(503);
     expect(res.body.fallback).toBe(true);
+    expect(lastLog()).toMatchObject({ status: 503, reason: 'provider_not_configured' });
     expect(quotaCalls).toHaveLength(0);
   });
 
