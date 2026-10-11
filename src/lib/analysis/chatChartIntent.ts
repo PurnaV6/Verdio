@@ -60,6 +60,11 @@ export function localAnalysisFallback(userMsg: string, p: PipelineResult): { tex
     const recs=p.decision.recommendations.slice(0,3).map(x=>`• ${x.title}: ${x.desc}`).join('\n');
     return { text: `Improvements:\n${recs}`, charts: [] };
   }
+  // A question about how a whole splits answers with the share-of-a-whole analysis the pipeline already built.
+  if(/\b(split|share|shares|breakdown|break down|composition|concentration|proportion|mix)\b/.test(msg)){
+    const whole=/\b(customer|customers|segment|segments)\b/.test(msg) ? p.analyses.find(a=>a.id==='segmentation') : p.analyses.find(a=>a.id==='concentration');
+    if(whole) return { text: `${whole.title}: ${whole.explanation}`, charts: [whole.chart] };
+  }
   const best=p.analyses[0];
   return { text: `Analysed ${p.source.rowCount} rows, ${p.analyses.length} charts. Ask about March, risks, forecast.`, charts: best ? [best.chart] : [] };
 }
