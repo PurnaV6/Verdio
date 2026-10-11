@@ -89,7 +89,7 @@ function typeConsistencyEvidence(role: BusinessRole, col: ColumnProfile): Eviden
   if (NUMERIC_ROLES.includes(role)) {
     return col.inferredType === 'number'
       ? { source: 'type_consistency', weight: 0.2, detail: `Column is numeric, consistent with "${role}".` }
-      : { source: 'type_consistency', weight: -0.5, detail: `Column is not numeric — inconsistent with "${role}".` };
+      : { source: 'type_consistency', weight: -0.5, detail: `Column is not numeric, which is inconsistent with "${role}".` };
   }
   if (role === 'date') {
     return col.inferredType === 'date'
@@ -110,7 +110,7 @@ function cardinalityEvidence(role: BusinessRole, col: ColumnProfile, rowCount: n
         ? { source: 'cardinality', weight: 0.15, detail: 'Values repeat moderately, consistent with recurring customers.' } : null;
     case 'category': case 'status':
       return col.uniqueCount > 0 && col.uniqueCount <= 30 && col.uniquenessRatio < 0.15
-        ? { source: 'cardinality', weight: 0.15, detail: `Only ${col.uniqueCount} distinct value(s) — consistent with a category.` } : null;
+        ? { source: 'cardinality', weight: 0.15, detail: `Only ${col.uniqueCount} distinct value(s), which is consistent with a category.` } : null;
     case 'product':
       return col.uniquenessRatio > 0.02 && col.uniquenessRatio < 0.6
         ? { source: 'cardinality', weight: 0.1, detail: 'Moderate repetition, consistent with a product list.' } : null;
@@ -213,10 +213,10 @@ export function classifyColumns(_rows: RawRow[], profile: DatasetProfile, overri
 
   const warnings: string[] = [];
   if (!columns.some(c => c.businessRole === 'date' && c.confidence >= 0.5)) {
-    warnings.push('No date column detected — trend, forecasting and seasonality analysis will be unavailable.');
+    warnings.push('No date column detected, so trend, forecasting and seasonality analysis will be unavailable.');
   }
   if (!columns.some(c => ['revenue', 'price', 'cost'].includes(c.businessRole) && c.confidence >= 0.5)) {
-    warnings.push('No monetary column detected — financial metrics will be unavailable.');
+    warnings.push('No monetary column detected, so financial metrics will be unavailable.');
   }
   const lowConfidence = columns.filter(c => c.needsReview && c.businessRole !== 'unknown');
   if (lowConfidence.length) {

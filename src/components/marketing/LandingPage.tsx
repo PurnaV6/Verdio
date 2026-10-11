@@ -31,7 +31,7 @@ export default function LandingPage({ onDemo, onLogin, onSignup }: LandingPagePr
             <div className="v2-hero-copy">
               <p className="v2-land-eyebrow">Free during early access</p>
               <h1>Turn operational data into decisions your team <em>can act on.</em></h1>
-              <p className="v2-land-lede">Verd.io connects sales, stock and financial data to surface forecasts, risks and prioritised actions—without requiring a data science team.</p>
+              <p className="v2-land-lede">Verd.io connects sales, stock and financial data to surface forecasts, risks and prioritised actions, without requiring a data science team.</p>
               <div className="v2-ctas">
                 <button type="button" className="v2-btn" onClick={onSignup}>Start free <ArrowRight size={16} aria-hidden="true"/></button>
                 <button type="button" className="v2-btn is-quiet" onClick={onDemo}>View live demo</button>

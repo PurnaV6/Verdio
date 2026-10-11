@@ -54,7 +54,7 @@ export function localAnalysisFallback(userMsg: string, p: PipelineResult): { tex
   }
   if(/(major risk|biggest risk|highest risk)/.test(msg)){
     const r=p.decision.risks[0];
-    return { text: r ? `Major risk: [${r.level}] ${r.title} — ${r.desc}` : 'No risks found', charts: [] };
+    return { text: r ? `Major risk: [${r.level}] ${r.title}. ${r.desc}` : 'No risks found', charts: [] };
   }
   if(/(improve.*business|recommendation)/.test(msg)){
     const recs=p.decision.recommendations.slice(0,3).map(x=>`• ${x.title}: ${x.desc}`).join('\n');

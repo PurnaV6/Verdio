@@ -47,7 +47,7 @@ export function detectRisks(
         ? { level: 'high', icon: '📊', title: `Critical ${catCol} Concentration`, desc: `${Math.round(p)}% of ${measureLabel} comes from "${agg[0].label}". A single disruption there could seriously damage the business. Diversify within the next quarter.`, sourceColumns: [catCol, measureCol] }
         : p > 40
         ? { level: 'medium', icon: '📊', title: `${catCol} Concentration Risk`, desc: `"${agg[0].label}" accounts for ${Math.round(p)}% of ${measureLabel}. Healthy to diversify before this becomes critical.`, sourceColumns: [catCol, measureCol] }
-        : { level: 'low', icon: '📊', title: `${catCol} Diversification`, desc: `${measureLabel} is well spread across "${catCol}" values — "${agg[0].label}" leads at a healthy ${Math.round(p)}%.`, sourceColumns: [catCol, measureCol] }
+        : { level: 'low', icon: '📊', title: `${catCol} Diversification`, desc: `${measureLabel} is well spread across "${catCol}" values, and "${agg[0].label}" leads at a healthy ${Math.round(p)}%.`, sourceColumns: [catCol, measureCol] }
       );
     }
   }
@@ -74,7 +74,7 @@ export function detectRisks(
     risks.push(n < 20
       ? { level: 'high', icon: '👥', title: 'Critical Customer Dependency', desc: `Only ${n} customers detected. Losing 2–3 could materially impact revenue. Acquisition should be an immediate priority.`, sourceColumns: [ml.segmentation.customerColumn] }
       : n < 50
-      ? { level: 'medium', icon: '👥', title: 'Limited Customer Base', desc: `${n} customers — growing but still concentrated risk. Prioritise acquisition and retention.`, sourceColumns: [ml.segmentation.customerColumn] }
+      ? { level: 'medium', icon: '👥', title: 'Limited Customer Base', desc: `${n} customers, growing but still concentrated risk. Prioritise acquisition and retention.`, sourceColumns: [ml.segmentation.customerColumn] }
       : { level: 'low', icon: '👥', title: 'Healthy Customer Base', desc: `${n.toLocaleString()} customers provides reasonable diversification.`, sourceColumns: [ml.segmentation.customerColumn] }
     );
 
@@ -89,7 +89,7 @@ export function detectRisks(
   if (ml.anomalies) {
     const negative = ml.anomalies.points.filter(p => p.isAnomaly && p.actual < p.expected);
     if (negative.length >= 2) {
-      risks.push({ level: 'medium', icon: '🔍', title: 'Unexplained Revenue Drops', desc: `${negative.length} period(s) came in well below the average for the whole period, including ${negative[0].periodLabel}. Worth investigating what happened then — a one-off event, a stockout, or a genuine problem worth fixing.`, sourceColumns: [ml.anomalies.measureColumn] });
+      risks.push({ level: 'medium', icon: '🔍', title: 'Unexplained Revenue Drops', desc: `${negative.length} period(s) came in well below the average for the whole period, including ${negative[0].periodLabel}. Worth investigating what happened then: a one-off event, a stockout, or a genuine problem worth fixing.`, sourceColumns: [ml.anomalies.measureColumn] });
     }
   }
 
@@ -97,7 +97,7 @@ export function detectRisks(
   if (quality.overallScore < 70) {
     risks.push({ level: 'high', icon: '🗄️', title: 'Data Quality Risk', desc: `Data quality scores ${quality.overallScore}/100. Missing or inconsistent fields reduce the reliability of every downstream insight.`, sourceColumns: [] });
   } else if (quality.overallScore < 88) {
-    risks.push({ level: 'medium', icon: '🗄️', title: 'Data Quality Warning', desc: `Data quality scores ${quality.overallScore}/100 — some gaps exist. See the Data Quality page for specifics.`, sourceColumns: [] });
+    risks.push({ level: 'medium', icon: '🗄️', title: 'Data Quality Warning', desc: `Data quality scores ${quality.overallScore}/100, so some gaps exist. See the Data Quality page for specifics.`, sourceColumns: [] });
   }
 
   return risks.sort((a, b) => ['high', 'medium', 'low'].indexOf(a.level) - ['high', 'medium', 'low'].indexOf(b.level));
