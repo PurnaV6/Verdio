@@ -69,11 +69,15 @@ In Vercel, open the project, then Logs, and filter by the path `/api/chat` (or s
 | `provider_model_unavailable` | 502 | Every model in the chain is gone or unknown to the provider. | Set `AI_MODELS` to models listed on the provider's models page. |
 | `provider_error` | 502 or 503 | Other provider failure; `upstreamStatus` is the HTTP status (absent for a timeout or network error). | 401: the key is wrong or revoked. 5xx: provider outage. 400: a request the provider rejects; check the chain. |
 | `provider_empty_reply` | 502 | The provider answered with no visible text, even after trying the next model. | Usually a reasoning model that used its whole budget thinking. Put a non-reasoning model such as `llama-3.1-8b-instant` first via `AI_MODELS`. |
-| `scrubbed_reply` | 502 | The reply was withheld because it had a code block or link, or insights JSON was too long or empty. | Expected occasionally. If constant, check the model. |
+| `scrubbed_reply` | 502 | The reply was withheld because it had a code block or link, nothing was left after removing invented page or chart references, or insights JSON was too long or empty. | Expected occasionally. If constant, check the model. |
 | `bad_request` | 400 | The request failed validation (unknown field, oversized input). | Client bug if seen from the real app. |
 | `origin_forbidden` | 403 | The request came from an origin not in `APP_ORIGINS` and not the deployment host. | Add the custom domain to `APP_ORIGINS`. |
 | `method_not_allowed` | 405 | The route only accepts `POST`. | None. |
 | `internal_error` | 502 | An unexpected server error before the provider answered. | Check the function logs around that time. |
+
+## Pages and charts the Advisor may mention
+
+The Advisor must not invent places in the app. The system prompt lists the real page names (the `PAGE_NAMES` constant in `api/_lib/prompts.js`, which a unit test keeps equal to the labels in `src/components/workspace/navigation.ts`), forbids guessing a page, tab, section, chart, button or menu name, and says to attach a supporting chart inline with its `[CHART:id]` tag instead of sending the user to a page for it. As a second layer, `api/_lib/answerScrub.js` removes any Advisor sentence that sends the user to a named page, tab or section that is not in that list, or that names a chart that is not in the `CHARTS` list of the request, and turns non-breaking hyphens, spaced dashes and "50 %" into plain punctuation. Numbers and `[CHART:id]` tokens are never edited. If nothing is left after removal the reply is treated as withheld (`scrubbed_reply`) and the built-in answer is shown. When a page is added or renamed in `navigation.ts`, update `PAGE_NAMES`; the test fails until you do.
 
 ## Model chain
 
