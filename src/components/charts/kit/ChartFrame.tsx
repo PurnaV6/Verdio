@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from "react";
+import { useId, type KeyboardEvent, type ReactNode } from "react";
 import type { KeyOptions } from "./geometry";
 import { useActiveIndex, useElementWidth } from "./hooks";
 import { CANNOT_SHOW } from "./summary";
@@ -53,17 +53,27 @@ interface ChartFrameProps {
   legend?: ReactNode;
   table: ChartTableData;
   fallbackWidth?: number;
+  className?: string;                      // extra class on the figure, for a chart that lays its parts out differently
+  onActivate?: (index: number) => void;    // Enter or Space on the active point, for charts whose points can be picked
   children: (ctx: ChartContext) => ReactNode;
 }
 
-export function ChartFrame({ title, subtitle, label, available, unavailableMessage, count, keyOptions, announce, legend, table, fallbackWidth = 560, children }: ChartFrameProps) {
+export function ChartFrame({ title, subtitle, label, available, unavailableMessage, count, keyOptions, announce, legend, table, fallbackWidth = 560, className, onActivate, children }: ChartFrameProps) {
   const [boxRef, width] = useElementWidth<HTMLDivElement>(fallbackWidth);
   const { active, setActive, plotProps } = useActiveIndex(available ? count : 0, keyOptions);
   const hintId = useId();
   const showTitle = title || subtitle;
+  const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
+    if (onActivate && active !== null && (e.key === 'Enter' || e.key === ' ') && !e.altKey && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      onActivate(active);
+      return;
+    }
+    plotProps.onKeyDown(e);
+  };
 
   return (
-    <figure className="v2-kc">
+    <figure className={className ? `v2-kc ${className}` : 'v2-kc'}>
       {showTitle && (
         <figcaption className="v2-kc-head">
           {title && <p className="v2-kc-title">{title}</p>}
@@ -73,10 +83,10 @@ export function ChartFrame({ title, subtitle, label, available, unavailableMessa
       <div className="v2-kc-box" ref={boxRef}>
         {available ? (
           <>
-            <div className="v2-kc-plot" role="img" aria-label={label} aria-describedby={hintId} {...plotProps}>
+            <div className="v2-kc-plot" role="img" aria-label={label} aria-describedby={hintId} {...plotProps} onKeyDown={onKeyDown}>
               {children({ width, active, setActive })}
             </div>
-            <span id={hintId} className="v2-kc-live">Use the {keyOptions?.vertical ? 'up and down' : 'left and right'} arrow keys to step through the points, Home and End to jump to the first and last, Escape to clear.</span>
+            <span id={hintId} className="v2-kc-live">Use the {keyOptions?.vertical ? 'up and down' : 'left and right'} arrow keys to step through the points, Home and End to jump to the first and last, Escape to clear.{onActivate ? ' Enter or Space highlights the point.' : ''}</span>
             <p className="v2-kc-live" aria-live="polite" aria-atomic="true">{active !== null ? announce(active) : ''}</p>
           </>
         ) : <CannotShow message={unavailableMessage} />}

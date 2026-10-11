@@ -317,6 +317,22 @@ describe('scope limiting', () => {
     expect(JSON.stringify(logLines())).not.toContain('evil.example');
   });
 
+  it('removes a sentence that sends the user to a page that does not exist and tidies the punctuation', async () => {
+    process.env.AI_MOCK_MODE = 'invented-page';
+    const body = validBody({ context: 'Rows=100\nCHARTS: ID="concentration" Title="Revenue Concentration by Product Category"\nIf chart helps, add [CHART:id].' });
+    const res = await call(request({ body }));
+    expect(res.statusCode).toBe(200);
+    expect(res.body.result).toBe('The top customer is 50% of revenue, well above a safe level. Next action: add two mid-sized accounts. [CHART:concentration]');
+  });
+
+  it('falls back when removing invented references leaves nothing', async () => {
+    process.env.AI_MOCK_MODE = 'only-invented-page';
+    const res = await call(request());
+    expect(res.statusCode).toBe(502);
+    expect(res.body).toEqual({ error: 'Assistant unavailable', fallback: true });
+    expect(lastLog()).toMatchObject({ status: 502, reason: 'scrubbed_reply' });
+  });
+
   it('withholds insights JSON that contains links', async () => {
     process.env.AI_MOCK_MODE = 'injection-following';
     const res = await call(request({ body: { task: 'insights', context: 'Rows=100' } }));

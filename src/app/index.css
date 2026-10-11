@@ -989,3 +989,60 @@ button { cursor: pointer; }
 @media (pointer: coarse) {
   .v2-ls-btn { min-height: 44px; }
 }
+
+/* ---------- Slicers (v2-sl-) and rings (v2-rg-) ---------- */
+/* One block, appended last. Components: src/components/charts/kit/{Slicer,FilterableTable,RingChart}.tsx. Colours are
+   --vc-* / --v-* tokens only, so the accent switch reaches every mark. No gradients, no shadows, nothing animates.
+   Control borders use --vc-muted (3:1 against the panel); radius stays on the 2 to 6px scale. */
+.v2-sl-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 16px; min-width: 0; }
+.v2-sl-fields { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 16px; min-width: 0; }
+.v2-sl-field { display: grid; gap: 4px; min-width: 0; }
+.v2-sl-fields > .v2-sl-field:has(.v2-sl-chips) { flex: 1 1 100%; }
+.v2-sl-label { font: 500 11.5px/1.3 var(--v-font-data); letter-spacing: .08em; text-transform: uppercase; color: var(--vc-muted); }
+.v2-sl-select { box-sizing: border-box; min-width: 150px; max-width: 100%; min-height: 36px; padding: 6px 10px; border: 1px solid var(--vc-muted); border-radius: 4px; background: var(--vc-panel); color: var(--vc-ink); font: 400 14px/1.3 var(--v-font-body); }
+.v2-sl-select:focus-visible, .v2-sl-chip:focus-visible, .v2-sl-reset:focus-visible, .v2-sl-tbl:focus-visible { outline: 2px solid var(--vc-accent); outline-offset: 2px; }
+.v2-sl-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.v2-sl-chip { min-height: 36px; padding: 6px 12px; border: 1px solid var(--vc-muted); border-radius: 4px; background: var(--vc-panel); color: var(--vc-ink); font: 500 13px/1.2 var(--v-font-body); cursor: pointer; }
+.v2-sl-chip:hover { border-color: var(--vc-ink); }
+.v2-sl-chip[aria-pressed="true"] { border-color: var(--vc-accent); background: var(--vc-accent); color: var(--v-verd-ink); font-weight: 600; }
+.v2-sl-reset { min-height: 36px; padding: 6px 12px; border: 1px solid var(--vc-muted); border-radius: 4px; background: var(--vc-panel); color: var(--vc-ink); font: 500 13px/1.2 var(--v-font-body); cursor: pointer; }
+.v2-sl-reset[aria-disabled="true"] { border-color: var(--vc-line); color: var(--vc-muted); cursor: default; }
+.v2-sl-summary { flex: 1 1 100%; margin: 0; min-width: 0; font-size: 12.5px; line-height: 1.45; color: var(--vc-muted); overflow-wrap: anywhere; }
+.v2-sl-tf { display: grid; gap: 8px; min-width: 0; }
+.v2-sl-tfbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; }
+.v2-sl-tbl { max-height: 320px; overflow: auto; border: 1px solid var(--vc-line); border-radius: 2px; background: var(--vc-panel); }
+.v2-sl-tbl table { width: 100%; border-collapse: collapse; font: 12px/1.4 var(--v-font-data); color: var(--vc-ink); }
+.v2-sl-tbl caption { padding: 6px 8px; text-align: left; caption-side: top; color: var(--vc-muted); }
+.v2-sl-tbl th, .v2-sl-tbl td { padding: 4px 8px; border-top: 1px solid var(--vc-line); text-align: left; font-weight: 400; vertical-align: baseline; overflow-wrap: anywhere; }
+.v2-sl-tbl thead th { position: sticky; top: 0; background: var(--vc-panel); color: var(--vc-muted); font-weight: 500; }
+.v2-sl-tbl .is-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.v2-rg { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "head head" "plot legend" "table table"; gap: 6px 20px; align-items: center; }
+.v2-rg > .v2-kc-head { grid-area: head; }
+.v2-rg > .v2-kc-box { grid-area: plot; width: 240px; max-width: 100%; }
+.v2-rg > .v2-kc-box:not(:has(.v2-kc-plot)) { grid-column: 1 / -1; width: auto; }
+.v2-rg > .v2-rg-legend { grid-area: legend; }
+.v2-rg > .v2-kc-table { grid-area: table; }
+.v2-rg-svg { display: block; width: 240px; max-width: 100%; height: auto; touch-action: pan-y; }
+.v2-rg-slice { stroke: var(--vc-ink); stroke-width: 1; cursor: pointer; }
+.v2-rg-slice.is-active, .v2-rg-slice.is-selected { stroke-width: 2; }
+.v2-rg-fill-0 { fill: var(--vc-accent); }
+.v2-rg-fill-1 { fill: var(--vc-accent-2); }
+.v2-rg-fill-2 { fill: var(--vc-muted); }
+.v2-rg-fill-3 { fill: color-mix(in srgb, var(--vc-accent) 50%, var(--vc-ink)); }
+.v2-rg-fill-4 { fill: color-mix(in srgb, var(--vc-accent-2) 40%, var(--vc-panel)); }
+.v2-rg-fill-5 { fill: color-mix(in srgb, var(--vc-accent) 20%, var(--vc-panel)); }
+.v2-rg-pct { font: 600 11.5px var(--v-font-data); fill: var(--vc-ink); pointer-events: none; }
+.v2-rg-centre { font: 600 18px var(--v-font-data); fill: var(--vc-ink); pointer-events: none; }
+.v2-rg-centre-sub { font: 400 11.5px var(--v-font-data); fill: var(--vc-muted); pointer-events: none; }
+.v2-rg-legend { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; min-width: 0; }
+.v2-rg-row { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 5px 6px; border: 1px solid transparent; border-radius: 4px; font-size: 13px; line-height: 1.35; cursor: pointer; }
+.v2-rg-row.is-selected { border-color: var(--vc-accent); background: var(--vc-accent-tint); }
+.v2-rg-name { min-width: 0; overflow-wrap: anywhere; }
+.v2-rg-val { font: 600 12px var(--v-font-data); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.v2-rg-share { min-width: 4.5ch; text-align: right; font: 400 12px var(--v-font-data); font-variant-numeric: tabular-nums; color: var(--vc-muted); }
+.v2-rg-chat { display: grid; gap: 10px; min-width: 0; }
+@media (max-width: 560px) {
+  .v2-rg { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "plot" "legend" "table"; }
+  .v2-sl-fields > .v2-sl-field { flex: 1 1 140px; }
+  .v2-sl-select { width: 100%; min-width: 0; }
+}
