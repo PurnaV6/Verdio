@@ -49,24 +49,36 @@
   color-scheme: light;
   font-synthesis: none;
 
-  /* ==== Console palette: the ONE source of truth. The product is light only. ====
+  /* ==== Verd.io palette: the ONE source of truth. Blue and white, light only. ====
      ACCENT TRIO: the three values below are the only place the brand accent is defined.
+     Brand blue is #0a66c2. --vc-accent-2 is the lighter blue used for chart marks and is a
+     little deeper than the brand's #4da3f7 so it keeps 3:1 against white panels.
      To re-skin the whole app, replace them with one of these alternatives (or set
      data-accent="green" / "violet" on <html> with setAccent() from src/lib/theme.ts):
        green : --vc-accent #1F7A5C; --vc-accent-2 #4DAA8A; --vc-accent-tint #E5F3EE;
        violet: --vc-accent #6D4AE0; --vc-accent-2 #9D84F0; --vc-accent-tint #EFEAFC; */
-  --vc-accent: #1F5FD6;
-  --vc-accent-2: #5B8FEF;
-  --vc-accent-tint: #E8F0FD;
-  /* Neutrals and states (never switched by the accent). */
-  --vc-bg: #F3F5F8;
+  --vc-accent: #0A66C2;
+  --vc-accent-2: #3D8FE6;
+  --vc-accent-tint: #EAF3FF;
+  /* Neutrals and states (never switched by the accent). The state colours are contrast-checked: do not edit. */
+  --vc-bg: #F3F7FB;
   --vc-panel: #FFFFFF;
-  --vc-line: #D9DFE7;
-  --vc-ink: #17202B;
-  --vc-muted: #566475;
+  --vc-line: #DCE6F0;
+  --vc-ink: #102A43;
+  --vc-muted: #5B7088;
   --vc-ok: #17803D;
   --vc-watch: #9A5B00;
   --vc-risk: #C0352B;
+  /* Derived from the tokens above, never a new colour. */
+  --vc-accent-line: color-mix(in srgb, var(--vc-accent) 24%, var(--vc-panel));
+  --vc-hover: color-mix(in srgb, var(--vc-accent) 5%, var(--vc-panel));
+  --vc-card-shadow: 0 6px 20px color-mix(in srgb, var(--vc-ink) 5%, transparent);
+  --vc-pop-shadow: 0 18px 50px color-mix(in srgb, var(--vc-ink) 16%, transparent);
+  /* Shape: cards 16px, controls 10px, nav items 12px, pills fully round. */
+  --vc-r-card: 16px;
+  --vc-r-inner: 12px;
+  --vc-r-ctl: 10px;
+  --vc-r-pill: 999px;
 
   /* Legacy --v-* names: aliases of the --vc-* tokens above, kept so the existing rules
      re-skin without a rewrite. Retire them (use --vc-* directly) in a later clean-up. */
