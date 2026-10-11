@@ -4,8 +4,8 @@ import { ChartFrame } from "./ChartFrame";
 import { ChartTip } from "./ChartTip";
 import { bandPolygon, linePath, linearScale, nearestIndex, niceTicks, tickIndexes } from "./geometry";
 import { pointerX } from "./hooks";
-import { formatCompact, formatFull } from "./format";
-import { announce, canShow, PLANNING_RANGE_LABEL, summarise, tableRows, usableForecast, type ChartPoint } from "./summary";
+import { formatCompact } from "./format";
+import { announce, canShow, NARROW_PLOT_WIDTH, PLANNING_RANGE_LABEL, summarise, tableRows, tipLines, usableForecast, type ChartPoint } from "./summary";
 
 /* ================================================================
    VERDIO — TrendChart
@@ -65,7 +65,7 @@ export function TrendChart({ name, actual, forecast = [], format = 'currency', v
 }
 
 function TrendPlot({ points, nActual, format, width, active, setActive }: { points: ChartPoint[]; nActual: number; format: ValueFormat; width: number; active: number | null; setActive: (i: number | null) => void }) {
-  const height = width < 480 ? 220 : 250;
+  const height = width < NARROW_PLOT_WIDTH ? 220 : 250;
   const geo = useMemo(() => {
     const lows = points.map(p => p.low ?? p.value);
     const highs = points.map(p => p.high ?? p.value);
@@ -92,6 +92,7 @@ function TrendPlot({ points, nActual, format, width, active, setActive }: { poin
   const hasForecast = points.length > nActual;
   const lastF = points.length - 1;
   const ap = active !== null ? points[active] : null;
+  const tip = ap ? tipLines(ap, format, width) : null;
   const compactLast = formatCompact(points[nActual - 1].value, format);
 
   return (
@@ -122,16 +123,12 @@ function TrendPlot({ points, nActual, format, width, active, setActive }: { poin
         )}
         <rect x={geo.left} y={M.t} width={Math.max(0, width - M.r - geo.left)} height={height - M.b - M.t} fill="transparent" />
       </svg>
-      {ap && active !== null && (
+      {tip && active !== null && (
         <ChartTip x={geo.xs[active]} width={width}>
-          <b>{ap.forecast ? `${ap.label} (forecast)` : ap.label}</b>
-          <span>{formatFull(ap.value, format)}</span>
-          {ap.forecast && ap.low !== undefined && ap.high !== undefined && (
-            <>
-              <small>{PLANNING_RANGE_LABEL}</small>
-              <span>{formatFull(ap.low, format)} to {formatFull(ap.high, format)}</span>
-            </>
-          )}
+          <b>{tip.title}</b>
+          <span>{tip.value}</span>
+          {tip.note && <small>{tip.note}</small>}
+          {tip.range && <span>{tip.range}</span>}
         </ChartTip>
       )}
     </>

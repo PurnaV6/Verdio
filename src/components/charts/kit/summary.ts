@@ -98,6 +98,28 @@ export function announce(p: ChartPoint, format: ValueFormat): string {
   return `${p.label}, forecast ${formatFull(p.value, format)}${range}`;
 }
 
+// Plots narrower than this are phone-sized: the tooltip drops the long planning-range note so it does not cover the chart.
+// The legend, the table caption and the live region keep the full wording.
+export const NARROW_PLOT_WIDTH = 480;
+
+export interface TipLines {
+  title: string;
+  value: string;
+  note: string | null;    // the planning-range wording, wide plots only
+  range: string | null;   // "£1,000 to £2,000" for forecast points that carry low and high
+}
+
+// What the hover/keyboard tooltip says for a point, e.g. { title: "Jan 26 (forecast)", value: "£164,000", note: null, range: "£144,320 to £183,680" }.
+export function tipLines(p: ChartPoint, format: ValueFormat, plotWidth: number): TipLines {
+  const hasRange = p.forecast && p.low !== undefined && p.high !== undefined;
+  return {
+    title: p.forecast ? `${p.label} (forecast)` : p.label,
+    value: formatFull(p.value, format),
+    note: hasRange && plotWidth >= NARROW_PLOT_WIDTH ? PLANNING_RANGE_LABEL : null,
+    range: hasRange ? `${formatFull(p.low!, format)} to ${formatFull(p.high!, format)}` : null,
+  };
+}
+
 export interface TableRow {
   label: string;          // forecast rows end with "(forecast)"
   value: string;
