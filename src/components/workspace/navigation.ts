@@ -1,14 +1,15 @@
 export interface NavPage { id: string; label: string; group: string; badge?: string }
 
+// Groups follow the original Verd.io navigation: Workspace, Intelligence, Explore, Data.
 export const PAGES: NavPage[] = [
-  { id: 'overview', label: 'Executive Workspace', group: 'Decide' },
-  { id: 'analyses', label: 'Intelligence', group: 'Decide' },
-  { id: 'forecast', label: 'Predictions', group: 'Predict' },
-  { id: 'risks', label: 'Risks & Opportunities', group: 'Decide' },
-  { id: 'recs', label: 'Decisions', group: 'Decide' },
-  { id: 'execution', label: 'Execution', group: 'Decide' },
-  { id: 'advisor', label: 'AI Advisor', badge: 'AI', group: 'Predict' },
-  { id: 'scenarios', label: 'Scenario Planning', group: 'Predict' },
+  { id: 'overview', label: 'Executive Workspace', group: 'Workspace' },
+  { id: 'analyses', label: 'Intelligence', group: 'Intelligence' },
+  { id: 'forecast', label: 'Predictions', group: 'Intelligence' },
+  { id: 'risks', label: 'Risks & Opportunities', group: 'Intelligence' },
+  { id: 'recs', label: 'Decisions', group: 'Intelligence' },
+  { id: 'execution', label: 'Execution', group: 'Workspace' },
+  { id: 'advisor', label: 'AI Advisor', badge: 'AI', group: 'Intelligence' },
+  { id: 'scenarios', label: 'Scenario Planning', group: 'Intelligence' },
   { id: 'customers', label: 'Customer Intelligence', group: 'Explore' },
   { id: 'seasonality', label: 'Seasonality', group: 'Explore' },
   { id: 'products', label: 'Products & Markets', group: 'Explore' },
