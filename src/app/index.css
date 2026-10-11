@@ -92,7 +92,6 @@
   --v-verd: var(--vc-accent);
   --v-verd-ink: #FFFFFF;
   --v-tide: var(--vc-accent); /* only used for focus rings, which need the stronger accent */
-  --v-brass: var(--vc-watch);
   --v-oxide: var(--vc-risk);
   --v-font-display: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --v-font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -164,8 +163,8 @@ button { cursor: pointer; }
 .v2-land-tag { font-family: var(--v-font-body); font-size: 12.5px; line-height: 1.4; color: var(--v-muted); }
 .v2-land-tag b { color: var(--v-verd); font-weight: 600; }
 
-.v2-skip { position: absolute; left: 12px; top: -64px; z-index: 50; padding: 10px 16px; border-radius: var(--vc-r-ctl); color: var(--v-verd-ink); background: var(--v-verd); font-weight: 600; text-decoration: none; }
-.v2-skip:focus { top: 12px; }
+.v2-site .v2-skip { position: absolute; left: 12px; top: -64px; z-index: 50; padding: 10px 16px; border-radius: var(--vc-r-ctl); color: var(--v-verd-ink); background: var(--v-verd); font-weight: 600; text-decoration: none; }
+.v2-site .v2-skip:focus { top: 12px; }
 
 .v2-nav { position: sticky; top: 0; z-index: 30; border-bottom: 1px solid var(--v-rule); background: var(--vc-panel); }
 .v2-nav-inner { display: flex; align-items: center; gap: 24px; min-height: 68px; }
@@ -452,7 +451,6 @@ button { cursor: pointer; }
 .v2-fig .v2-state, .v2-fig .v2-tag { display: block; margin-top: 6px; }
 .v2-bar-wide { display: block; width: min(100%, 180px); margin-right: 0; }
 .v2-rev-fig .v2-unit { font: 400 16px/1 var(--v-font-body); }
-.v2-rev-hero .v2-bar-wide { margin-top: 10px; }
 
 /* Segmented choices (forecast scenario, filters): pill chips, the chosen one filled brand blue. */
 .v2-seg { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
