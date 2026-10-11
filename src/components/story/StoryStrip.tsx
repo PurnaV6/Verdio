@@ -3,6 +3,8 @@ import type { StoryOutcome } from "../../lib/story";
 import { StateMark } from "../workspace/StateMark";
 import { healthReading } from "../workspace/status";
 import { HealthRingBlock } from "./HealthRing";
+import { ListenButton } from "./ListenButton";
+import { utterancesFor } from "./listenModel";
 import { toStoryStripView } from "./storyStripModel";
 
 /* ================================================================
@@ -13,9 +15,10 @@ import { toStoryStripView } from "./storyStripModel";
    says why and what would fix it, never a blank.
    ================================================================ */
 
-export function StoryStrip({ outcome, title = 'Story' }: { outcome: StoryOutcome; title?: string }) {
+export function StoryStrip({ outcome, title = 'Story', brief }: { outcome: StoryOutcome; title?: string; brief?: string[] }) {
   const headingId = useId();
   const view = useMemo(() => toStoryStripView(outcome), [outcome]);
+  const spoken = useMemo(() => utterancesFor(outcome, brief), [outcome, brief]);
   // A story that rests on the business health score shows it as a ring beside the text. The number is the story's own fact.
   const healthFact = outcome.kind === 'story' ? outcome.facts.health : undefined;
   const health = healthFact && typeof healthFact.value === 'number' ? { value: healthFact.value, ...healthReading(healthFact.value) } : null;
@@ -23,7 +26,10 @@ export function StoryStrip({ outcome, title = 'Story' }: { outcome: StoryOutcome
   return (
     <section className={`v2-ov-story${view.kind === 'cannotSay' ? ' is-cannot' : ''}${health ? ' has-ring' : ''}`} aria-labelledby={headingId}>
       <div className="v2-ov-story-main">
-        <h2 id={headingId} className="v2-ov-story-title">{title}</h2>
+        <div className="v2-ls-head">
+          <h2 id={headingId} className="v2-ov-story-title">{title}</h2>
+          <ListenButton utterances={spoken} subject={brief ? 'the Monday brief' : 'this story'} />
+        </div>
         <dl className="v2-ov-story-parts">
           {view.parts.map(part => (
             <div key={part.id} className="v2-ov-story-part">

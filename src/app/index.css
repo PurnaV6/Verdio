@@ -963,3 +963,29 @@ button { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .v2-ov-body .animate-pulse { animation: none; }
 }
+
+/* Listen button on the story strip (v2-ls-) and the what-changed panel (v2-wc-). Tokens only, colour changes only. */
+.v2-ls-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; margin: 0 0 12px; }
+.v2-ls-head .v2-ov-story-title { margin: 0; }
+.v2-ls { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0; }
+.v2-ls-btn { min-height: 34px; padding: 6px 16px; border: 1px solid var(--vc-accent); border-radius: var(--vc-r-pill); background: var(--vc-panel); color: var(--vc-accent); font: 600 13.5px/1.2 var(--v-font-body); cursor: pointer; transition: background-color .15s ease, color .15s ease; }
+.v2-ls-btn:hover { background: var(--vc-accent-tint); }
+.v2-ls-btn[aria-pressed="true"] { background: var(--vc-accent); color: var(--vc-panel); }
+.v2-ls-btn[aria-pressed="true"]:hover { background: color-mix(in srgb, var(--vc-accent) 86%, var(--vc-ink)); }
+.v2-ls-btn:focus-visible { outline: 2px solid var(--vc-accent); outline-offset: 2px; }
+.v2-ls-hint { color: var(--vc-muted); overflow-wrap: anywhere; }
+.v2-wc-lead { margin: 0 0 4px; font: 600 15px/1.4 var(--v-font-display); color: var(--vc-ink); }
+.v2-wc-note { margin: 0 0 10px; padding: 8px 10px; border: 1px solid var(--vc-line); border-radius: var(--vc-r-inner); background: var(--vc-bg); font-size: 13px; line-height: 1.45; color: var(--vc-ink); }
+.v2-wc-rows { margin: 0; padding: 0; list-style: none; }
+.v2-wc-row { display: grid; grid-template-columns: minmax(130px, 200px) minmax(130px, 220px) minmax(0, 1fr); gap: 2px 16px; padding: 9px 0; border-top: 1px solid var(--vc-line); font-size: 13.5px; line-height: 1.5; }
+.v2-wc-row:first-child { padding-top: 0; border-top: 0; }
+.v2-wc-name { color: var(--vc-muted); }
+.v2-wc-move { font-weight: 600; color: var(--vc-ink); font-variant-numeric: tabular-nums; }
+.v2-wc-glyph { font-family: var(--v-font-body); }
+.v2-wc-detail { color: var(--vc-ink); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .v2-wc-row { grid-template-columns: minmax(0, 1fr); }
+}
+@media (pointer: coarse) {
+  .v2-ls-btn { min-height: 44px; }
+}
