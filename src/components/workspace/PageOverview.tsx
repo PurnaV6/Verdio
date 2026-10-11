@@ -6,9 +6,12 @@ import { bestColumnOfRole, primaryMeasureColumn } from "../../lib/analysis/pickC
 import { labelForMeasure } from "../../lib/labels";
 import { buildStory, CONFIDENCE_THRESHOLDS, formatters } from "../../lib/story";
 import { getTimeGreeting } from "../../lib/time/greeting";
-import { CannotShow, KpiTile, ShareBars, StackedSegmentBar, TrendChart, usableForecast } from "../charts/kit";
+import { selectionParts, shareSlice, trendSlice } from "../../lib/analysis/slicing";
+import { CannotShow, KpiTile, RingChart, ShareBars, StackedSegmentBar, TrendChart, canRing, usableForecast } from "../charts/kit";
 import { StoryStrip } from "../story/StoryStrip";
 import { ExecutiveRevenue } from "./ExecutiveRevenue";
+import { OverviewSlicers } from "./OverviewSlicers";
+import { useOverviewSlices, type OverviewSlices } from "./overviewSlices";
 import { SkeletonBlock } from "./Skeleton";
 import { StateMark } from "./StateMark";
 import { fmtN } from "./format";
@@ -31,6 +34,7 @@ export function PageOverview({ r }: { r: PipelineResult }) {
   const dateLabel=new Intl.DateTimeFormat(undefined,{weekday:'long',day:'numeric',month:'long'}).format(now);
   const health=healthReading(h);
   const revenue=useMemo(()=>getRevenueView(r),[r]);
+  const slices=useOverviewSlices(r,revenue.series);
   const story=useMemo(()=>buildStory('overview',r),[r]);
   const recConfidence=(topRec as Partial<EnrichedRecommendation>|undefined)?.confidence;
   const fileName=r.source.fileName;
@@ -60,12 +64,13 @@ export function PageOverview({ r }: { r: PipelineResult }) {
         :<div role="tabpanel" id="v2-panel-overview" aria-labelledby="v2-tab-overview" className="v2-ov-body">
           <StoryStrip outcome={story} title="Story for this file"/>
           <KeyFigures r={r} view={revenue} healthLabel={health.label} healthTone={health.tone}/>
+          <OverviewSlicers slices={slices}/>
           <div className="v2-ov-row is-wide">
-            <TrendPanel r={r} view={revenue}/>
+            <TrendPanel r={r} view={revenue} slices={slices}/>
             <RisksPanel r={r}/>
           </div>
           <div className="v2-ov-row">
-            <SharesPanel r={r}/>
+            <SharesPanel r={r} slices={slices}/>
             <SegmentsPanel r={r}/>
           </div>
           <div className="v2-ov-row is-wide">
@@ -159,25 +164,38 @@ function KeyFigures({ r, view, healthLabel, healthTone }: { r: PipelineResult; v
 
 /* ── Sales trend and forecast ── */
 
-function TrendPanel({ r, view }: { r: PipelineResult; view: RevenueView }) {
+function TrendPanel({ r, view, slices }: { r: PipelineResult; view: RevenueView; slices: OverviewSlices }) {
   const series = view.series;
   const measureLabel = series ? labelForMeasure(series.measureColumn) : 'Revenue';
-  const actual = useMemo(() => series?.points.map(p => ({ label: p.label, value: p.value })) ?? [], [series]);
-  const ahead = useMemo(() => forecastAhead(series?.measureColumn, r.ml.forecast), [series, r.ml.forecast]);
+  const { cube, state } = slices;
+  // With a slicer in play the actuals come from the file's own rows for that cut; the forecast is never recomputed.
+  const cut = useMemo(() => (cube ? trendSlice(cube, state) : null), [cube, state]);
+  const parts = useMemo(() => (cube ? selectionParts(cube, state) : []), [cube, state]);
+  const actual = useMemo(
+    () => (cut ? cut.points.map(p => ({ label: p.label, value: p.value })) : series?.points.map(p => ({ label: p.label, value: p.value })) ?? []),
+    [cut, series],
+  );
+  const forecastApplies = !cut || (state.value === null && cut.coversLatest);
+  const allAhead = useMemo(() => forecastAhead(series?.measureColumn, r.ml.forecast), [series, r.ml.forecast]);
+  const ahead = forecastApplies ? allAhead : [];
   const aheadUsable = usableForecast(ahead.map(p => ({ label: p.label, value: p.value }))).length > 0;
   const first = actual[0];
   const last = actual.at(-1);
+  const what = parts.length > 0 ? ` (${parts.join(', ')})` : '';
   const subtitle = first && last
-    ? `Monthly ${measureLabel.toLowerCase()}, ${first.label} to ${last.label}${aheadUsable ? `, with the next ${formatCount(ahead.length)} months and their planning range` : ''}`
+    ? `Monthly ${measureLabel.toLowerCase()}${what}, ${first.label} to ${last.label}${aheadUsable ? `, with the next ${formatCount(ahead.length)} months and their planning range` : ''}`
     : undefined;
 
   return (
     <section className="v2-ov-panel" aria-labelledby="v2-ov-trend-title">
       <h2 id="v2-ov-trend-title" className="v2-ov-h">Sales trend and forecast</h2>
-      {series
+      {series && cut?.empty
+        ? <CannotShow message={`No ${measureLabel.toLowerCase()} rows for ${parts.join(', ')}. Choose another value or reset the slicers.`}/>
+        : series
         ? <>
-          <TrendChart name={`Monthly ${measureLabel.toLowerCase()}`} actual={actual} forecast={ahead} format="currency" valueLabel={measureLabel} subtitle={subtitle}/>
-          {!aheadUsable && <p className="v2-ov-note">No forecast is shown: it needs at least {CONFIDENCE_THRESHOLDS.minMonthsForForecast} months of dated sales, and your file has {actual.length}.</p>}
+          <TrendChart name={`Monthly ${measureLabel.toLowerCase()}${what}`} actual={actual} forecast={ahead} format="currency" valueLabel={measureLabel} subtitle={subtitle} marked={cut?.markedLabel ?? undefined}/>
+          {!forecastApplies && <p className="v2-ov-note">The forecast is for all {measureLabel.toLowerCase()} from the latest month on, so it is not drawn for this selection. Reset the slicers to see it.</p>}
+          {forecastApplies && !aheadUsable && <p className="v2-ov-note">No forecast is shown: it needs at least {CONFIDENCE_THRESHOLDS.minMonthsForForecast} months of dated sales, and your file has {series.points.length}.</p>}
         </>
         : <CannotShow message="Cannot show this chart: the file has no date paired with a sales amount. Map a date column and a sales amount in Data Hub."/>}
     </section>
@@ -217,7 +235,7 @@ function RisksPanel({ r }: { r: PipelineResult }) {
 
 /* ── Where sales come from ── */
 
-function SharesPanel({ r }: { r: PipelineResult }) {
+function SharesPanel({ r, slices }: { r: PipelineResult; slices: OverviewSlices }) {
   // The category and amount the concentration risk was computed on; else the product column the Products page uses.
   const concentration = r.capabilities.capabilities.find(item => item.type === 'concentration_analysis' && item.available && item.columns.length >= 2);
   const measureCol = concentration ? concentration.columns[1] : primaryMeasureColumn(r.semantics.columns, r.engineeredRows);
@@ -226,16 +244,35 @@ function SharesPanel({ r }: { r: PipelineResult }) {
     () => (measureCol && productCol ? computeCategoryBreakdown(r.engineeredRows, productCol, measureCol) : []),
     [r.engineeredRows, measureCol, productCol],
   );
-  const items = useMemo(() => shareItems(rows.map(row => ({ label: row.label, value: row.value }))), [rows]);
-  const measureLabel = measureCol ? labelForMeasure(measureCol) : '';
-  const quantity = !!measureCol && r.semantics.columns.find(c => c.columnName === measureCol)?.businessRole === 'quantity';
+  const { cube, state } = slices;
+  // With the slicers on, the split comes from the cube (the same rows and measure as the trend) for the chosen column,
+  // period and month. Untouched slicers give exactly the whole-file figures computed above.
+  const cubeShare = useMemo(() => (cube ? shareSlice(cube, state) : null), [cube, state]);
+  const shownMeasure = cube && cubeShare ? cube.measureColumn : measureCol;
+  const shownColumn = cube && cubeShare ? state.dimension : productCol;
+  const measureLabel = shownMeasure ? labelForMeasure(shownMeasure) : '';
+  const quantity = !!shownMeasure && r.semantics.columns.find(c => c.columnName === shownMeasure)?.businessRole === 'quantity';
+  const parts = useMemo(() => (cube && cubeShare ? selectionParts(cube, { ...state, value: null }) : []), [cube, cubeShare, state]);
+  // The ring is given every value, negatives included, so it can refuse a split that is not a share of a whole.
+  const ringItems = useMemo(
+    () => (cubeShare ? cubeShare.items : rows).map(i => ({ label: i.label, value: i.value })),
+    [cubeShare, rows],
+  );
+  const valueCount = ringItems.filter(i => i.value > 0).length;
+  const where = parts.length > 0 ? `, ${parts.join(', ')}` : cubeShare ? ', whole file' : '';
+  const format = quantity ? 'count' : 'currency';
+  const subtitle = `${measureLabel} by ${shownColumn}${where}, ${formatCount(valueCount)} ${valueCount === 1 ? 'value' : 'values'}`;
+  const linked = cube && cubeShare ? { selectedLabel: state.value, onSelect: (label: string | null) => slices.set({ value: label }) } : {};
 
   return (
     <section className="v2-ov-panel" aria-labelledby="v2-ov-shares-title">
       <h2 id="v2-ov-shares-title" className="v2-ov-h">Where sales come from</h2>
-      {measureCol && productCol && items.length > 0
-        ? <ShareBars name={`Share of ${measureLabel.toLowerCase()} by ${productCol}`} items={items} format={quantity ? 'count' : 'currency'}
-            categoryLabel={productCol} valueLabel={measureLabel} subtitle={`${measureLabel} by ${productCol}, ${formatCount(rows.length)} ${rows.length === 1 ? 'value' : 'values'}`}/>
+      {shownMeasure && shownColumn && ringItems.length > 0
+        ? (canRing(ringItems)
+          ? <RingChart name={`Share of ${measureLabel.toLowerCase()} by ${shownColumn}${parts.length > 0 ? ` (${parts.join(', ')})` : ''}`} items={ringItems} format={format}
+              centreLabel={parts.at(-1) ?? 'all months'} categoryLabel={shownColumn} valueLabel={measureLabel} subtitle={subtitle} {...linked}/>
+          : <ShareBars name={`Share of ${measureLabel.toLowerCase()} by ${shownColumn}`} items={shareItems(ringItems)} format={format}
+              categoryLabel={shownColumn} valueLabel={measureLabel} subtitle={subtitle}/>)
         : <CannotShow message="Cannot show this chart: no product column and sales amount column were found. Map them in Data Hub."/>}
     </section>
   );
@@ -250,8 +287,11 @@ function SegmentsPanel({ r }: { r: PipelineResult }) {
     <section className="v2-ov-panel" aria-labelledby="v2-ov-segments-title">
       <h2 id="v2-ov-segments-title" className="v2-ov-h">Customer segments</h2>
       {seg && counts.length > 0
-        ? <StackedSegmentBar name="Customer segments" segments={counts.map(item => ({ label: item.label, value: item.value }))}
-            categoryLabel="Segment" valueLabel="Customers" subtitle={`${formatCount(seg.segments.length)} customers in ${seg.customerColumn}, by spend, orders and recent activity`}/>
+        ? (canRing(counts)
+          ? <RingChart name="Customer segments" items={counts.map(item => ({ label: item.label, value: item.value }))} format="count" centreLabel="customers"
+              categoryLabel="Segment" valueLabel="Customers" subtitle={`${formatCount(seg.segments.length)} customers in ${seg.customerColumn}, by spend, orders and recent activity`}/>
+          : <StackedSegmentBar name="Customer segments" segments={counts.map(item => ({ label: item.label, value: item.value }))}
+              categoryLabel="Segment" valueLabel="Customers" subtitle={`${formatCount(seg.segments.length)} customers in ${seg.customerColumn}, by spend, orders and recent activity`}/>)
         : <CannotShow message="Cannot show this chart: customer analysis needs a customer, date and amount column. Map them in Data Hub."/>}
     </section>
   );
