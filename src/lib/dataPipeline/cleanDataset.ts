@@ -157,7 +157,7 @@ export function cleanDataset(rows: RawRow[], profile: DatasetProfile): CleanedDa
         actions.push({
           type: skewed ? 'impute_numeric_median' : 'impute_numeric_mean',
           column: h, count,
-          detail: `Filled ${count} missing value(s) in "${h}" with the column ${skewed ? 'median' : 'mean'} (${fillValue}) — distribution is ${skewed ? 'skewed' : 'stable'}.`,
+          detail: `Filled ${count} missing value(s) in "${h}" with the column ${skewed ? 'median' : 'mean'} (${fillValue}); the distribution is ${skewed ? 'skewed' : 'stable'}.`,
         });
       }
     } else if (cp.inferredType === 'string' || cp.inferredType === 'boolean') {

@@ -77,7 +77,7 @@ export function generateRecommendations(
 
   if (statistics.correlations.some(c => c.strength === 'strong' || c.strength === 'very_strong')) {
     const best = statistics.correlations.find(c => c.strength === 'strong' || c.strength === 'very_strong')!;
-    recs.push({ title: `Investigate the ${best.columnA} ↔ ${best.columnB} relationship`, desc: `A ${best.strength.replace('_', ' ')} ${best.direction} correlation (r = ${best.coefficient}) was found — this may be worth building into pricing, forecasting or operational decisions.`, impact: 'medium', sourceColumns: [best.columnA, best.columnB] });
+    recs.push({ title: `Investigate the ${best.columnA} ↔ ${best.columnB} relationship`, desc: `A ${best.strength.replace('_', ' ')} ${best.direction} correlation (r = ${best.coefficient}) was found, so this may be worth building into pricing, forecasting or operational decisions.`, impact: 'medium', sourceColumns: [best.columnA, best.columnB] });
   }
 
   recs.push({ title: 'Run monthly Verd.io reviews', desc: 'Upload fresh data monthly to track how health score, risks and recommendations change from one upload to the next.', impact: 'medium', sourceColumns: [] });

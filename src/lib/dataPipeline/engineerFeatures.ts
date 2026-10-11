@@ -70,7 +70,7 @@ export function engineerFeatures(rows: RawRow[], index: SemanticIndex): Engineer
       addedFeatures.push({
         name: '__transactionValue', kind: 'total',
         sourceColumns: [priceCol.columnName, qtyCol.columnName],
-        description: `Computed "${priceCol.columnName}" × "${qtyCol.columnName}" for ${computed} row(s) — no revenue/total column was present.`,
+        description: `Computed "${priceCol.columnName}" × "${qtyCol.columnName}" for ${computed} row(s), as no revenue/total column was present.`,
       });
     }
   }

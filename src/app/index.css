@@ -115,12 +115,12 @@ button { cursor: pointer; }
 .verdio-chart .recharts-tooltip-label { margin-bottom:5px!important; color:var(--vc-ink); font-weight:700; }
 .verdio-chart table { border-collapse:collapse; }
 
-.header-icon { height: 36px; width: 36px; align-items: center; justify-content: center; border: 1px solid var(--vc-line); border-radius: 10px; background: white; color: #606971; transition: .18s ease; }
+.header-icon { height: 36px; width: 36px; align-items: center; justify-content: center; border: 1px solid var(--vc-line); border-radius: 10px; background: var(--vc-panel); color: #606971; transition: color .15s ease, border-color .15s ease; }
 .header-icon:hover { color: #141b21; border-color: #cbd0d5; }
-.header-action{ align-items: center; gap: 7px; border-radius: 10px; border: 1px solid var(--vc-line); background: white; color: #414951; font-size: 11px; font-weight: 600; padding: 9px 12px; transition: .18s ease; }
-.header-action:hover{ border-color: #bfc4ca; color: #171d24; transform: translateY(-1px); }
+.header-action{ align-items: center; gap: 7px; border-radius: 10px; border: 1px solid var(--vc-line); background: var(--vc-panel); color: #414951; font-size: 11px; font-weight: 600; padding: 9px 12px; transition: color .15s ease, border-color .15s ease; }
+.header-action:hover{ border-color: #bfc4ca; color: #171d24; }
 .user-avatar { width: 36px; height: 36px; border: 2px solid white; outline: 1px solid #d7dbdf; border-radius: 50%; color: white; background: #18293b; font-size: 12px; font-weight: 700; }
-.user-popover { display: none; position: absolute; right: 0; top: 43px; width: 210px; padding: 10px; border-radius: 14px; border: 1px solid var(--vc-line); background: white; box-shadow: 0 18px 50px rgba(12,20,27, .14); }
+.user-popover { display: none; position: absolute; right: 0; top: 43px; width: 210px; padding: 10px; border-radius: 14px; border: 1px solid var(--vc-line); background: var(--vc-panel); box-shadow: 0 18px 50px rgba(12,20,27, .14); }
 .user-menu:hover .user-popover, .user-menu:focus-within .user-popover { display: block; }
 .user-popover p { padding: 7px 8px 10px; border-bottom: 1px solid #edeff0; margin-bottom: 4px; }
 .user-popover button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px; border-radius: 8px; color: #525a61; font-size: 11px; text-align: left; }
@@ -248,7 +248,7 @@ button { cursor: pointer; }
 
 .mobile-scrim { display: none; }
 @media (max-width: 1023px) {
-  .app-sidebar { transform: translateX(-101%); transition: transform .24s ease; }
+  .app-sidebar { transform: translateX(-101%); }
   .app-sidebar.is-open { transform: translateX(0); }
   .mobile-scrim { position: fixed; inset: 0; z-index: 45; border: 0; background: rgba(5,10,15, .44); backdrop-filter: blur(2px); }
   .mobile-scrim.is-open { display: block; }
@@ -335,7 +335,7 @@ button { cursor: pointer; }
 .app-header .header-icon { width: 32px; height: 32px; border: 1px solid var(--vc-line); border-radius: 6px; color: var(--vc-ink); background: var(--vc-panel); }
 .app-header .header-icon:hover { border-color: var(--vc-ink); color: var(--vc-ink); }
 .app-header .header-action { padding: 6px 12px; border: 1px solid var(--vc-line); border-radius: 6px; color: var(--vc-ink); background: var(--vc-panel); font-size: 13px; }
-.app-header .header-action:hover { border-color: var(--vc-ink); color: var(--vc-ink); transform: none; }
+.app-header .header-action:hover { border-color: var(--vc-ink); color: var(--vc-ink); }
 .v2-header-actions { flex-shrink: 0; }
 .app-header .header-action, .app-header .header-icon { flex-shrink: 0; white-space: nowrap; }
 .app-header .v2-header-title, .app-header .v2-header-source { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

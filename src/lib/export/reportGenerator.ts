@@ -49,7 +49,7 @@ export function generateExecutiveReportHTML(result: any): string {
   <div class="header">
     <div>
       <div style="font-weight:900; font-size:22px; letter-spacing:-0.02em;">Verd.io</div>
-      <div style="font-size:10px; letter-spacing:0.2em; color:#64748B; font-weight:700;">ADAPTIVE INTELLIGENCE — EXECUTIVE DECISION REPORT</div>
+      <div style="font-size:10px; letter-spacing:0.2em; color:#64748B; font-weight:700;">ADAPTIVE INTELLIGENCE: EXECUTIVE DECISION REPORT</div>
       <div style="margin-top:10px;"><span class="badge" style="background:#0F172A; color:white;">${date}</span> <span class="badge" style="background:#F1F5F9; color:#334155;">${result.source.fileName}</span></div>
     </div>
     <div style="text-align:right;">
@@ -74,18 +74,18 @@ export function generateExecutiveReportHTML(result: any): string {
 
   ${vde ? `
   <div class="section">
-    <h2>Verd.io Decision Engine v2 — Financial Ranking</h2>
+    <h2>Verd.io Decision Engine v2: Financial Ranking</h2>
     <p style="background:#0F172A; color:white; padding:14px 16px; border-radius:10px; font-size:13px; line-height:1.7;">${vde.summary}</p>
-    ${modelMeta?.forecast ? `<div class="meta" style="margin-top:8px;">Model selection: <b>${modelMeta.forecast.chosenModel}</b> (confidence ${Math.round(modelMeta.forecast.confidence*100)}%) — ${modelMeta.forecast.reason}</div>` : ''}
+    ${modelMeta?.forecast ? `<div class="meta" style="margin-top:8px;">Model selection: <b>${modelMeta.forecast.chosenModel}</b> (confidence ${Math.round(modelMeta.forecast.confidence*100)}%). ${modelMeta.forecast.reason}</div>` : ''}
   </div>` : ''}
 
   <div class="section">
-    <h2>Top Risks — Ranked by Severity</h2>
+    <h2>Top Risks, Ranked by Severity</h2>
     ${risks.slice(0,4).map((r:any)=>`<div class="risk"><div class="badge" style="background:#DC2626; color:white;">${r.level.toUpperCase()}</div> <b style="margin-left:8px;">${r.title}</b><div style="font-size:13px; margin-top:6px; color:#334155;">${r.desc}</div></div>`).join('')}
   </div>
 
   <div class="section">
-    <h2>Prioritised Actions — Ranked by Financial Impact × Confidence / Effort</h2>
+    <h2>Prioritised Actions, Ranked by Financial Impact × Confidence / Effort</h2>
     ${recs.slice(0,5).map((rec:any,i:number)=>`
       <div class="rec">
         <div class="rec-top">
@@ -131,7 +131,7 @@ export function openReport(result: any): void {
 export function emailExecutiveSummary(result: any): void {
   const topRisk = result.decision.risks?.[0];
   const topAction = result.decision.recommendations?.[0];
-  const subject = `Verd.io executive summary — ${result.source.fileName}`;
+  const subject = `Verd.io executive summary: ${result.source.fileName}`;
   const body = [
     `Verd.io executive summary for ${result.source.fileName}`,
     '',

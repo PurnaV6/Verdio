@@ -70,12 +70,11 @@ export function ChartRenderer({ chart }: { chart: ChartSpec }) {
       {chart.chartType === 'bar' && (
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={chart.data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-            <defs><linearGradient id="verdioBar" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={theme.accent2}/><stop offset="100%" stopColor={theme.accent}/></linearGradient></defs>
             <CartesianGrid strokeDasharray="2 5" vertical={false} stroke={GRID} />
             <XAxis dataKey={chart.xKey} tick={{ fill: TICK, fontSize: 11 }} tickLine={false} axisLine={false} />
             <YAxis tick={{ fill: TICK, fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={v => formatValue(v, chart.formatValue)} />
             <Tooltip formatter={tooltipFormatter} contentStyle={TOOLTIP_STYLE} cursor={{ fill: hover }} />
-            <Bar dataKey={chart.yKey || 'value'} fill="url(#verdioBar)" radius={[6, 6, 2, 2]} maxBarSize={48} />
+            <Bar dataKey={chart.yKey || 'value'} fill={theme.accent} radius={[6, 6, 2, 2]} maxBarSize={48} />
           </BarChart>
         </ResponsiveContainer>
       )}
@@ -83,13 +82,12 @@ export function ChartRenderer({ chart }: { chart: ChartSpec }) {
       {chart.chartType === 'horizontal_bar' && (
         <ResponsiveContainer width="100%" height={Math.max(180, (chart.data.length || 1) * 34)}>
           <BarChart data={chart.data} layout="vertical" margin={{ left: 8, right: 8 }}>
-            <defs><linearGradient id="verdioHorizontalBar" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor={theme.accent}/><stop offset="100%" stopColor={theme.accent2}/></linearGradient></defs>
             <CartesianGrid strokeDasharray="2 5" horizontal={false} stroke={GRID} />
             <XAxis type="number" tick={{ fill: TICK, fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={v => formatValue(v, chart.formatValue)} />
             <YAxis type="category" dataKey={chart.yKey} tick={{ fill: TICK, fontSize: 11 }} tickLine={false} axisLine={false} width={110}
               tickFormatter={(v: string) => (v && v.length > 16 ? v.slice(0, 16) + '…' : v)} />
             <Tooltip formatter={tooltipFormatter} contentStyle={TOOLTIP_STYLE} cursor={{ fill: hover }} />
-            <Bar dataKey={chart.xKey || 'value'} fill="url(#verdioHorizontalBar)" radius={[0, 7, 7, 0]} maxBarSize={22} />
+            <Bar dataKey={chart.xKey || 'value'} fill={theme.accent} radius={[0, 7, 7, 0]} maxBarSize={22} />
           </BarChart>
         </ResponsiveContainer>
       )}

@@ -104,7 +104,7 @@ export function PageModelAssurance({ r }: { r: PipelineResult }) {
         <details className="v2-details"><summary>Review alternative models</summary>{model.result.alternativesConsidered.map(item => <div key={item.model}><p><strong>{item.model.replaceAll('_', ' ')}</strong> <span className="v2-tag">{Math.round(item.score * 100)}%</span></p><p>{item.whyRejected}</p></div>)}</details></>
         : <div className="v2-op-selected"><p className="v2-muted">{model.purpose}</p><p className="v2-tag">The uploaded data does not meet the minimum capability requirements for this model.</p></div>}
     </section>)}
-    <aside className="v2-note-block"><h2>Model outputs support—not replace—judgement</h2><p>Suitability reflects fit to the current data structure. Forecasts and detected anomalies should be reviewed alongside operational context before decisions are approved.</p></aside>
+    <aside className="v2-note-block"><h2>Model outputs support judgement, they do not replace it</h2><p>Suitability reflects fit to the current data structure. Forecasts and detected anomalies should be reviewed alongside operational context before decisions are approved.</p></aside>
   </div>;
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatCompact, formatFull } from "./format";
-import { announce, canShow, PLANNING_RANGE_LABEL, summarise, tableRows, usableForecast, type ChartPoint } from "./summary";
+import { announce, canShow, NARROW_PLOT_WIDTH, PLANNING_RANGE_LABEL, summarise, tableRows, tipLines, usableForecast, type ChartPoint } from "./summary";
 
 const actual = (label: string, value: number): ChartPoint => ({ label, value });
 const fc = (label: string, value: number): ChartPoint => ({ label, value, forecast: true, low: Math.round(value * 0.88), high: Math.round(value * 1.12) });
@@ -105,6 +105,26 @@ describe("announce", () => {
   it("flags forecast points and names the planning range", () => {
     expect(announce(fc('Jan 26', 1000), 'currency')).toBe('Jan 26, forecast £1,000, planning range £880 to £1,120');
     expect(announce({ label: 'Jan 26', value: 5, forecast: true }, 'count')).toBe('Jan 26, forecast 5');
+  });
+});
+
+describe("tipLines", () => {
+  it("shows the date, value and short range only on a phone-sized plot", () => {
+    const t = tipLines(fc('Jan 26', 164000), 'currency', NARROW_PLOT_WIDTH - 1);
+    expect(t).toEqual({ title: 'Jan 26 (forecast)', value: '£164,000', note: null, range: '£144,320 to £183,680' });
+  });
+  it("adds the planning-range note on a wide plot", () => {
+    const t = tipLines(fc('Jan 26', 164000), 'currency', NARROW_PLOT_WIDTH);
+    expect(t.note).toBe(PLANNING_RANGE_LABEL);
+    expect(t.range).toBe('£144,320 to £183,680');
+  });
+  it("has no note or range for an actual point at any width", () => {
+    expect(tipLines(actual('Mar 25', 152588), 'currency', 320)).toEqual({ title: 'Mar 25', value: '£152,588', note: null, range: null });
+    expect(tipLines(actual('Mar 25', 152588), 'currency', 900).note).toBeNull();
+  });
+  it("has no note or range for a forecast point without low and high", () => {
+    const t = tipLines({ label: 'Jan 26', value: 5, forecast: true }, 'count', 900);
+    expect(t).toEqual({ title: 'Jan 26 (forecast)', value: '5', note: null, range: null });
   });
 });
 
