@@ -17,10 +17,15 @@ alter table public.organization_audit_events enable row level security;
 create or replace function public.can_edit_organization(target uuid) returns boolean language sql security definer set search_path=public stable as $$
   select exists(select 1 from organization_members where organization_id=target and user_id=auth.uid() and role in ('owner','admin','analyst'))
 $$;
+drop policy if exists "Members view shared projects" on public.organization_projects;
 create policy "Members view shared projects" on public.organization_projects for select using(public.is_organization_member(organization_id));
+drop policy if exists "Editors create shared projects" on public.organization_projects;
 create policy "Editors create shared projects" on public.organization_projects for insert with check(public.can_edit_organization(organization_id) and owner_user_id=auth.uid());
+drop policy if exists "Editors update shared projects" on public.organization_projects;
 create policy "Editors update shared projects" on public.organization_projects for update using(public.can_edit_organization(organization_id));
+drop policy if exists "Editors delete shared projects" on public.organization_projects;
 create policy "Editors delete shared projects" on public.organization_projects for delete using(public.can_edit_organization(organization_id));
+drop policy if exists "Members view audit events" on public.organization_audit_events;
 create policy "Members view audit events" on public.organization_audit_events for select using(public.is_organization_member(organization_id));
 
 create or replace function public.record_organization_audit(target_organization uuid,target_event text,target_entity_type text,target_entity_id text default null,target_metadata jsonb default '{}'::jsonb)
@@ -38,9 +43,13 @@ grant execute on function public.record_organization_audit(uuid,text,text,text,j
 insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
 values('organization-projects','organization-projects',false,52428800,array['application/json'])
 on conflict(id) do update set public=false,file_size_limit=52428800,allowed_mime_types=array['application/json'];
+drop policy if exists "Members read project objects" on storage.objects;
 create policy "Members read project objects" on storage.objects for select using(bucket_id='organization-projects' and public.is_organization_member(((storage.foldername(name))[1])::uuid));
+drop policy if exists "Editors upload project objects" on storage.objects;
 create policy "Editors upload project objects" on storage.objects for insert with check(bucket_id='organization-projects' and public.can_edit_organization(((storage.foldername(name))[1])::uuid));
+drop policy if exists "Editors update project objects" on storage.objects;
 create policy "Editors update project objects" on storage.objects for update using(bucket_id='organization-projects' and public.can_edit_organization(((storage.foldername(name))[1])::uuid));
+drop policy if exists "Editors delete project objects" on storage.objects;
 create policy "Editors delete project objects" on storage.objects for delete using(bucket_id='organization-projects' and public.can_edit_organization(((storage.foldername(name))[1])::uuid));
 
 create index if not exists organization_projects_org_updated_idx on public.organization_projects(organization_id,updated_at desc);

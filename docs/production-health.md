@@ -57,6 +57,15 @@ order by schemaname, tablename, policyname;
 
 All six relations and the private `organization-projects` bucket must exist. Do not rerun historical migrations manually when they are already recorded.
 
+## Migrations are safe to re-run
+
+Every file in `supabase/migrations/` can be applied again to a database that already has its objects. Tables, indexes and added columns use `if not exists`, functions use `create or replace`, and each policy is preceded by `drop policy if exists`. This matters because the first migrations were applied by hand in the SQL editor, so Supabase's migration history does not list them; the GitHub integration therefore tries to run all of them from the start on every merge to `main`.
+
+- **Order.** Files run in file-name order and must keep running as a full set. Do not run `202607220001_organizations_and_schedules.sql` on its own after `202607230001_invitation_acceptance.sql` has been applied: it recreates the broader "Users manage own schedules" policy, which the later file drops again.
+- **Reading the Supabase Preview check.** Open the check's details on the pull request or the merge commit. The message ends with the failing file, the Postgres error and SQLSTATE, and `At statement: N` followed by the statement text. `42710` (already exists) on a `create` statement means a new migration was added without a guard; add `if not exists`, `create or replace` or `drop ... if exists` as above.
+- **New migrations.** Write them re-runnable from the start, with the same guards. Data statements (`insert`, `update`, `delete`) need their own guard such as `on conflict` or a `where not exists`; the `insert into storage.buckets` in `202607260001` uses `on conflict (id) do update`.
+- **What a failed check does to the database.** Not confirmed. A migration file is normally sent as one batch, so a failure part way through should not leave that file half applied, but this repository cannot prove how the integration executes it. After a failed check, run the verification queries above before assuming the database is unchanged.
+
 ## Failure interpretation
 
 - `ai` failed: check provider key, quota, model access and `AI_MODEL`/`AI_MODELS` (the check probes the first model in the chain only; a retired first model is skipped automatically by `/api/chat`).

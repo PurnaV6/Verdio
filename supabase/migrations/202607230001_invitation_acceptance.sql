@@ -26,6 +26,7 @@ create or replace function public.can_schedule_reports() returns boolean languag
     or exists(select 1 from organization_members where user_id=auth.uid() and role in ('owner','admin'))
 $$;
 drop policy if exists "Users manage own schedules" on public.report_schedules;
+drop policy if exists "Authorised users manage own schedules" on public.report_schedules;
 create policy "Authorised users manage own schedules" on public.report_schedules for all
 using (user_id=auth.uid() and public.can_schedule_reports())
 with check (user_id=auth.uid() and public.can_schedule_reports());
