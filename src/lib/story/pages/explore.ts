@@ -185,6 +185,14 @@ const PILLAR_ACTIONS: Record<string, RegExp> = {
   'Performance Trend': /growth/i,
 };
 
+// What each part of the score measures, from healthScoreEngine.ts. Used to say what holds the score back.
+const PILLAR_MEANING: Record<string, string> = {
+  'Performance Trend': 'how far sales moved between the first and the last month',
+  'Customer Strength': 'the share of customers who bought more than once',
+  'Data Quality': 'the quality score of the file',
+  'Stability': 'how much monthly sales swing around their average',
+};
+
 export function healthStory(c: Ctx): StoryOutcome {
   const { f, r, H } = c;
   const pillars = r.decision.health.pillars;
@@ -212,11 +220,16 @@ export function healthStory(c: Ctx): StoryOutcome {
 
   const assumedSentences = pillars.filter(pillar => assumed.has(pillar.name)).map(pillar => `${pillar.name} is assumed, not measured.`);
   const action = PILLAR_ACTIONS[weakest.name];
+  // With nothing assumed, the reason is the lowest part, said in words (its score is already in "happened").
+  const meaning = PILLAR_MEANING[weakest.name];
+  const lowestPart = strongest.score === weakest.score
+    ? 'No single part pulls the score down, as all parts score the same.'
+    : `${weak.name} is the lowest part.${meaning ? ` It reflects ${meaning}.` : ''}`;
 
   return compose(c, 'health', {
     happened: [[`Health is ${formatCount(H)}/100.`], [second]],
     // The first two sit in "why"; any further ones go to notes (below).
-    why: assumedSentences.length ? assumedSentences.map((sentence, i) => (i < 2 ? [sentence] : [sentence, ''])) : undefined,
+    why: assumedSentences.length ? assumedSentences.map((sentence, i) => (i < 2 ? [sentence] : [sentence, ''])) : [[lowestPart]],
     notes: assumedSentences.slice(2),
     next: action ? nextFromRecommendation(c, recommendationMatching(c, action)) : null,
     columns: [c.ts?.dateColumn, c.ts?.measureColumn, seg?.customerColumn],

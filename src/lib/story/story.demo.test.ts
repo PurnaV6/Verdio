@@ -331,6 +331,24 @@ describe('Health Detail', () => {
     expect(s.happened).toContain(`weakest: ${weakest.name} (${weakest.score}/${weakest.max})`);
   });
 
+  it('names the lowest part in words instead of saying the file cannot show why', () => {
+    const s = story('health');
+    const pillars = demo.decision.health.pillars;
+    const weakest = pillars.reduce((a, b) => (b.score < a.score ? b : a));
+    expect(s.why).toContain(`${weakest.name} is the lowest part.`);
+    expect(s.why).toMatch(/It reflects /);
+    expect(s.why).not.toContain('cannot show why');
+    expectHealthy(s, 'health');
+  });
+
+  it('says no part pulls the score down when every part scores the same', () => {
+    const even = structuredClone(demo);
+    even.decision.health.pillars = even.decision.health.pillars.map(pillar => ({ ...pillar, score: 20 }));
+    const s = story('health', even);
+    expect(s.why).toBe('No single part pulls the score down, as all parts score the same.');
+    expectHealthy(s, 'health');
+  });
+
   it('labels defaulted pillars as assumed', async () => {
     const noDates = await resultFromCsv(salesCsv({ months: 8, date: false, customer: false }));
     const s = story('health', noDates);
