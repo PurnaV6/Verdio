@@ -24,13 +24,14 @@ export interface TrendChartProps {
   format?: ValueFormat;          // default 'currency'
   valueLabel?: string;           // table column heading, default "Value"
   periodLabel?: string;          // table first column heading, default "Month"
+  marked?: string;               // label of an actual point to keep marked (a month chosen with a slicer)
   title?: string;
   subtitle?: string;
 }
 
 const M = { r: 12, t: 16, b: 28 };
 
-export function TrendChart({ name, actual, forecast = [], format = 'currency', valueLabel = 'Value', periodLabel = 'Month', title, subtitle }: TrendChartProps) {
+export function TrendChart({ name, actual, forecast = [], format = 'currency', valueLabel = 'Value', periodLabel = 'Month', marked, title, subtitle }: TrendChartProps) {
   const points = useMemo<ChartPoint[]>(() => {
     const ahead = usableForecast(forecast.map(f => ({ label: f.label, value: f.value, low: f.low, high: f.high, forecast: true })));
     return [...actual.map(a => ({ label: a.label, value: a.value })), ...ahead];
@@ -59,12 +60,12 @@ export function TrendChart({ name, actual, forecast = [], format = 'currency', v
   return (
     <ChartFrame title={title} subtitle={subtitle} label={label} available={available} count={points.length} keyOptions={keyOptions}
       announce={i => announce(points[i], format)} legend={legend} table={table}>
-      {({ width, active, setActive }) => <TrendPlot points={points} nActual={nActual} format={format} width={width} active={active} setActive={setActive} />}
+      {({ width, active, setActive }) => <TrendPlot points={points} nActual={nActual} format={format} width={width} active={active} setActive={setActive} marked={marked} />}
     </ChartFrame>
   );
 }
 
-function TrendPlot({ points, nActual, format, width, active, setActive }: { points: ChartPoint[]; nActual: number; format: ValueFormat; width: number; active: number | null; setActive: (i: number | null) => void }) {
+function TrendPlot({ points, nActual, format, width, active, setActive, marked }: { points: ChartPoint[]; nActual: number; format: ValueFormat; width: number; active: number | null; setActive: (i: number | null) => void; marked?: string }) {
   const height = width < NARROW_PLOT_WIDTH ? 220 : 250;
   const geo = useMemo(() => {
     const lows = points.map(p => p.low ?? p.value);
@@ -94,6 +95,7 @@ function TrendPlot({ points, nActual, format, width, active, setActive }: { poin
   const ap = active !== null ? points[active] : null;
   const tip = ap ? tipLines(ap, format, width) : null;
   const compactLast = formatCompact(points[nActual - 1].value, format);
+  const markedAt = marked === undefined ? -1 : points.findIndex((p, i) => i < nActual && p.label === marked);
 
   return (
     <>
@@ -115,6 +117,13 @@ function TrendPlot({ points, nActual, format, width, active, setActive }: { poin
         <circle className="v2-kc-dot" cx={geo.anchor.x} cy={geo.anchor.y} r={4.5} />
         <text className="v2-kc-direct is-ink" x={geo.anchor.x - 8} y={geo.anchor.y - 12} textAnchor="end">{compactLast}</text>
         {hasForecast && <text className="v2-kc-direct" x={geo.xs[lastF]} y={Math.min(geo.lastLow + 16, height - M.b - 4)} textAnchor="end">forecast</text>}
+        {markedAt >= 0 && (
+          <>
+            <line className="v2-kc-cross" x1={geo.xs[markedAt]} x2={geo.xs[markedAt]} y1={M.t} y2={height - M.b} />
+            <circle className="v2-kc-dot is-active" cx={geo.xs[markedAt]} cy={geo.ys[markedAt]} r={5.5} />
+            {markedAt !== nActual - 1 && <text className="v2-kc-direct is-ink" x={geo.xs[markedAt]} y={Math.max(geo.ys[markedAt] - 12, M.t + 10)} textAnchor={markedAt === 0 ? 'start' : 'middle'}>{`${points[markedAt].label} ${formatCompact(points[markedAt].value, format)}`}</text>}
+          </>
+        )}
         {ap && active !== null && (
           <>
             <line className="v2-kc-cross" x1={geo.xs[active]} x2={geo.xs[active]} y1={M.t} y2={height - M.b} />
