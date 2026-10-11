@@ -20,6 +20,7 @@
 import { createHash } from 'node:crypto';
 import { aiConfig, getProvider, ProviderError } from './_lib/aiProvider.js';
 import { buildMessages, screenText } from './_lib/prompts.js';
+import { chartNamesFromContext, isEffectivelyEmpty, normaliseTypography, removeInventedReferences } from './_lib/answerScrub.js';
 
 const LIMITS = { question: 500, historyTurns: 6, historyContent: 1000, context: 12000 };
 const MAX_TOKENS = { advisor: 500, insights: 1800 };
@@ -115,11 +116,20 @@ function validate(raw) {
 
 const URL_PATTERN = /https?:\/\/|\bwww\./i;
 
-/** Returns the cleaned answer, or null when it must not be shown (caller sends the fallback signal). */
-function scrubAnswer(task, text) {
+/**
+ * Returns the cleaned answer, or null when it must not be shown (caller sends the fallback signal).
+ * Plain punctuation is enforced for both tasks. For the Advisor, sentences that point to a page or
+ * chart that does not exist are removed (insights are JSON, so they are not edited sentence by sentence).
+ */
+function scrubAnswer(task, text, context) {
   let out = String(text ?? '').trim();
   if (task === 'insights') out = out.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
   if (!out || out.includes('```') || URL_PATTERN.test(out)) return null;
+  out = normaliseTypography(out);
+  if (task === 'advisor') {
+    out = removeInventedReferences(out, chartNamesFromContext(context));
+    if (isEffectivelyEmpty(out)) return null;
+  }
   if (out.length > MAX_ANSWER_CHARS[task]) {
     if (task === 'insights') return null;
     out = `${out.slice(0, MAX_ANSWER_CHARS[task]).trimEnd()}...`;
@@ -262,7 +272,7 @@ export default async function handler(req, res) {
   }
 
   const usage = { model: completion.model, inputTokens: completion.usage?.inputTokens, outputTokens: completion.usage?.outputTokens };
-  const result = scrubAnswer(task, completion.text);
+  const result = scrubAnswer(task, completion.text, request.context);
   if (result === null) return finish(502, { error: 'Assistant unavailable', fallback: true }, { reason: 'scrubbed_reply', ...usage });
   return finish(200, { result, source: 'ai' }, usage);
 }

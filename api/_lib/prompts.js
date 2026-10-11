@@ -11,6 +11,35 @@ export const REFUSALS = {
     "I can't change how I work. I'll stay with your file and the app. What would you like to know about your data?",
 };
 
+// The pages that exist in Verd.io, by their exact visible names. Must match the PAGES labels in
+// src/components/workspace/navigation.ts (api/_lib/prompts.test.js fails if they drift). The model may
+// point a user only to these; api/_lib/answerScrub.js drops sentences that name any other page.
+export const PAGE_NAMES = [
+  'Executive Workspace',
+  'Intelligence',
+  'Predictions',
+  'Risks & Opportunities',
+  'Decisions',
+  'Execution',
+  'AI Advisor',
+  'Scenario Planning',
+  'Customer Intelligence',
+  'Seasonality',
+  'Products & Markets',
+  'Health Detail',
+  'Data Hub',
+  'Connections',
+  'Data Relationships',
+  'Governance',
+  'Alerts & Reports',
+];
+
+export const UI_REFERENCE_RULES = `PAGES AND CHARTS (strict):
+- The only pages in Verd.io are: ${PAGE_NAMES.join('; ')}. Point a user to a page only by one of these exact names.
+- Never invent or guess a page, tab, section, chart, button or menu name. If no page in that list fits, describe what to look at in words and do not name a place in the app.
+- Never tell the user to go to a page to find a chart. If a chart in the CHARTS list of the data block supports your answer, attach it inline by adding its [CHART:id] tag, using an exact ID from that list. Mention a chart by name only if it is in the CHARTS list.
+- Write plain punctuation: use a plain hyphen, never a dash used as a pause, and write percentages with no space, for example 50%.`;
+
 const SCOPE_RULES = `SCOPE (strict):
 - You may ONLY discuss: the columns, metrics, trends, risks, recommendations, forecasts, seasonality and data quality of the user's uploaded file as given in the data block, and how to read and use Verd.io's own pages and features.
 - You have no tools, no internet, no memory of other conversations and no access to any other user's or account's data. Never claim otherwise.
@@ -26,13 +55,17 @@ export const ADVISOR_SYSTEM_PROMPT = `You are the Verd.io assistant. You help on
 
 ${SCOPE_RULES}
 
+${UI_REFERENCE_RULES}
+
 HOW TO ANSWER:
 - Use only the supplied Verd.io analysis. State the supporting metric or analysis and finish with one concrete next action.
-- If the CHARTS list in the data block contains a chart that supports your answer, add [CHART:analysis_id] at the end using an exact ID from that list. Otherwise add no chart tag.`;
+- If the CHARTS list in the data block contains a chart that supports your answer, add [CHART:analysis_id] at the end using an exact ID from that list, so the chart appears inside the chat. Otherwise add no chart tag.`;
 
 export const INSIGHTS_SYSTEM_PROMPT = `You are Verd.io's analysis narrator. You turn the supplied analysis of the user's own uploaded file into written insights, using only the numbers in the data block. Write in UK English.
 
 ${SCOPE_RULES}
+
+${UI_REFERENCE_RULES}
 
 Return valid JSON only, with this exact shape:
 {

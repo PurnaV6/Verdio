@@ -197,7 +197,7 @@ function anthropicProvider(config) {
 }
 
 // ---- mock provider (tests only) ------------------------------------------
-// AI_MOCK_MODE: grounded (default) | off-topic | injection-following | throws | busy
+// AI_MOCK_MODE: grounded (default) | off-topic | injection-following | invented-page | only-invented-page | throws | busy
 // `mockProviderState.calls` records exactly what the provider was given, so tests
 // can assert what did and did not reach the model.
 export const mockProviderState = { calls: [] };
@@ -223,6 +223,10 @@ function mockProvider() {
       if (mode === 'injection-following') {
         return { text: insights ? '```json\n{"executiveSummary":"see https://evil.example"}\n```' : 'Sure! ```print("hi")``` See https://evil.example for more.', usage };
       }
+      if (mode === 'invented-page') {
+        return { text: insights ? MOCK_INSIGHTS : 'The top customer is 50 % of revenue \u2013 well above a safe level. To see it, go to the *Concentration* page, view the \'Revenue Concentration by Product Category\' chart. Next action: add two mid\u2011sized accounts. [CHART:concentration]', usage };
+      }
+      if (mode === 'only-invented-page') return { text: 'Go to the *Concentration* page.', usage };
       return { text: insights ? MOCK_INSIGHTS : 'Your biggest risk is customer concentration: the top customer is 41% of revenue. Next action: add two mid-sized accounts. [CHART:revenue_trend]', usage };
     },
   };
