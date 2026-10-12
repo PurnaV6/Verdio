@@ -17,6 +17,7 @@ import { useAuth, PasswordGateScreen } from "../lib/auth/AuthContext";
 import { getSupabase } from "../lib/auth/supabaseClient";
 import { useOrganizationAccess } from "../lib/auth/useOrganizationAccess";
 import { createSampleBusinessFile } from "../lib/demo/sampleBusinessDataset";
+import { takeSnapshot, type UploadSnapshot } from "../lib/compare/uploadComparison";
 import { deleteProject, listProjects, recordProjectOpened, saveProject, type SavedProject } from "../lib/projects/projectStore";
 import type { BusinessRole } from "../types/semantic";
 import LandingPage from "../components/marketing/LandingPage";
@@ -213,6 +214,8 @@ function ViewerWorkspaceLanding({ message, onOpen }: { message: string; onOpen: 
 
 export default function App() {
   const [result, setResult] = useState<PipelineResult | null>(null);
+  // A small summary of the dataset the user had open before the current one, kept in memory only for "What changed since your last upload".
+  const [previousUpload, setPreviousUpload] = useState<UploadSnapshot | null>(null);
   const [page, setPage] = useState('overview');
   const [navOpen, setNavOpen] = useState(false);
   const [projectLibraryOpen, setProjectLibraryOpen] = useState(false);
@@ -231,9 +234,10 @@ export default function App() {
   const { user, loading: authLoading } = useAuth();
   const access=useOrganizationAccess();
   const reset = useCallback(() => {
+    setPreviousUpload(result ? takeSnapshot(result) : null);
     setResult(null); setPage('overview'); setCurrentProjectId(null);
     if(publicMode==='demo'){setPublicMode('landing');window.history.replaceState({},'','/');}
-  }, [publicMode]);
+  }, [publicMode, result]);
   const currentProjectIdRef = useRef(currentProjectId);
   useEffect(() => { currentProjectIdRef.current = currentProjectId; }, [currentProjectId]);
   useEffect(() => { if (!result || !result.aiLoading) return; let cancelled=false; generateAIInsights(result).then(ai=>{ if(!cancelled) setResult(prev=>prev?{...prev, aiInsights: ai, aiLoading:false}:prev); }); return()=>{cancelled=true;}; }, [result]);
@@ -252,7 +256,7 @@ export default function App() {
     window.history.replaceState({},'','/app?demo=1');
     try {
       const outcome=await runDataPipeline(createSampleBusinessFile());
-      if(outcome.ok){setResult(outcome.result);setPage('overview')}
+      if(outcome.ok){setPreviousUpload(null);setResult(outcome.result);setPage('overview')}
       else {setPublicMode('landing');window.history.replaceState({},'','/')}
     } finally {
       setDemoLoading(false);
@@ -263,7 +267,7 @@ export default function App() {
   if (!user && publicMode==='landing') return <PasswordGateScreen onBack={()=>setPublicView('landing')}/>;
   if (!user && (publicMode==='signin'||publicMode==='signup')) return <PasswordGateScreen initialMode={publicMode} onBack={()=>setPublicView('landing')}/>;
   if (!user && publicMode==='demo' && demoLoading) return <div role="status" aria-live="polite" className="v2-entry-shell is-wait"><div className="v2-spinner" aria-hidden="true"/><p className="v2-tag">Preparing the Verd.io live demo…</p></div>;
-  if (!result && access.role==='viewer') return <ViewerWorkspaceLanding message={inviteMessage} onOpen={project=>{void recordProjectOpened(project);setResult(project.result);setCurrentProjectId(project.id)}}/>;
+  if (!result && access.role==='viewer') return <ViewerWorkspaceLanding message={inviteMessage} onOpen={project=>{void recordProjectOpened(project);setPreviousUpload(null);setResult(project.result);setCurrentProjectId(project.id)}}/>;
   if (!result) return <UploadScreen onLoaded={r => { setCurrentProjectId(null); setResult(r); setPage('overview'); }} />;
   return (
     <div className="app-shell min-h-screen">
@@ -277,9 +281,9 @@ export default function App() {
             {publicMode==='demo'&&!user?<button onClick={()=>setPublicView('signup')} className="header-action flex">Create free account <ArrowUpRight size={13}/></button>:<div className="user-menu group relative"><button className="user-avatar" aria-label="Account menu">{(user?.email?.[0] || 'V').toUpperCase()}</button><div className="user-popover"><p className="truncate text-xs font-semibold text-slate-900">{user?.email || 'Local workspace'}</p><button onClick={reset}><RefreshCw size={13}/> New dataset</button><button onClick={()=>setPage('governance')}><Settings size={13}/> Settings</button><button onClick={async()=>{ const sb=getSupabase(); if(sb) await sb.auth.signOut(); }}>Sign out</button></div></div>}
           </div>
         </header>
-        <main className={`app-main p-4 md:p-7 max-w-[1480px] mx-auto ${access.role==='viewer'?'read-only-workspace':''}`}><ErrorBoundary key={page}><Suspense fallback={<PageLoadingFallback />}>{page==='overview'&&<PageOverview r={result} />}{page==='execution'&&<PageExecutionHub r={result} />}{page==='governance'&&<PageGovernanceHub r={result} />}{page==='advisor'&&<PageAdvisor r={result} />}{page==='forecast'&&<PageForecast r={result} />}{page==='scenarios'&&<PageScenarioPlanner r={result} />}{page==='analyses'&&<PageAnalyses r={result} />}{page==='customers'&&<PageCustomers r={result} />}{page==='seasonality'&&<PageSeasonality r={result} />}{page==='health'&&<PageHealth r={result} />}{page==='risks'&&<PageRisks r={result} />}{page==='recs'&&<PageRecs r={result} />}{page==='products'&&<PageProducts r={result} />}{page==='profile'&&<PageDataProfile r={result} />}{page==='connections'&&<PageConnections r={result} />}{page==='relationships'&&<PageRelationships r={result} />}{page==='alerts'&&<PageAlerts r={result} />}</Suspense></ErrorBoundary></main>
+        <main className={`app-main p-4 md:p-7 max-w-[1480px] mx-auto ${access.role==='viewer'?'read-only-workspace':''}`}><ErrorBoundary key={page}><Suspense fallback={<PageLoadingFallback />}>{page==='overview'&&<PageOverview r={result} previous={previousUpload} />}{page==='execution'&&<PageExecutionHub r={result} />}{page==='governance'&&<PageGovernanceHub r={result} />}{page==='advisor'&&<PageAdvisor r={result} />}{page==='forecast'&&<PageForecast r={result} />}{page==='scenarios'&&<PageScenarioPlanner r={result} />}{page==='analyses'&&<PageAnalyses r={result} />}{page==='customers'&&<PageCustomers r={result} />}{page==='seasonality'&&<PageSeasonality r={result} />}{page==='health'&&<PageHealth r={result} />}{page==='risks'&&<PageRisks r={result} />}{page==='recs'&&<PageRecs r={result} />}{page==='products'&&<PageProducts r={result} />}{page==='profile'&&<PageDataProfile r={result} />}{page==='connections'&&<PageConnections r={result} />}{page==='relationships'&&<PageRelationships r={result} />}{page==='alerts'&&<PageAlerts r={result} />}</Suspense></ErrorBoundary></main>
       </div>
-      <ProjectLibrary open={projectLibraryOpen} onClose={()=>setProjectLibraryOpen(false)} onOpen={project=>{ void recordProjectOpened(project);setResult(project.result);setCurrentProjectId(project.id);setPage('overview');setProjectLibraryOpen(false); }} />
+      <ProjectLibrary open={projectLibraryOpen} onClose={()=>setProjectLibraryOpen(false)} onOpen={project=>{ void recordProjectOpened(project);setPreviousUpload(null);setResult(project.result);setCurrentProjectId(project.id);setPage('overview');setProjectLibraryOpen(false); }} />
       <ExportDialog result={result} open={exportOpen} onClose={()=>setExportOpen(false)} />
     </div>
   );

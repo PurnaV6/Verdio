@@ -4,7 +4,8 @@ import type { EnrichedRecommendation } from "../../lib/decision/verdioDecisionEn
 import { computeCategoryBreakdown } from "../../lib/analysis/categoryBreakdown";
 import { bestColumnOfRole, primaryMeasureColumn } from "../../lib/analysis/pickColumns";
 import { labelForMeasure } from "../../lib/labels";
-import { buildStory, CONFIDENCE_THRESHOLDS, formatters } from "../../lib/story";
+import { buildMondayBrief, buildStory, CONFIDENCE_THRESHOLDS, formatters } from "../../lib/story";
+import { compareUploads, takeSnapshot, type UploadSnapshot } from "../../lib/compare/uploadComparison";
 import { getTimeGreeting } from "../../lib/time/greeting";
 import { selectionParts, shareSlice, trendSlice } from "../../lib/analysis/slicing";
 import { CannotShow, KpiTile, RingChart, ShareBars, StackedSegmentBar, TrendChart, canRing, usableForecast } from "../charts/kit";
@@ -14,6 +15,7 @@ import { OverviewSlicers } from "./OverviewSlicers";
 import { useOverviewSlices, type OverviewSlices } from "./overviewSlices";
 import { SkeletonBlock } from "./Skeleton";
 import { StateMark } from "./StateMark";
+import { WhatChanged } from "./WhatChanged";
 import { fmtN } from "./format";
 import { forecastAhead, moveReading, riskCounts, riskReading, segmentCounts, shareItems } from "./overviewModel";
 import { getRevenueView, NO_EARLIER_PERIOD } from "./revenue";
@@ -25,7 +27,7 @@ const SECTIONS: Section[] = ['overview', 'revenue'];
 
 const { formatCount, formatPounds } = formatters;
 
-export function PageOverview({ r }: { r: PipelineResult }) {
+export function PageOverview({ r, previous = null }: { r: PipelineResult; previous?: UploadSnapshot | null }) {
   const h = r.decision.health.total; const topRisk = r.decision.risks[0]; const topRec = r.decision.recommendations[0];
   const [section,setSection]=useState<Section>('overview');
   const [now,setNow]=useState(()=>new Date());
@@ -36,6 +38,8 @@ export function PageOverview({ r }: { r: PipelineResult }) {
   const revenue=useMemo(()=>getRevenueView(r),[r]);
   const slices=useOverviewSlices(r,revenue.series);
   const story=useMemo(()=>buildStory('overview',r),[r]);
+  const brief=useMemo(()=>buildMondayBrief(r),[r]);
+  const comparison=useMemo(()=>compareUploads(previous,takeSnapshot(r)),[previous,r]);
   const recConfidence=(topRec as Partial<EnrichedRecommendation>|undefined)?.confidence;
   const fileName=r.source.fileName;
 
@@ -62,7 +66,8 @@ export function PageOverview({ r }: { r: PipelineResult }) {
       {section==='revenue'
         ?<div role="tabpanel" id="v2-panel-revenue" aria-labelledby="v2-tab-revenue"><ExecutiveRevenue result={r}/></div>
         :<div role="tabpanel" id="v2-panel-overview" aria-labelledby="v2-tab-overview" className="v2-ov-body">
-          <StoryStrip outcome={story} title="Story for this file"/>
+          <StoryStrip outcome={story} title="Story for this file" brief={brief}/>
+          {comparison&&<WhatChanged comparison={comparison}/>}
           <KeyFigures r={r} view={revenue} healthLabel={health.label} healthTone={health.tone}/>
           <OverviewSlicers slices={slices}/>
           <div className="v2-ov-row is-wide">
