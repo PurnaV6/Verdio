@@ -34,9 +34,9 @@ describe("workspace navigation", () => {
     expect([...ids].sort()).toEqual([...PAGE_IDS].sort());
   });
 
-  it("groups every page under Decide, Predict, Explore or Data", () => {
+  it("groups every page under Workspace, Intelligence, Explore or Data", () => {
     const groups = new Set(PAGES.map(p => p.group));
-    expect([...groups].sort()).toEqual(["Data", "Decide", "Explore", "Predict"]);
+    expect([...groups].sort()).toEqual(["Data", "Explore", "Intelligence", "Workspace"]);
   });
 
   it("keeps the page labels", () => {

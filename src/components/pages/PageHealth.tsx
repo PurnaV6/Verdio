@@ -1,4 +1,5 @@
 import type { PipelineResult } from "../../types/pipeline";
+import { HealthRing } from "../story/HealthRing";
 import { StateMark } from "../workspace/StateMark";
 import { healthReading } from "../workspace/status";
 import { PageHead } from "./PageParts";
@@ -14,10 +15,10 @@ export function PageHealth({ r }: { r: PipelineResult }) {
         <div>
           <p className="v2-eyebrow">Overall score</p>
           <p className="v2-rev-fig">{h.total}<span className="v2-unit"> / 100</span></p>
-          <span className="v2-bar v2-bar-wide" aria-hidden="true"><i style={{ width: `${h.total}%` }} /></span>
         </div>
-        <div className="v2-rev-move">
+        <div className="v2-rev-move has-ring">
           <p className="v2-eyebrow">Reading</p>
+          <HealthRing value={h.total} label={reading.label} tone={reading.tone} />
           <StateMark tone={reading.tone} label={reading.label} />
         </div>
       </section>

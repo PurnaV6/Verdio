@@ -1,6 +1,6 @@
 /* ================================================================
    VERDIO — chart theme
-   Resolves the --vc-* console tokens (src/app/index.css) into plain
+   Resolves the --vc-* palette tokens (src/app/index.css) into plain
    values for libraries that take colour props instead of CSS
    variables (Recharts). The pure part lives here so it can be tested;
    useChartTheme.ts reads the real document.
@@ -45,7 +45,7 @@ export function buildChartTheme(read: (token: string) => string): ChartTheme {
       `color-mix(in srgb, ${v['accent-2']} 80%, ${ink})`,
     ],
     tooltip: {
-      borderRadius: 4,
+      borderRadius: 10,
       border: `1px solid ${v.line}`,
       boxShadow: `0 8px 24px color-mix(in srgb, ${ink} 14%, transparent)`,
       color: ink,
