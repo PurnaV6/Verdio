@@ -4,6 +4,7 @@ import type { StatisticsResult } from "../../types/statistics";
 import type { MLResults } from "../../types/ml";
 import type { Risk } from "../../types/decision";
 import { labelForMeasure } from "../labels";
+import { MISSING_LABEL } from "../dataPipeline/missingGroup";
 import { sumByCategory } from "../analysis/categoryBreakdown";
 
 /* ================================================================
@@ -13,6 +14,9 @@ import { sumByCategory } from "../analysis/categoryBreakdown";
    dimension the concentration_analysis capability actually found,
    and skips any risk type whose prerequisite capability is absent.
    ================================================================ */
+
+/** A blank category holding this share of the measure or more gets its own data-quality finding. */
+const MISSING_SHARE_FINDING = 0.1;
 
 function aggregateByCategory(rows: EngineeredRow[], categoryCol: string, measureCol: string): { label: string; value: number }[] {
   return Array.from(sumByCategory(rows, categoryCol, measureCol).entries()).map(([label, e]) => ({ label, value: e.value })).sort((a, b) => b.value - a.value);
@@ -32,9 +36,17 @@ export function detectRisks(
   const concentration = has('concentration_analysis');
   if (concentration) {
     const [catCol, measureCol] = concentration.columns;
-    const agg = aggregateByCategory(rows, catCol, measureCol);
+    const everything = aggregateByCategory(rows, catCol, measureCol);
     const measureLabel = labelForMeasure(measureCol);
+    // Concentration is judged over named categories only: "(Missing)" is a gap in the data, not a business dependency.
+    const agg = everything.filter(a => a.label !== MISSING_LABEL);
     const total = agg.reduce((s, a) => s + a.value, 0);
+    const missingValue = everything.find(a => a.label === MISSING_LABEL)?.value ?? 0;
+    const missingShare = missingValue > 0 ? missingValue / (total + missingValue) : 0;
+    if (missingShare >= MISSING_SHARE_FINDING) {
+      const pct = Math.round(missingShare * 100);
+      risks.push({ level: 'medium', icon: '🗄️', title: `Missing ${catCol} on ${pct}% of ${measureLabel}`, desc: `${pct}% of ${measureLabel} has no ${catCol}. Fill in the column at the source so breakdowns by it add up.`, sourceColumns: [catCol, measureCol] });
+    }
     if (agg.length && total > 0) {
       const p = (agg[0].value / total) * 100;
       risks.push(p > 60

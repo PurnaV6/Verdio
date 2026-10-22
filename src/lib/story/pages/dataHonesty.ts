@@ -35,5 +35,11 @@ export function leftOutNotes(c: Ctx): string[] {
     const n = f.n('possibleDuplicates', r.cleaning.duplicateRowCount, 'cleaning.duplicateRowCount');
     notes.push(`${pluralise(n, 'row')} exactly ${n === 1 ? 'repeats' : 'repeat'} an earlier row. ${n === 1 ? 'It is' : 'They are'} kept in the totals and flagged as possible duplicates.`);
   }
+  const undated = r.cleaning.undatedRows;
+  if (undated && undated.count > 0) {
+    const n = f.n('undatedRows', undated.count, 'cleaning.undatedRows.count');
+    const value = f.n('undatedRowsValue', Math.round(undated.value), 'cleaning.undatedRows.value (rounded)');
+    notes.push(`${pluralise(n, 'row')} ${n === 1 ? 'has' : 'have'} no date. ${n === 1 ? 'It is' : 'They are'} counted in total sales but not in the monthly trend, forecast or seasonality (${formatPounds(value)}).`);
+  }
   return notes;
 }

@@ -3,6 +3,7 @@ import { toDatasetSource } from "./workbook";
 import { profileDataset } from "./profileDataset";
 import { cleanDataset } from "./cleanDataset";
 import { applyRoleAwareSteps } from "./roleAwareSteps";
+import { findUndatedRows } from "./undatedRows";
 import { buildColumnReport } from "./cleaningReport";
 import { salesSummary, EMPTY_EXCLUDED } from "../analysis/salesSummary";
 
@@ -69,6 +70,8 @@ export async function runDataPipeline(input: File | DatasetSource, semanticOverr
   const { rows: engineeredRows, addedFeatures } = engineerFeatures(steps.analysisRows, index);
   steps.calculated.forEach((wasCalculated, i) => { if (wasCalculated) engineeredRows[i]['__revenueCalculated'] = true; });
   const statistics = computeStatistics(engineeredRows, index);
+  const undatedRows = findUndatedRows(engineeredRows, statistics.timeSeries[0]);
+  if (undatedRows) cleaning.actions.push({ type: 'flag_undated_rows', column: undatedRows.measureColumn, count: undatedRows.count, detail: undatedRows.sentence });
 
   /* 9. Baseline analysis candidates (statistics-driven) */
   const baseAnalyses = generateAnalysisCandidates(engineeredRows, index, capabilities, statistics);
@@ -123,6 +126,7 @@ export async function runDataPipeline(input: File | DatasetSource, semanticOverr
   cleaning.rowsExcluded = { ...EMPTY_EXCLUDED, ...sales.excluded };
   cleaning.rowsCalculated = steps.calculatedCount;
   cleaning.returns = { count: sales.returnCount, total: sales.returnsTotal };
+  if (undatedRows) cleaning.undatedRows = undatedRows;
   if (steps.calculatedCount > 0) cleaning.calculatedCells = steps.calculatedCells;
   if (steps.duplicateCount > 0) {
     cleaning.duplicateRowCount = steps.duplicateCount;
@@ -136,6 +140,7 @@ export async function runDataPipeline(input: File | DatasetSource, semanticOverr
       source: { fileName: parsed.data.fileName, fileType: parsed.data.fileType, rowCount: cleanedRows.length },
       pipelineVersion: PIPELINE_VERSION,
       analysisRowCount: engineeredRows.length,
+      ...(undatedRows ? { undatedRows } : {}),
       excludedRows: steps.excludedRows,
       returnRows: steps.returnRows,
       profile,

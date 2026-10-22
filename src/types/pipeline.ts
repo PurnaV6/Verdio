@@ -1,4 +1,4 @@
-import type { ParsedDataset, DatasetProfile, CleaningReport, DataQualityReport, CapabilityReport, ExcludedRow, ReturnRow } from "./dataPipeline";
+import type { ParsedDataset, DatasetProfile, CleaningReport, DataQualityReport, CapabilityReport, ExcludedRow, ReturnRow, UndatedRows } from "./dataPipeline";
 import type { SemanticResult } from "./semantic";
 import type { EngineeredDataset, EngineeredRow } from "./features";
 import type { StatisticsResult } from "./statistics";
@@ -36,6 +36,7 @@ export interface PipelineResult {
   pipelineVersion?:  number;             // 2 from the blank-aware pipeline on; missing on older saved results
   excludedRows?:     ExcludedRow[];      // rows left out of sales totals (zero or blank sales amount, duplicates), with row number and reason
   returnRows?:       ReturnRow[];        // negative revenue or quantity, summed apart from sales
+  undatedRows?:      UndatedRows;        // rows in total sales that have no date, so are not in the monthly series
   analysisRowCount?: number;             // rows that count toward sales: engineeredRows.length. source.rowCount stays the rows kept in total
 }
 

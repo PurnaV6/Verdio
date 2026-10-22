@@ -60,7 +60,7 @@ export interface DatasetProfile {
 export interface CleaningAction {
   type:    'trim_headers' | 'trim_values' | 'remove_duplicate_rows' | 'standardise_missing'
          | 'convert_numeric' | 'convert_date'
-         | 'calculate_revenue' | 'exclude_rows' | 'flag_possible_duplicates' | 'flag_returns'
+         | 'calculate_revenue' | 'flag_undated_rows' | 'exclude_rows' | 'flag_possible_duplicates' | 'flag_returns'
          // Verdio no longer fills a missing value, so the three impute_* types are never written now.
          // They stay in the union so projects saved before that change still type-check.
          | 'impute_numeric_median' | 'impute_numeric_mean' | 'impute_categorical_mode';
@@ -100,6 +100,14 @@ export interface CalculatedCell {
   value:  number;
 }
 
+/** Rows that hold a sales amount but no usable date: in total sales, not in the monthly trend, forecast or seasonality. */
+export interface UndatedRows {
+  count:         number;
+  value:         number;     // their sales amount, which is in the total but not in the monthly series
+  measureColumn: string;
+  sentence:      string;     // plain sentence for the user
+}
+
 /** What Verdio did about the blanks in one column. */
 export type ColumnCleaningAction =
   | 'none'                  // nothing is missing
@@ -132,6 +140,7 @@ export interface CleaningReport {
   columns?:           ColumnCleaning[];                 // every column with any missing value
   rowsExcluded?:      Record<ExcludedReason, number>;   // rows left out of sales totals, by reason
   rowsCalculated?:    number;                           // rows where a blank revenue was calculated
+  undatedRows?:       UndatedRows;                      // rows with a sales amount but no date
   calculatedCells?:   CalculatedCell[];                 // the first calculated cells, with original row numbers
   returns?:           { count: number; total: number }; // negative-revenue or negative-quantity rows, total as a positive amount
   duplicateRowCount?: number;                           // exact duplicate rows found

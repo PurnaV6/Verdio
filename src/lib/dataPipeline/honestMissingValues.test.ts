@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { expectHealthy, resultFromCsv } from "../story/testkit";
 import { buildStory } from "../story/buildStory";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { PageEvidence } from "../../components/governance/GovernancePages";
 import { getRevenueView } from "../analysis/revenueView";
 import { salesSummary } from "../analysis/salesSummary";
 import { computeCategoryBreakdown } from "../analysis/categoryBreakdown";
@@ -327,5 +330,86 @@ describe('the story says what was left out', () => {
     expect(notes).toContain('1 row with a zero, blank or unusable sales amount is left out of sales totals.');
     expect(notes).toContain('1 return worth £10 is counted apart from sales.');
     expect(notes).toContain('Revenue was calculated as price x quantity for 1 row where it was blank.');
+  });
+});
+
+describe('rows with no date', () => {
+  const csv = [
+    'Order ID,Order Date,Revenue',
+    '1,2025-01-05,100', '2,2025-01-06,100', '3,2025-02-05,100', '4,,200', '5,2025-02-09,100', '6,2025-03-09,100', '7,2025-03-10,100',
+  ].join('\n');
+
+  it('keeps them in the total, leaves them out of the series, and says so', async () => {
+    const r = await resultFromCsv(csv);
+    expect(salesSummary(r).salesTotal).toBe(800);
+    expect(getRevenueView(r).total).toBe(800);
+    expect(r.statistics.timeSeries[0].points.reduce((sum, p) => sum + p.value, 0)).toBe(600);
+    expect(r.undatedRows).toMatchObject({ count: 1, value: 200, measureColumn: 'Revenue' });
+    expect(r.undatedRows?.sentence).toBe('1 row has no date. It is counted in total sales but not in the monthly trend, forecast or seasonality (200).');
+    expect(r.cleaning.undatedRows).toEqual(r.undatedRows);
+    expect(r.cleaning.actions.find(a => a.type === 'flag_undated_rows')).toMatchObject({ count: 1, detail: r.undatedRows?.sentence });
+  });
+
+  it('mentions them in the quality story with the numbers registered as facts', async () => {
+    const r = await resultFromCsv(csv);
+    const outcome = buildStory('quality', r, { teamMembers: 0, auditEvents: 0, today: new Date('2026-03-10T09:00:00Z') });
+    expectHealthy(outcome, 'quality');
+    if (outcome.kind !== 'story') throw new Error('expected a story');
+    expect(outcome.notes.join(' ')).toContain('1 row has no date. It is counted in total sales but not in the monthly trend, forecast or seasonality (£200).');
+  });
+
+  it('adds nothing when every row is dated', async () => {
+    const r = await resultFromCsv(revenueCsv(24, () => false).csv);
+    expect(r.undatedRows).toBeUndefined();
+    expect(r.cleaning.actions.some(a => a.type === 'flag_undated_rows')).toBe(false);
+  });
+});
+
+describe('a blank category is not a concentration risk', () => {
+  function categoryCsv(blank: (i: number) => boolean, rows = 60): string {
+    const lines = ['Order ID,Order Date,Product Category,Revenue'];
+    for (let i = 0; i < rows; i += 1) lines.push([`O-${i}`, dateOf(i), blank(i) ? '' : ['Analytics', 'Advisory', 'Support'][i % 3], 100].join(','));
+    return lines.join('\n');
+  }
+
+  it('judges concentration over named categories only and raises a separate data-quality finding', async () => {
+    const r = await resultFromCsv(categoryCsv(i => i % 5 < 2)); // 40% blank
+    const titles = r.decision.risks.map(risk => risk.title);
+    expect(r.decision.risks.some(risk => risk.desc.includes('"(Missing)"'))).toBe(false);
+    const finding = r.decision.risks.find(risk => risk.title.startsWith('Missing '));
+    expect(finding).toMatchObject({ level: 'medium', title: 'Missing Product Category on 40% of Revenue', desc: '40% of Revenue has no Product Category. Fill in the column at the source so breakdowns by it add up.' });
+    expect(titles.filter(t => /Concentration|Diversification/.test(t))).toHaveLength(1);
+    expect(r.decision.recommendations.some(rec => rec.title === 'Fill in the blank Product Category values')).toBe(true);
+  });
+
+  it('raises no finding below 10% of revenue', async () => {
+    const r = await resultFromCsv(categoryCsv(i => i % 20 === 0)); // 5% blank
+    expect(r.decision.risks.some(risk => risk.title.startsWith('Missing '))).toBe(false);
+  });
+});
+
+describe('the Governance page lists the rows left out', () => {
+  const rowsCsv = ['Order ID,Order Date,Quantity,Revenue', ...Array.from({ length: 205 }, (_, i) => `${i},${dateOf(i % 60)},${i % 2 ? 0 : 1},${i % 2 ? 0 : 10}`)].join('\n');
+
+  it('shows row number, reason and values, the first 200, then "and N more"', async () => {
+    const r = await resultFromCsv(rowsCsv);
+    expect(r.excludedRows).toHaveLength(102);
+    const html = renderToStaticMarkup(createElement(PageEvidence, { r }));
+    expect(html).toContain('Rows left out');
+    expect(html).toContain('Quantity is 0');
+    expect(html).toContain('Order ID: 1 ');
+    expect(html).not.toContain('and 2 more');
+  });
+
+  it('truncates after 200 rows', async () => {
+    const big = ['Order ID,Order Date,Quantity,Revenue', ...Array.from({ length: 450 }, (_, i) => `${i},${dateOf(i % 60)},0,0`), `x,${dateOf(1)},1,10`].join('\n');
+    const r = await resultFromCsv(big);
+    const html = renderToStaticMarkup(createElement(PageEvidence, { r }));
+    expect(html).toContain('and 250 more');
+  });
+
+  it('shows no section when nothing was left out', async () => {
+    const r = await resultFromCsv(revenueCsv(24, () => false).csv);
+    expect(renderToStaticMarkup(createElement(PageEvidence, { r }))).not.toContain('Rows left out');
   });
 });
