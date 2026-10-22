@@ -1,6 +1,6 @@
 import Papa from "papaparse";
 import { rowsToTable, sheetRows } from "./excelCells";
-import { parseSheetFileName } from "./workbookSheets";
+import { datasetDisplayName, excelSizeError, loadWorkbook, workbookUses1904 } from "./workbook";
 import type { ParsedDataset, ParseError, RawRow } from "../../types/dataPipeline";
 
 /* ================================================================
@@ -60,7 +60,8 @@ function jsonRecordsToRawRows(records: Record<string, unknown>[]): Record<string
   });
 }
 
-export async function parseDataset(file: File): Promise<ParseResult> {
+/** Parses a file. For an Excel workbook, `sheet` picks the sheet (the first sheet when omitted). */
+export async function parseDataset(file: File, sheet?: string): Promise<ParseResult> {
   if (!file || file.size === 0) {
     return { ok: false, error: { code: 'EMPTY_FILE', message: 'The selected file is empty.' } };
   }
@@ -68,23 +69,24 @@ export async function parseDataset(file: File): Promise<ParseResult> {
     return { ok: false, error: { code: 'TOO_LARGE', message: `File is larger than ${MAX_FILE_BYTES / (1024 * 1024)}MB. Please split it into smaller files.` } };
   }
 
-  /* A sheet taken from a multi-sheet workbook arrives as CSV text named `<workbook> / <sheet>`. */
-  const sheetFile = parseSheetFileName(file.name);
   const ext = (file.name.split('.').pop() || '').toLowerCase();
-  const fileType: ParsedDataset['fileType'] = sheetFile ? sheetFile.fileType :
+  const fileType: ParsedDataset['fileType'] =
     ext === 'xlsx' ? 'xlsx' : ext === 'xls' ? 'xls' : ext === 'tsv' ? 'tsv' : ext === 'json' ? 'json' : 'csv';
+  if (fileType === 'xlsx' || fileType === 'xls') {
+    const tooLarge = excelSizeError(file);
+    if (tooLarge) return { ok: false, error: tooLarge };
+  }
 
   try {
     let rawRows: Record<string, string>[];
 
-    if (!sheetFile && (fileType === 'xlsx' || fileType === 'xls')) {
+    if (fileType === 'xlsx' || fileType === 'xls') {
       const XLSX = await import("xlsx");
-      const buf = await file.arrayBuffer();
-      // Real cell values, not the text Excel displays (see excelCells.ts): cellNF keeps each cell's format so dates can be told from numbers.
-      const wb = XLSX.read(new Uint8Array(buf), { type: 'array', cellNF: true });
-      const firstSheet = wb.Sheets[wb.SheetNames[0]];
-      if (!firstSheet) return { ok: false, error: { code: 'NO_ROWS', message: 'The workbook has no readable sheets.' } };
-      rawRows = rowsToTable(sheetRows(XLSX, firstSheet, !!wb.Workbook?.WBProps?.date1904)).rows;
+      // Real cell values, not the text Excel displays (see excelCells.ts). The workbook is read once per File.
+      const wb = await loadWorkbook(file);
+      const ws = wb.Sheets[sheet ?? wb.SheetNames[0]];
+      if (!ws) return { ok: false, error: { code: 'NO_ROWS', message: sheet === undefined ? 'The workbook has no readable sheets.' : `The sheet "${sheet}" was not found in this workbook.` } };
+      rawRows = rowsToTable(sheetRows(XLSX, ws, workbookUses1904(wb))).rows;
     } else if (fileType === 'tsv') {
       const text = await file.text();
       rawRows = await parseDelimitedText(text, '\t');
@@ -111,7 +113,7 @@ export async function parseDataset(file: File): Promise<ParseResult> {
       return { ok: false, error: { code: 'NO_ROWS', message: 'Could not detect any columns in this file.' } };
     }
 
-    return { ok: true, data: { rows, headers, fileName: file.name, fileType } };
+    return { ok: true, data: { rows, headers, fileName: sheet !== undefined && (fileType === 'xlsx' || fileType === 'xls') ? datasetDisplayName(file.name, sheet) : file.name, fileType } };
   } catch (e: any) {
     return { ok: false, error: { code: 'PARSE_FAILED', message: e?.message || 'Could not read this file.' } };
   }

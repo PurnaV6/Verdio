@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef, Suspense } from "react";
 import { runDataPipeline } from "../lib/dataPipeline/runDataPipeline";
+import type { DatasetSource } from "../types/dataPipeline";
 import { generateAIInsights } from "../services/ai";
 
 import type { PipelineResult } from "../types/pipeline";
@@ -43,8 +44,7 @@ const PageConnections = lazyWithReload(() => import("../components/operational/O
 const PageRelationships = lazyWithReload(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageRelationships })));
 const PageScenarioPlanner = lazyWithReload(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageScenarioPlanner })));
 const PageTrustCenter = lazyWithReload(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageTrustCenter })));
-import { expandWorkbookFiles } from "../lib/dataPipeline/expandWorkbookFiles";
-import type { WorkbookNote } from "../lib/dataPipeline/workbookSheets";
+import { planUpload, toDatasetSource, type WorkbookNote } from "../lib/dataPipeline/workbook";
 import { prepareOrganizationWorkspace, type PreparedOrganizationWorkspace } from "../lib/organization/prepareOrganizationWorkspace";
 const PageActionTracker = lazyWithReload(() => import("../components/execution/ExecutionPages").then(m => ({ default: m.PageActionTracker })));
 const PageKpiTargets = lazyWithReload(() => import("../components/execution/ExecutionPages").then(m => ({ default: m.PageKpiTargets })));
@@ -65,33 +65,34 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [stage, setStage] = useState('');
-  const [pending, setPending] = useState<{ file: File; result: PipelineResult } | null>(null);
+  const [pending, setPending] = useState<{ source: DatasetSource; result: PipelineResult } | null>(null);
   const [organization, setOrganization] = useState<PreparedOrganizationWorkspace | null>(null);
   const [workbookNotes, setWorkbookNotes] = useState<WorkbookNote[]>([]);
   const [roleOverrides, setRoleOverrides] = useState<Record<string, BusinessRole>>({});
-  async function handleFile(file: File, isDemo = false) {
+  async function handleFile(input: File | DatasetSource, isDemo = false) {
+    const source = toDatasetSource(input);
     setError(''); setLoading(true);
     setStage(isDemo ? 'Preparing the sample business...' : 'Parsing file...'); await new Promise(r => setTimeout(r, 30));
     setStage('Profiling, cleaning and detecting columns...'); await new Promise(r => setTimeout(r, 30));
     setStage('Running statistics and ML models...');
-    const outcome = await runDataPipeline(file);
+    const outcome = await runDataPipeline(source);
     setLoading(false);
     if (!outcome.ok) { setError((outcome as any).error); return; }
     if (isDemo) { onLoaded(outcome.result); return; }
     setRoleOverrides(Object.fromEntries(outcome.result.semantics.columns.map(c => [c.columnName, c.businessRole])));
-    setPending({ file, result: outcome.result });
+    setPending({ source, result: outcome.result });
   }
   async function handleFiles(files: File[]) {
     if (!files.length) return;
     setError(''); setLoading(true); setStage('Reading your files...');
-    let expanded = files;
+    let sources: DatasetSource[];
     try {
-      const workbooks = await expandWorkbookFiles(files);
-      expanded = workbooks.files; setWorkbookNotes(workbooks.notes);
+      const plan = await planUpload(files); // a workbook with several tables becomes one dataset per sheet
+      sources = plan.sources; setWorkbookNotes(plan.notes);
     } catch (e:any) { setWorkbookNotes([]); setError(e?.message || 'The workbook could not be read.'); setLoading(false); return; }
-    if (expanded.length === 1) { await handleFile(expanded[0]); return; }
-    setStage(`Profiling ${expanded.length} organisational datasets...`);
-    try { setOrganization(await prepareOrganizationWorkspace(expanded)); }
+    if (sources.length === 1) { await handleFile(sources[0]); return; }
+    setStage(`Profiling ${sources.length} organisational datasets...`);
+    try { setOrganization(await prepareOrganizationWorkspace(sources)); }
     catch (e:any) { setError(e?.message || 'The organisational datasets could not be prepared.'); }
     setLoading(false);
   }
@@ -100,7 +101,7 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
     const primary=organization.context.datasets.find(dataset=>dataset.primary);
     if (!primary) { setError('Select one primary dataset for executive analysis.'); return; }
     setLoading(true); setStage('Building the organisational workspace...');
-    const outcome=await runDataPipeline(organization.files[primary.id]);
+    const outcome=await runDataPipeline(organization.sources[primary.id]);
     setLoading(false);
     if (!outcome.ok) { setError(outcome.error); return; }
     onLoaded({ ...outcome.result, organization: organization.context });
@@ -108,7 +109,7 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
   async function confirmMapping() {
     if (!pending) return;
     setLoading(true); setStage('Applying your mapping and building the analysis...');
-    const outcome = await runDataPipeline(pending.file, roleOverrides);
+    const outcome = await runDataPipeline(pending.source, roleOverrides);
     setLoading(false);
     if (!outcome.ok) { setError(outcome.error); return; }
     onLoaded(outcome.result);

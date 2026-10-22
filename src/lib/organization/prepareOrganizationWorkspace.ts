@@ -1,18 +1,18 @@
 import { parseDataset } from '../dataPipeline/parseDataset';
-import { datasetLabel } from '../dataPipeline/workbookSheets';
+import { toDatasetSource } from '../dataPipeline/workbook';
 import { profileDataset } from '../dataPipeline/profileDataset';
 import { classifyColumns } from '../dataPipeline/semanticEngine';
-import type { RawRow } from '../../types/dataPipeline';
+import type { DatasetSource, RawRow } from '../../types/dataPipeline';
 import type { BusinessRole } from '../../types/semantic';
 import type { DatasetPurpose, OrganizationContext, OrganizationDataset, OrganizationInsight, OrganizationMetric, OrganizationRelationship } from '../../types/organization';
 
 export interface PreparedOrganizationWorkspace {
   context: OrganizationContext;
-  files: Record<string, File>;
+  sources: Record<string, DatasetSource>; // what runDataPipeline re-parses for the chosen primary dataset
 }
 
-function slug(value: string, index: number) {
-  return `${value.toLowerCase().replace(/\.[^.]+$/, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 36) || 'dataset'}-${index + 1}`;
+function slug(value: string, index: number, stripExtension = true) {
+  return `${value.toLowerCase().replace(stripExtension ? /\.[^.]+$/ : /$^/, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 36) || 'dataset'}-${index + 1}`;
 }
 
 function purposeFor(fileName: string, roles: BusinessRole[]): DatasetPurpose {
@@ -113,8 +113,9 @@ function buildIntelligence(
   return {metrics,insights};
 }
 
-export async function prepareOrganizationWorkspace(input: File[]): Promise<PreparedOrganizationWorkspace> {
-  const parsed = await Promise.all(input.map(file=>parseDataset(file)));
+export async function prepareOrganizationWorkspace(input: Array<File | DatasetSource>): Promise<PreparedOrganizationWorkspace> {
+  const sources = input.map(toDatasetSource);
+  const parsed = await Promise.all(sources.map(source=>parseDataset(source.file,source.sheet)));
   const failed = parsed.find(result=>!result.ok);
   if (failed && !failed.ok) throw new Error(failed.error.message);
 
@@ -122,15 +123,15 @@ export async function prepareOrganizationWorkspace(input: File[]): Promise<Prepa
     if (!result.ok) throw new Error(result.error.message);
     const profile = profileDataset(result.data.rows);
     const semantics = classifyColumns(result.data.rows, profile);
-    const label = datasetLabel(result.data.fileName); // the sheet name for workbook sheets, so the workbook's own name does not decide the purpose
-    const id = slug(label,index);
+    const source = sources[index];
+    const id = source.sheet===undefined ? slug(result.data.fileName,index) : slug(`${source.file.name.replace(/\.[^.]+$/, '')} ${source.sheet}`,index,false);
     const roles = semantics.columns.map(column=>column.businessRole);
     const dataset: OrganizationDataset = {
-      id, fileName: result.data.fileName, purpose: purposeFor(label,roles),
+      id, fileName: result.data.fileName, ...(source.sheet===undefined?{}:{sheet:source.sheet}), purpose: purposeFor(result.data.fileName,roles), // a sheet's display name holds the workbook and sheet names, so a sheet called Sales scores as sales
       rowCount: result.data.rows.length, columnCount: result.data.headers.length, primary: false,
       columns: semantics.columns.map(column=>({ name: column.columnName, role: column.businessRole, dataType: column.dataType, confidence: column.confidence })),
     };
-    return { dataset, rows: result.data.rows, file: input[index] };
+    return { dataset, rows: result.data.rows, source };
   });
 
   const preferred = internal.find(item=>item.dataset.purpose==='sales') || [...internal].sort((a,b)=>b.dataset.rowCount-a.dataset.rowCount)[0];
@@ -157,6 +158,6 @@ export async function prepareOrganizationWorkspace(input: File[]): Promise<Prepa
   const intelligence=buildIntelligence(internal,relationships);
   return {
     context:{ name:'Organisation workspace',datasets:internal.map(item=>item.dataset),relationships,...intelligence,createdAt:new Date().toISOString() },
-    files:Object.fromEntries(internal.map(item=>[item.dataset.id,item.file])),
+    sources:Object.fromEntries(internal.map(item=>[item.dataset.id,item.source])),
   };
 }
