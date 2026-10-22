@@ -17,6 +17,12 @@ export interface ParsedDataset {
   fileType: 'csv' | 'xlsx' | 'xls' | 'tsv' | 'json';
 }
 
+/** Where a dataset comes from: a whole file, or one sheet of an Excel workbook. */
+export interface DatasetSource {
+  file:   File;
+  sheet?: string;
+}
+
 export interface ParseError {
   code:    'EMPTY_FILE' | 'NO_ROWS' | 'TOO_LARGE' | 'UNREADABLE' | 'PARSE_FAILED';
   message: string;
