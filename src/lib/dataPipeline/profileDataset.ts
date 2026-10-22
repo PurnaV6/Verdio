@@ -21,13 +21,6 @@ function isMissing(v: string): boolean {
   return isMissingValue(v);
 }
 
-export function looksNumeric(v: string): number | null {
-  const stripped = v.replace(/[£$€,\s]/g, '').replace(/%$/, '');
-  if (stripped === '' || stripped === '-') return null;
-  const n = Number(stripped);
-  return Number.isFinite(n) ? n : null;
-}
-
 const PLAIN_NUMBER = /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i;
 
 /**
@@ -48,6 +41,11 @@ export function parseAmount(cell: unknown): number | null {
   const n = Number(text);
   if (!Number.isFinite(n)) return null;
   return negative ? -Math.abs(n) : n;
+}
+
+/** Same reading as parseAmount, so a column is typed as numbers by the rule that later reads its cells. */
+export function looksNumeric(v: string): number | null {
+  return parseAmount(v);
 }
 
 export function looksDate(v: string): boolean {

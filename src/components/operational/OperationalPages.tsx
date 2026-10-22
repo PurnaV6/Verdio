@@ -9,6 +9,7 @@ import { StateMark } from '../workspace/StateMark';
 import { Figure, Figures, IdleMark, PageHead } from '../pages/PageParts';
 import { pageLabel } from "../workspace/navigation";
 import { sumColumn } from "../../lib/dataPipeline/salesRows";
+import { salesSummary } from "../../lib/analysis/salesSummary";
 
 const PREFS_KEY = 'verdio_operational_preferences_v1';
 
@@ -119,7 +120,7 @@ export function PageAlerts({ r }: { r: PipelineResult }) {
 export function PageScenarioPlanner({ r }: { r: PipelineResult }) {
   const [price, setPrice] = useState(0); const [volume, setVolume] = useState(0); const [cost, setCost] = useState(0); const [retention, setRetention] = useState(0);
   const measure = primaryMeasureColumn(r.semantics.columns, r.engineeredRows);
-  const baselineRevenue = useMemo(()=>measure ? sumColumn(r.engineeredRows,measure) : 0,[r,measure]);
+  const baselineRevenue = useMemo(()=>measure ? salesSummary(r).salesTotal : 0,[r,measure]);
   const costCol = r.semantics.columns.find(c=>c.businessRole==='cost')?.columnName;
   const baselineCost = costCol ? sumColumn(r.engineeredRows,costCol) : baselineRevenue * .55;
   const projectedRevenue = baselineRevenue * (1+price/100) * (1+volume/100) * (1+retention/100*.35);

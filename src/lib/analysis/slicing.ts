@@ -1,6 +1,7 @@
 import type { EngineeredRow } from "../../types/features";
 import type { ColumnSemantics } from "../../types/semantic";
 import { parseAmount } from "../dataPipeline/profileDataset";
+import { groupLabel } from "../dataPipeline/missingGroup";
 
 /* ================================================================
    VERDIO — Slicing (pure)
@@ -51,8 +52,7 @@ export function findSliceDimensions(columns: ColumnSemantics[], rows: Engineered
     const seen = new Set<string>();
     let filled = 0;
     for (const row of rows) {
-      const v = String(row[col.columnName] ?? '').trim();
-      if (!v) continue;
+      const v = groupLabel(row[col.columnName]); // a blank is its own "(Missing)" value, never dropped
       filled += 1;
       seen.add(v);
       if (seen.size > MAX_SLICE_VALUES) break;
@@ -108,8 +108,7 @@ export function buildSalesCube(rows: EngineeredRow[], measureColumn: string, dim
     const i = index.get(String(row['__monthKey'] ?? ''));
     if (i !== undefined) { months[i].total += v; months[i].rows += 1; }
     for (const dim of cubeDims) {
-      const value = String(row[dim.column] ?? '').trim();
-      if (!value) continue;
+      const value = groupLabel(row[dim.column]);
       dim.whole.set(value, (dim.whole.get(value) ?? 0) + v);
       if (i === undefined) continue;
       let cell = dim.byMonth.get(value);

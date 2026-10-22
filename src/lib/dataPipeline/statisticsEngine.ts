@@ -6,6 +6,7 @@ import type {
   SeasonalitySummary, SeasonalityPoint,
 } from "../../types/statistics";
 import { parseAmount } from "./profileDataset";
+import { groupLabel } from "./missingGroup";
 
 const DOW_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -148,7 +149,7 @@ export function computeStatistics(rows: EngineeredRow[], index: SemanticIndex): 
   const categorical: CategoryFrequency[] = [];
   for (const role of CATEGORY_ROLES) {
     for (const c of index.get(role)) {
-      const values = rows.map(r => String(r[c.columnName] ?? '')).filter(v => v !== '');
+      const values = rows.map(r => groupLabel(r[c.columnName])); // blanks are counted as "(Missing)", not dropped
       if (!values.length) continue;
       const counts = new Map<string, number>();
       for (const v of values) counts.set(v, (counts.get(v) || 0) + 1);

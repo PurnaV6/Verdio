@@ -3,6 +3,7 @@ import { formatCount, formatPercent, pluralise } from "../formatters";
 import { LIMITS, asSentence, firstSentence, fitPart, stripFinalPeriod } from "../text";
 import type { AlertPreferencesInput, StoryOutcome } from "../types";
 import { joinNames, recommendationMatching } from "./shared";
+import { leftOutNotes } from "./dataHonesty";
 
 /* ── Data Profile ── */
 
@@ -63,6 +64,7 @@ export function qualityStory(c: Ctx, pageId: 'quality'): StoryOutcome {
     happened: [[`Quality is ${formatCount(Q)}/100.`], [`Weakest area: ${weakest.name} (${formatCount(weakScore)}/100).`]],
     why: [issues, [filledSentence, '']],
     next: nextFromRecommendation(c, recommendationMatching(c, /data collection/i)),
+    notes: leftOutNotes(c),
   });
 }
 

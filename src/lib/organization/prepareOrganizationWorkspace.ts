@@ -5,6 +5,7 @@ import type { RawRow } from '../../types/dataPipeline';
 import type { BusinessRole } from '../../types/semantic';
 import type { DatasetPurpose, OrganizationContext, OrganizationDataset, OrganizationInsight, OrganizationMetric, OrganizationRelationship } from '../../types/organization';
 import { parseAmount } from "../dataPipeline/profileDataset";
+import { classifyRow } from "../dataPipeline/salesRows";
 
 export interface PreparedOrganizationWorkspace {
   context: OrganizationContext;
@@ -46,6 +47,18 @@ function numericColumn(item: { dataset: OrganizationDataset; rows: RawRow[] }, r
   return item.dataset.columns.find(column=>roles.includes(column.role) && column.dataType==='number')?.name;
 }
 
+/** Sales for a connected sales file, by the same row rule as the pipeline: zero, blank and negative rows do not count, a blank revenue is price x quantity. */
+function salesTotalFor(item: { dataset: OrganizationDataset; rows: RawRow[] }, revenueColumn?: string) {
+  if (!revenueColumn) return 0;
+  const cols = { revenue: revenueColumn, price: numericColumn(item, ['price']) ?? null, quantity: numericColumn(item, ['quantity']) ?? null };
+  let sum = 0;
+  for (const row of item.rows) {
+    const verdict = classifyRow(row, cols);
+    if (verdict.kind === 'sales' && verdict.value !== null) sum += verdict.value;
+  }
+  return sum;
+}
+
 function totalFor(item: { rows: RawRow[] }, column?: string) {
   return column ? item.rows.reduce((sum,row)=>sum+(numberValue(row[column])??0),0) : 0;
 }
@@ -62,7 +75,7 @@ function buildIntelligence(
 
   if(sales){
     const revenueColumn=numericColumn(sales,['revenue']);
-    const revenue=totalFor(sales,revenueColumn);
+    const revenue=salesTotalFor(sales,revenueColumn);
     if(revenueColumn) metrics.push({id:'connected-revenue',label:'Connected revenue',value:revenue,format:'currency',evidence:`Sum of ${revenueColumn} in ${sales.dataset.fileName}`,sourceDatasetIds:[sales.dataset.id]});
   }
 
@@ -102,7 +115,7 @@ function buildIntelligence(
 
   if(sales&&finance){
     const revenueColumn=numericColumn(sales,['revenue']); const costColumn=numericColumn(finance,['cost']);
-    const revenue=totalFor(sales,revenueColumn); const cost=totalFor(finance,costColumn);
+    const revenue=salesTotalFor(sales,revenueColumn); const cost=totalFor(finance,costColumn);
     if(revenueColumn&&costColumn&&revenue>0){
       const contribution=(revenue-cost)/revenue*100;
       metrics.push({id:'cross-source-contribution',label:'Cross-source contribution',value:contribution,format:'percentage',evidence:`Sales revenue less finance costs, divided by sales revenue`,sourceDatasetIds:[sales.dataset.id,finance.dataset.id]});

@@ -1,6 +1,7 @@
 import type { EngineeredRow } from "../../types/features";
 import type { CategoryBreakdownRow } from "../../types/statistics";
 import { parseAmount } from "../dataPipeline/profileDataset";
+import { groupLabel } from "../dataPipeline/missingGroup";
 
 /* ================================================================
    VERDIO — Category Breakdown
@@ -17,9 +18,9 @@ import { parseAmount } from "../dataPipeline/profileDataset";
 export function sumByCategory(rows: EngineeredRow[], categoryCol: string, measureCol: string): Map<string, { value: number; count: number }> {
   const sums = new Map<string, { value: number; count: number }>();
   for (const row of rows) {
-    const label = String(row[categoryCol] ?? '').trim();
+    const label = groupLabel(row[categoryCol]); // a blank category is its own "(Missing)" group, never dropped
     const v = parseAmount(row[measureCol]);
-    if (!label || v === null) continue;
+    if (v === null) continue;
     const entry = sums.get(label) || { value: 0, count: 0 };
     entry.value += v; entry.count += 1;
     sums.set(label, entry);
