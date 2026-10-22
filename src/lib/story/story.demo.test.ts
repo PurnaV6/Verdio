@@ -477,7 +477,7 @@ describe('Data Relationships', () => {
     const inventory = new File(['product id,inventory\nSKU-1,4\nSKU-2,20\n'], 'inventory.csv', { type: 'text/csv' });
     const workspace = await prepareOrganizationWorkspace([sales, inventory]);
     const primary = workspace.context.datasets.find(dataset => dataset.primary)!;
-    const outcome = await runDataPipeline(workspace.files[primary.id]);
+    const outcome = await runDataPipeline(workspace.sources[primary.id]);
     if (!outcome.ok) throw new Error(outcome.error);
     const withOrg: PipelineResult = { ...outcome.result, organization: workspace.context };
 

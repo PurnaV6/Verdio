@@ -1,4 +1,5 @@
 import { parseDataset } from "./parseDataset";
+import { toDatasetSource } from "./workbook";
 import { profileDataset } from "./profileDataset";
 import { cleanDataset } from "./cleanDataset";
 import { applyRoleAwareSteps } from "./roleAwareSteps";
@@ -18,6 +19,7 @@ import { computeHealthScore } from "../decision/healthScoreEngine";
 import { detectRisks } from "../decision/riskEngine";
 import { generateRecommendations } from "../decision/recommendationEngine";
 import { buildVerdioDecisions } from "../decision/verdioDecisionEngine";
+import type { DatasetSource } from "../../types/dataPipeline";
 import type { MLResults } from "../../types/ml";
 import type { PipelineOutcome } from "../../types/pipeline";
 import type { BusinessRole } from "../../types/semantic";
@@ -31,9 +33,10 @@ import type { BusinessRole } from "../../types/semantic";
 /** 2 from the blank-aware pipeline on. Results saved before it have no version. */
 export const PIPELINE_VERSION = 2;
 
-export async function runDataPipeline(file: File, semanticOverrides: Partial<Record<string, BusinessRole>> = {}): Promise<PipelineOutcome> {
+export async function runDataPipeline(input: File | DatasetSource, semanticOverrides: Partial<Record<string, BusinessRole>> = {}): Promise<PipelineOutcome> {
   /* 1. Parse */
-  const parsed = await parseDataset(file);
+  const { file, sheet } = toDatasetSource(input);
+  const parsed = await parseDataset(file, sheet);
   if (!parsed.ok) return { ok: false, error: parsed.error.message };
 
   /* 2. Profile (raw) → 3. Clean (structure only) → re-profile */
