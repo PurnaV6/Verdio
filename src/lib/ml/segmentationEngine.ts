@@ -1,5 +1,6 @@
 import type { EngineeredRow } from "../../types/features";
 import type { SegmentationResult, CustomerSegment, CustomerSegmentLabel } from "../../types/ml";
+import { parseAmount } from "../dataPipeline/profileDataset";
 
 /* ================================================================
    VERDIO — ML: RFM Segmentation + Churn Risk
@@ -42,9 +43,9 @@ export function runSegmentation(
 
   for (const row of rows) {
     const id = String(row[customerCol] ?? '').trim();
-    const spend = Number(row[measureCol]);
+    const spend = parseAmount(row[measureCol]);
     const monthKey = String(row['__monthKey'] ?? '').trim() || String(row[dateCol] ?? '').slice(0, 7);
-    if (!id || !Number.isFinite(spend)) continue;
+    if (!id || spend === null) continue;
 
     custSpend[id] = (custSpend[id] || 0) + spend;
     custOrders[id] = (custOrders[id] || 0) + 1;

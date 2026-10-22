@@ -1,5 +1,6 @@
 import { bestColumnOfRole } from "./pickColumns";
 import type { PipelineResult } from "../../types/pipeline";
+import { sumColumn } from "../dataPipeline/salesRows";
 
 /* ================================================================
    VERDIO — Revenue view (pure)
@@ -18,7 +19,7 @@ export const NO_EARLIER_PERIOD = 'No earlier month to compare with';
 export function getRevenueView(result: PipelineResult) {
   const revenueColumn=bestColumnOfRole(result.semantics.columns,'revenue');
   const connectedRevenue=result.organization?.metrics?.find(metric=>metric.id==='connected-revenue')?.value;
-  const total=connectedRevenue??(revenueColumn?result.engineeredRows.reduce((sum,row)=>sum+(Number(row[revenueColumn])||0),0):0);
+  const total=connectedRevenue??(revenueColumn?sumColumn(result.engineeredRows,revenueColumn):0);
   const series=result.statistics.timeSeries.find(item=>item.measureColumn===revenueColumn)
     ?? result.statistics.timeSeries.find(item=>/revenue|sales|amount/i.test(item.measureColumn));
   const latest=series?.points.at(-1)?.value ?? 0;

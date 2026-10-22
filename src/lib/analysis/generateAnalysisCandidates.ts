@@ -6,6 +6,9 @@ import type { MLResults } from "../../types/ml";
 import type { AnalysisCandidate, ValueFormat } from "../../types/analysis";
 import { buildLineChart, buildBarChart, buildHorizontalBarChart, buildScatterChart, buildPieChart, buildTable } from "./buildChartSpecs";
 import { labelForMeasure } from "../labels";
+import { parseAmount } from "../dataPipeline/profileDataset";
+import { sumByCategory } from "./categoryBreakdown";
+import { pickPrimaryMeasure } from "./pickColumns";
 
 /* ================================================================
    VERDIO — Stage 9: Analysis Candidate Generation
@@ -31,19 +34,13 @@ function roleOfColumn(index: SemanticIndex, columnName: string): BusinessRole | 
 }
 
 function aggregateByCategory(rows: EngineeredRow[], categoryCol: string, measureCol: string): { label: string; value: number }[] {
-  const sums = new Map<string, number>();
-  for (const row of rows) {
-    const label = String(row[categoryCol] ?? '').trim();
-    const v = Number(row[measureCol]);
-    if (!label || !Number.isFinite(v)) continue;
-    sums.set(label, (sums.get(label) || 0) + v);
-  }
-  return Array.from(sums.entries()).map(([label, value]) => ({ label, value: Math.round(value * 100) / 100 })).sort((a, b) => b.value - a.value);
+  return Array.from(sumByCategory(rows, categoryCol, measureCol).entries())
+    .map(([label, e]) => ({ label, value: Math.round(e.value * 100) / 100 }))
+    .sort((a, b) => b.value - a.value);
 }
 
 function primaryMeasureColumn(rows: EngineeredRow[], index: SemanticIndex): string | null {
-  if (rows.some(r => r['__transactionValue'] !== undefined)) return '__transactionValue';
-  return index.best('revenue')?.columnName || index.best('price')?.columnName || index.best('quantity')?.columnName || null;
+  return pickPrimaryMeasure(rows.some(r => r['__transactionValue'] !== undefined), role => index.best(role as BusinessRole)?.columnName ?? null);
 }
 
 export function generateAnalysisCandidates(
@@ -93,7 +90,7 @@ export function generateAnalysisCandidates(
   if (distribution && statistics.numeric.length) {
     const measureCol = primaryMeasureColumn(rows, index) || statistics.numeric[0].column;
     const stat = statistics.numeric.find(s => s.column === measureCol) || statistics.numeric[0];
-    const values = rows.map(r => Number(r[stat.column])).filter(Number.isFinite);
+    const values = rows.map(r => parseAmount(r[stat.column])).filter((v): v is number => v !== null);
     if (values.length >= 8) {
       const binCount = 6;
       const span = (stat.max - stat.min) || 1;
@@ -124,8 +121,8 @@ export function generateAnalysisCandidates(
     const best = [...statistics.correlations].sort((a, b) => Math.abs(b.coefficient) - Math.abs(a.coefficient))[0];
     if (best && best.strength !== 'negligible') {
       const points = rows
-        .map(r => ({ x: Number(r[best.columnA]), y: Number(r[best.columnB]) }))
-        .filter(p => Number.isFinite(p.x) && Number.isFinite(p.y))
+        .map(r => ({ x: parseAmount(r[best.columnA]), y: parseAmount(r[best.columnB]) }))
+        .filter((p): p is { x: number; y: number } => p.x !== null && p.y !== null)
         .slice(0, 300);
       out.push({
         id: 'correlation', capability: 'correlation',

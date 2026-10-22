@@ -28,6 +28,28 @@ export function looksNumeric(v: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+const PLAIN_NUMBER = /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i;
+
+/**
+ * The one way Verdio reads a money or count cell. A blank, whitespace, text, NaN or Infinity is null, never 0
+ * (`Number('')` is 0, which turns a gap into a sale). Accepts currency symbols, thousands commas, spaces,
+ * a trailing %, accounting negatives "(1,234.00)" and a trailing minus "1,234-".
+ */
+export function parseAmount(cell: unknown): number | null {
+  if (typeof cell === 'number') return Number.isFinite(cell) ? cell : null;
+  if (typeof cell !== 'string') return null;
+  let text = cell.trim();
+  if (text === '') return null;
+  let negative = false;
+  if (text.startsWith('(') && text.endsWith(')')) { negative = true; text = text.slice(1, -1); }
+  text = text.replace(/[£$€¥,\s]/g, '').replace(/%$/, '');
+  if (text.endsWith('-')) { negative = !negative; text = text.slice(0, -1); }
+  if (!PLAIN_NUMBER.test(text)) return null;
+  const n = Number(text);
+  if (!Number.isFinite(n)) return null;
+  return negative ? -Math.abs(n) : n;
+}
+
 export function looksDate(v: string): boolean {
   return isStrictDate(v);
 }

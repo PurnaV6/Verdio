@@ -1,5 +1,5 @@
 import type { RawRow, DatasetProfile, CleaningAction, CleanedDataset } from "../../types/dataPipeline";
-import { isMissingValue, looksNumeric } from "./profileDataset";
+import { isMissingValue, parseAmount } from "./profileDataset";
 import { toIsoDateString } from "./dateParsing";
 
 /* ================================================================
@@ -105,7 +105,7 @@ export function cleanDataset(rows: RawRow[], profile: DatasetProfile): CleanedDa
       working = working.map(row => {
         const v = row[h];
         if (v === '') return row;
-        const n = looksNumeric(v);
+        const n = parseAmount(v);
         if (n === null) return row;
         const normalised = String(n);
         if (normalised !== v) converted++;
@@ -139,7 +139,7 @@ export function cleanDataset(rows: RawRow[], profile: DatasetProfile): CleanedDa
     if (cp.uniquenessRatio > HIGH_UNIQUENESS_SKIP) continue; // never fabricate identifiers
 
     if (cp.inferredType === 'number') {
-      const nums = working.map(r => r[h]).filter(v => v !== '').map(Number).filter(Number.isFinite);
+      const nums = working.map(r => r[h]).filter(v => v !== '').map(parseAmount).filter((n): n is number => n !== null);
       if (!nums.length) continue;
       const mean = nums.reduce((s, v) => s + v, 0) / nums.length;
       const med = median(nums);

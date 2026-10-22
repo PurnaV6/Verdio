@@ -1,5 +1,6 @@
 import type { ChartSpec } from "../../types/analysis";
 import type { RingItem } from "./kit/ring";
+import { parseAmount } from "../../lib/dataPipeline/profileDataset";
 
 /* Which ChartSpecs are a share of ONE whole, so the AI Advisor may draw them as a ring: the pipeline's
    'pie' charts (concentration), and the customer-segment counts the segmentation step emits as a bar
@@ -32,7 +33,7 @@ export function specShares(chart: ChartSpec): SpecShares | null {
     const label = row[labelKey] === null || row[labelKey] === undefined ? '' : String(row[labelKey]).trim();
     if (!label) continue;
     const raw = row[valueKey];
-    items.push({ label, value: typeof raw === 'number' ? raw : typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : Number.NaN });
+    items.push({ label, value: parseAmount(raw) ?? Number.NaN });
   }
   if (items.length === 0) return null;
   return { items, categoryLabel: nice(labelKey), valueLabel: nice(valueKey) };

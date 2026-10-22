@@ -1,5 +1,6 @@
 import type { EngineeredRow } from "../../types/features";
 import type { ColumnSemantics } from "../../types/semantic";
+import { parseAmount } from "../dataPipeline/profileDataset";
 
 /* ================================================================
    VERDIO — Slicing (pure)
@@ -85,13 +86,13 @@ export interface SalesCube {
 
 /**
  * Sums `measureColumn` by month and by each dimension value. A row counts the way the statistics engine
- * counts it (finite measure; month from __monthKey), so the unsliced month totals equal timeSeries.
+ * counts it (a number in the measure cell, a blank is skipped; month from __monthKey), so the unsliced month totals equal timeSeries.
  */
 export function buildSalesCube(rows: EngineeredRow[], measureColumn: string, dimensions: SliceDimension[]): SalesCube {
   const labels = new Map<string, string>();
   for (const row of rows) {
     const key = String(row['__monthKey'] ?? '');
-    if (!key || labels.has(key) || !Number.isFinite(Number(row[measureColumn]))) continue;
+    if (!key || labels.has(key) || parseAmount(row[measureColumn]) === null) continue;
     labels.set(key, String(row['__monthLabel'] ?? key));
   }
   const keys = [...labels.keys()].sort((a, b) => a.localeCompare(b));
@@ -101,8 +102,8 @@ export function buildSalesCube(rows: EngineeredRow[], measureColumn: string, dim
   let wholeTotal = 0;
 
   for (const row of rows) {
-    const v = Number(row[measureColumn]);
-    if (!Number.isFinite(v)) continue;
+    const v = parseAmount(row[measureColumn]);
+    if (v === null) continue;
     wholeTotal += v;
     const i = index.get(String(row['__monthKey'] ?? ''));
     if (i !== undefined) { months[i].total += v; months[i].rows += 1; }

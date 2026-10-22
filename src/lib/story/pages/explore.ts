@@ -6,6 +6,7 @@ import { CANNOT_SHOW_WHY, cannotSay, compose, nextFromRecommendation, roleColumn
 import { formatCount, formatPercent, formatPounds, fullMonthName, fullWeekdayName, pluralise } from "../formatters";
 import type { StoryOutcome } from "../types";
 import { joinNames, readRisk, recommendationMatching } from "./shared";
+import { sumColumn } from "../../dataPipeline/salesRows";
 
 /* ── Scenario Planning ──
    Mirrors the arithmetic of PageScenarioPlanner (components/operational/OperationalPages.tsx).
@@ -25,9 +26,9 @@ export function scenarioModel(c: Ctx): ScenarioModel {
   const { r } = c;
   const levers = c.inputs.scenarioLevers ?? { price: 0, volume: 0, cost: 0, retention: 0 };
   const measure = primaryMeasureColumn(r.semantics.columns, r.engineeredRows);
-  const baselineRevenue = measure ? r.engineeredRows.reduce((sum, row) => sum + (Number(row[measure]) || 0), 0) : 0;
+  const baselineRevenue = measure ? sumColumn(r.engineeredRows, measure) : 0;
   const costColumn = r.semantics.columns.find(column => column.businessRole === 'cost')?.columnName;
-  const baselineCost = costColumn ? r.engineeredRows.reduce((sum, row) => sum + (Number(row[costColumn]) || 0), 0) : baselineRevenue * ASSUMED_COST_SHARE;
+  const baselineCost = costColumn ? sumColumn(r.engineeredRows, costColumn) : baselineRevenue * ASSUMED_COST_SHARE;
   const projectedRevenue = baselineRevenue * (1 + levers.price / 100) * (1 + levers.volume / 100) * (1 + levers.retention / 100 * 0.35);
   const projectedCost = baselineCost * (1 + levers.volume / 100) * (1 + levers.cost / 100);
   return { measure, costColumn, baselineRevenue, baselineProfit: baselineRevenue - baselineCost, projectedProfit: projectedRevenue - projectedCost };

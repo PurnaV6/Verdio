@@ -4,6 +4,7 @@ import { classifyColumns } from '../dataPipeline/semanticEngine';
 import type { RawRow } from '../../types/dataPipeline';
 import type { BusinessRole } from '../../types/semantic';
 import type { DatasetPurpose, OrganizationContext, OrganizationDataset, OrganizationInsight, OrganizationMetric, OrganizationRelationship } from '../../types/organization';
+import { parseAmount } from "../dataPipeline/profileDataset";
 
 export interface PreparedOrganizationWorkspace {
   context: OrganizationContext;
@@ -36,10 +37,9 @@ function overlap(rowsA: RawRow[], columnA: string, rowsB: RawRow[], columnB: str
 
 const RELATION_ROLES: BusinessRole[] = ['identifier', 'customer', 'product', 'date', 'location'];
 
-function numberValue(value: unknown) {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
-  const parsed = Number(String(value ?? '').replace(/[£$€,\s]/g, ''));
-  return Number.isFinite(parsed) ? parsed : 0;
+/** A number from a cell, or null for a blank or non-numeric cell (never 0). */
+function numberValue(value: unknown): number | null {
+  return parseAmount(value);
 }
 
 function numericColumn(item: { dataset: OrganizationDataset; rows: RawRow[] }, roles: BusinessRole[]) {
@@ -47,7 +47,7 @@ function numericColumn(item: { dataset: OrganizationDataset; rows: RawRow[] }, r
 }
 
 function totalFor(item: { rows: RawRow[] }, column?: string) {
-  return column ? item.rows.reduce((sum,row)=>sum+numberValue(row[column]),0) : 0;
+  return column ? item.rows.reduce((sum,row)=>sum+(numberValue(row[column])??0),0) : 0;
 }
 
 function buildIntelligence(
@@ -78,8 +78,8 @@ function buildIntelligence(
     const stockColumn=numericColumn(inventory,['inventory','quantity']);
     if(relation&&salesKey&&inventoryKey&&demandColumn&&stockColumn){
       const demandByKey=new Map<string,number>(); const stockByKey=new Map<string,number>();
-      sales.rows.forEach(row=>{const key=String(row[salesKey]??'').trim().toLowerCase();if(key)demandByKey.set(key,(demandByKey.get(key)||0)+numberValue(row[demandColumn]))});
-      inventory.rows.forEach(row=>{const key=String(row[inventoryKey]??'').trim().toLowerCase();if(key)stockByKey.set(key,(stockByKey.get(key)||0)+numberValue(row[stockColumn]))});
+      sales.rows.forEach(row=>{const key=String(row[salesKey]??'').trim().toLowerCase();if(key)demandByKey.set(key,(demandByKey.get(key)||0)+(numberValue(row[demandColumn])??0))});
+      inventory.rows.forEach(row=>{const key=String(row[inventoryKey]??'').trim().toLowerCase();if(key)stockByKey.set(key,(stockByKey.get(key)||0)+(numberValue(row[stockColumn])??0))});
       const matched=[...demandByKey.keys()].filter(key=>stockByKey.has(key));
       const matchedDemand=matched.reduce((sum,key)=>sum+(demandByKey.get(key)||0),0);
       const matchedStock=matched.reduce((sum,key)=>sum+(stockByKey.get(key)||0),0);

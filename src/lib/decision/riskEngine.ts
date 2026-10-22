@@ -4,6 +4,7 @@ import type { StatisticsResult } from "../../types/statistics";
 import type { MLResults } from "../../types/ml";
 import type { Risk } from "../../types/decision";
 import { labelForMeasure } from "../labels";
+import { sumByCategory } from "../analysis/categoryBreakdown";
 
 /* ================================================================
    VERDIO — Decision: Risk Detection
@@ -14,14 +15,7 @@ import { labelForMeasure } from "../labels";
    ================================================================ */
 
 function aggregateByCategory(rows: EngineeredRow[], categoryCol: string, measureCol: string): { label: string; value: number }[] {
-  const sums = new Map<string, number>();
-  for (const row of rows) {
-    const label = String(row[categoryCol] ?? '').trim();
-    const v = Number(row[measureCol]);
-    if (!label || !Number.isFinite(v)) continue;
-    sums.set(label, (sums.get(label) || 0) + v);
-  }
-  return Array.from(sums.entries()).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
+  return Array.from(sumByCategory(rows, categoryCol, measureCol).entries()).map(([label, e]) => ({ label, value: e.value })).sort((a, b) => b.value - a.value);
 }
 
 export function detectRisks(

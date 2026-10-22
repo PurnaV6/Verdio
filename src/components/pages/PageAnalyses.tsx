@@ -5,12 +5,13 @@ import { SkeletonLine } from "../workspace/Skeleton";
 import { findNarrative } from "./aiLookup";
 import { Figure, Figures, PageHead } from "./PageParts";
 import { pageLabel } from "../workspace/navigation";
+import { sumColumn } from "../../lib/dataPipeline/salesRows";
 
 export function PageAnalyses({ r }: { r: PipelineResult }) {
   const filtered = r.analyses.filter(a => !['comparison', 'concentration_analysis', 'segmentation'].includes(a.capability));
   const revenueColumn=bestColumnOfRole(r.semantics.columns,'revenue');
   const connectedRevenue=r.organization?.metrics?.find(metric=>metric.id==='connected-revenue')?.value;
-  const revenue=connectedRevenue??(revenueColumn?r.engineeredRows.reduce((sum,row)=>sum+(Number(row[revenueColumn])||0),0):0);
+  const revenue=connectedRevenue??(revenueColumn?sumColumn(r.engineeredRows,revenueColumn):0);
   const inventoryCoverage=r.organization?.metrics?.find(metric=>metric.id==='inventory-demand-coverage');
   const stockReview=r.organization?.metrics?.find(metric=>metric.id==='products-requiring-review');
   return <div className="v2-view">

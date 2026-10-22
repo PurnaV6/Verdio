@@ -5,6 +5,7 @@ import type {
   CorrelationPair, CorrelationStrength, TimeSeriesSummary, TimePoint,
   SeasonalitySummary, SeasonalityPoint,
 } from "../../types/statistics";
+import { parseAmount } from "./profileDataset";
 
 const DOW_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -25,8 +26,20 @@ const CATEGORY_ROLES: BusinessRole[] = ['category', 'product', 'location', 'stat
 const ENGINEERED_NUMERIC_KEYS = ['__transactionValue', '__margin', '__marginPct'];
 const MAX_CORRELATION_PAIRS = 6;
 
+/** The numbers in a column. A blank cell is skipped, never read as 0. */
 function nums(rows: EngineeredRow[], col: string): number[] {
-  return rows.map(r => Number(r[col])).filter(Number.isFinite);
+  return rows.map(r => parseAmount(r[col])).filter((v): v is number => v !== null);
+}
+
+/** Pairs of values from two columns, only from rows where both are present, so a blank in one never shifts the other. */
+function numPairs(rows: EngineeredRow[], colA: string, colB: string): { a: number[]; b: number[] } {
+  const a: number[] = [], b: number[] = [];
+  for (const r of rows) {
+    const x = parseAmount(r[colA]), y = parseAmount(r[colB]);
+    if (x === null || y === null) continue;
+    a.push(x); b.push(y);
+  }
+  return { a, b };
 }
 
 function quantile(sorted: number[], q: number): number {
@@ -103,12 +116,12 @@ function computeSeasonality(rows: EngineeredRow[], index: SemanticIndex): Season
   const monthSums = Array.from({ length: 12 }, () => ({ sum: 0, count: 0 }));
 
   for (const row of rows) {
-    const v = Number(row[measureCol]);
-    if (!Number.isFinite(v)) continue;
-    const dow = Number(row['__dayOfWeek']);
-    const month = Number(row['__month']); // 1-12
-    if (Number.isFinite(dow) && dow >= 0 && dow <= 6) { dowSums[dow].sum += v; dowSums[dow].count++; }
-    if (Number.isFinite(month) && month >= 1 && month <= 12) { monthSums[month - 1].sum += v; monthSums[month - 1].count++; }
+    const v = parseAmount(row[measureCol]);
+    if (v === null) continue;
+    const dow = parseAmount(row['__dayOfWeek']);
+    const month = parseAmount(row['__month']); // 1-12
+    if (dow !== null && dow >= 0 && dow <= 6) { dowSums[dow].sum += v; dowSums[dow].count++; }
+    if (month !== null && month >= 1 && month <= 12) { monthSums[month - 1].sum += v; monthSums[month - 1].count++; }
   }
 
   const byDayOfWeek: SeasonalityPoint[] = DOW_LABELS.map((label, i) => ({ label, value: round2(dowSums[i].sum), count: dowSums[i].count }));
@@ -152,7 +165,7 @@ export function computeStatistics(rows: EngineeredRow[], index: SemanticIndex): 
   const colList = Array.from(numericColumns).slice(0, MAX_CORRELATION_PAIRS);
   for (let i = 0; i < colList.length; i++) {
     for (let j = i + 1; j < colList.length; j++) {
-      const a = nums(rows, colList[i]), b = nums(rows, colList[j]);
+      const { a, b } = numPairs(rows, colList[i], colList[j]);
       if (a.length < 5 || b.length < 5) continue;
       const r = pearson(a, b);
       correlations.push({
@@ -172,8 +185,8 @@ export function computeStatistics(rows: EngineeredRow[], index: SemanticIndex): 
       const byMonth = new Map<string, { sum: number; count: number; label: string }>();
       for (const row of rows) {
         const key = String(row['__monthKey'] ?? '');
-        const v = Number(row[measureCol]);
-        if (!key || !Number.isFinite(v)) continue;
+        const v = parseAmount(row[measureCol]);
+        if (!key || v === null) continue;
         const entry = byMonth.get(key) || { sum: 0, count: 0, label: String(row['__monthLabel'] ?? key) };
         entry.sum += v; entry.count += 1;
         byMonth.set(key, entry);
