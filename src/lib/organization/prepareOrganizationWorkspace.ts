@@ -1,4 +1,5 @@
 import { parseDataset } from '../dataPipeline/parseDataset';
+import { datasetLabel } from '../dataPipeline/workbookSheets';
 import { profileDataset } from '../dataPipeline/profileDataset';
 import { classifyColumns } from '../dataPipeline/semanticEngine';
 import type { RawRow } from '../../types/dataPipeline';
@@ -121,10 +122,11 @@ export async function prepareOrganizationWorkspace(input: File[]): Promise<Prepa
     if (!result.ok) throw new Error(result.error.message);
     const profile = profileDataset(result.data.rows);
     const semantics = classifyColumns(result.data.rows, profile);
-    const id = slug(result.data.fileName,index);
+    const label = datasetLabel(result.data.fileName); // the sheet name for workbook sheets, so the workbook's own name does not decide the purpose
+    const id = slug(label,index);
     const roles = semantics.columns.map(column=>column.businessRole);
     const dataset: OrganizationDataset = {
-      id, fileName: result.data.fileName, purpose: purposeFor(result.data.fileName,roles),
+      id, fileName: result.data.fileName, purpose: purposeFor(label,roles),
       rowCount: result.data.rows.length, columnCount: result.data.headers.length, primary: false,
       columns: semantics.columns.map(column=>({ name: column.columnName, role: column.businessRole, dataType: column.dataType, confidence: column.confidence })),
     };

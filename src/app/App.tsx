@@ -43,6 +43,8 @@ const PageConnections = lazyWithReload(() => import("../components/operational/O
 const PageRelationships = lazyWithReload(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageRelationships })));
 const PageScenarioPlanner = lazyWithReload(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageScenarioPlanner })));
 const PageTrustCenter = lazyWithReload(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageTrustCenter })));
+import { expandWorkbookFiles } from "../lib/dataPipeline/expandWorkbookFiles";
+import type { WorkbookNote } from "../lib/dataPipeline/workbookSheets";
 import { prepareOrganizationWorkspace, type PreparedOrganizationWorkspace } from "../lib/organization/prepareOrganizationWorkspace";
 const PageActionTracker = lazyWithReload(() => import("../components/execution/ExecutionPages").then(m => ({ default: m.PageActionTracker })));
 const PageKpiTargets = lazyWithReload(() => import("../components/execution/ExecutionPages").then(m => ({ default: m.PageKpiTargets })));
@@ -53,6 +55,11 @@ const PageOutcomes = lazyWithReload(() => import("../components/governance/Gover
 const PageAuditLog = lazyWithReload(() => import("../components/governance/GovernancePages").then(m => ({ default: m.PageAuditLog })));
 const PageTeamWorkspace = lazyWithReload(() => import("../components/team/TeamWorkspace").then(m => ({ default: m.PageTeamWorkspace })));
 
+function WorkbookNotes({ notes }: { notes: WorkbookNote[] }) {
+  if (!notes.length) return null;
+  return <div className="v2-entry-guide is-notes" role="status"><Files size={18} aria-hidden="true"/><div>{notes.map(note=><div key={note.summary}><strong>{note.summary}</strong>{note.skipped.map(line=><p key={line}>{line}</p>)}</div>)}</div></div>;
+}
+
 function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
   const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -60,6 +67,7 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
   const [stage, setStage] = useState('');
   const [pending, setPending] = useState<{ file: File; result: PipelineResult } | null>(null);
   const [organization, setOrganization] = useState<PreparedOrganizationWorkspace | null>(null);
+  const [workbookNotes, setWorkbookNotes] = useState<WorkbookNote[]>([]);
   const [roleOverrides, setRoleOverrides] = useState<Record<string, BusinessRole>>({});
   async function handleFile(file: File, isDemo = false) {
     setError(''); setLoading(true);
@@ -75,9 +83,15 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
   }
   async function handleFiles(files: File[]) {
     if (!files.length) return;
-    if (files.length === 1) { await handleFile(files[0]); return; }
-    setError(''); setLoading(true); setStage(`Profiling ${files.length} organisational datasets...`);
-    try { setOrganization(await prepareOrganizationWorkspace(files)); }
+    setError(''); setLoading(true); setStage('Reading your files...');
+    let expanded = files;
+    try {
+      const workbooks = await expandWorkbookFiles(files);
+      expanded = workbooks.files; setWorkbookNotes(workbooks.notes);
+    } catch (e:any) { setWorkbookNotes([]); setError(e?.message || 'The workbook could not be read.'); setLoading(false); return; }
+    if (expanded.length === 1) { await handleFile(expanded[0]); return; }
+    setStage(`Profiling ${expanded.length} organisational datasets...`);
+    try { setOrganization(await prepareOrganizationWorkspace(expanded)); }
     catch (e:any) { setError(e?.message || 'The organisational datasets could not be prepared.'); }
     setLoading(false);
   }
@@ -115,6 +129,7 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
           <div><p className="v2-eyebrow">CONNECTED BUSINESS INTELLIGENCE</p><h1 className="v2-entry-title is-compact">Build your organisational workspace</h1><p className="v2-entry-lede">Choose the source that should drive forecasts and executive KPIs, then confirm the governed relationships Verd.io will use across supporting data.</p></div>
           <span className="v2-entry-count"><Files size={14} aria-hidden="true"/>{organization.context.datasets.length} datasets ready</span>
         </header>
+        <WorkbookNotes notes={workbookNotes}/>
         <div className="v2-entry-guide"><Target size={18} aria-hidden="true"/><div><strong>Which file should be primary?</strong><p>The primary source drives the main Business Intelligence, predictions, risks and decisions. Verd.io recommends the sales file because it contains dated transactions, quantities and revenue. Stock and finance remain connected supporting sources.</p></div></div>
         <div className="v2-entry-datasets" role="radiogroup" aria-label="Primary source">
           {organization.context.datasets.map(dataset=>{const recommended=dataset.purpose==='sales';return <article key={dataset.id} className={`v2-entry-ds${dataset.primary?' is-primary':''}`}><div className="v2-entry-ds-top"><span className="v2-entry-ds-purpose"><Database size={16} aria-hidden="true"/>{dataset.purpose}</span>{recommended&&<b className="v2-entry-ds-flag">Recommended</b>}</div><strong className="v2-entry-ds-name">{dataset.fileName}</strong><p className="v2-tag">{dataset.rowCount.toLocaleString()} rows · {dataset.columnCount} columns</p><p className="v2-entry-ds-note">{dataset.purpose==='sales'?'Best for revenue, forecasting and executive decisions':dataset.purpose==='inventory'?'Supports stock coverage and replenishment review':'Supports margin and financial reconciliation'}</p><label className="v2-entry-ds-pick"><input type="radio" name="primary-dataset" checked={dataset.primary} onChange={()=>setOrganization(current=>current?{...current,context:{...current.context,datasets:current.context.datasets.map(item=>({...item,primary:item.id===dataset.id}))}}:current)}/><span>{dataset.primary?'Selected as primary':'Use as primary source'}</span></label></article>})}
@@ -131,6 +146,7 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
       <main className="v2-entry-col is-mid">
         <p className="v2-entry-mark">Verd<i>.</i>io</p>
         <header className="v2-entry-head"><p className="v2-eyebrow">DATA MAPPING</p><h1 className="v2-entry-title is-compact">Confirm how Verd.io should read your data</h1><p className="v2-entry-lede">We detected these roles automatically. Correct anything that does not match your business before analysis.</p></header>
+        <WorkbookNotes notes={workbookNotes}/>
         <div className="v2-entry-map">
           {pending.result.semantics.columns.map(column => <div key={column.columnName} className="v2-entry-map-row">
             <div className="min-w-0"><strong>{column.columnName}</strong><span className="v2-tag">{column.dataType} · {Math.round(column.confidence * 100)}% detected confidence</span></div>

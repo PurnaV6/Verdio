@@ -683,6 +683,8 @@ button { cursor: pointer; }
 .v2-entry-guide > div { flex: 1; min-width: 0; color: var(--v-ink); }
 .v2-entry-guide strong { display: block; font-weight: 600; }
 .v2-entry-guide p { max-width: 72ch; margin-top: 4px; font-size: 14px; color: var(--v-muted); }
+.v2-entry-guide.is-notes { margin-bottom: 14px; }
+.v2-entry-guide.is-notes > div > div + div { margin-top: 10px; }
 .v2-entry-datasets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 22px; }
 .v2-entry-ds { min-width: 0; padding: 16px; border: 1px solid var(--v-rule); border-radius: var(--vc-r-card); background: var(--v-sheet); box-shadow: var(--vc-card-shadow); }
 .v2-entry-ds.is-primary { border-color: var(--v-verd); background: var(--vc-accent-tint); }

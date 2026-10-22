@@ -1,4 +1,5 @@
 import Papa from "papaparse";
+import { parseSheetFileName } from "./workbookSheets";
 import type { ParsedDataset, ParseError, RawRow } from "../../types/dataPipeline";
 
 /* ================================================================
@@ -10,7 +11,7 @@ import type { ParsedDataset, ParseError, RawRow } from "../../types/dataPipeline
    the column.
    ================================================================ */
 
-const MAX_FILE_BYTES = 100 * 1024 * 1024; // 100MB — raised from 25MB; still client-side/in-browser processing, see note below
+export const MAX_FILE_BYTES = 100 * 1024 * 1024; // 100MB — raised from 25MB; still client-side/in-browser processing, see note below
 
 export type ParseResult =
   | { ok: true;  data: ParsedDataset }
@@ -66,14 +67,16 @@ export async function parseDataset(file: File): Promise<ParseResult> {
     return { ok: false, error: { code: 'TOO_LARGE', message: `File is larger than ${MAX_FILE_BYTES / (1024 * 1024)}MB. Please split it into smaller files.` } };
   }
 
+  /* A sheet taken from a multi-sheet workbook arrives as CSV text named `<workbook> / <sheet>`. */
+  const sheetFile = parseSheetFileName(file.name);
   const ext = (file.name.split('.').pop() || '').toLowerCase();
-  const fileType: ParsedDataset['fileType'] =
+  const fileType: ParsedDataset['fileType'] = sheetFile ? sheetFile.fileType :
     ext === 'xlsx' ? 'xlsx' : ext === 'xls' ? 'xls' : ext === 'tsv' ? 'tsv' : ext === 'json' ? 'json' : 'csv';
 
   try {
     let rawRows: Record<string, string>[];
 
-    if (fileType === 'xlsx' || fileType === 'xls') {
+    if (!sheetFile && (fileType === 'xlsx' || fileType === 'xls')) {
       const XLSX = await import("xlsx");
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buf), { type: 'array', cellDates: true });
