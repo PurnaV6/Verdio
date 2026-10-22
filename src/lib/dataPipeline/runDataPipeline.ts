@@ -1,6 +1,10 @@
 import { parseDataset } from "./parseDataset";
 import { profileDataset } from "./profileDataset";
 import { cleanDataset } from "./cleanDataset";
+import { applyRoleAwareSteps } from "./roleAwareSteps";
+import { buildColumnReport } from "./cleaningReport";
+import { salesSummary, EMPTY_EXCLUDED } from "../analysis/salesSummary";
+
 import { classifyColumns, buildSemanticIndex } from "./semanticEngine";
 import { assessDataQuality } from "./dataQualityEngine";
 import { detectCapabilities } from "./detectCapabilities";
@@ -24,28 +28,43 @@ import type { BusinessRole } from "../../types/semantic";
    This is the full file, replace your existing file completely.
    ================================================================ */
 
+/** 2 from the blank-aware pipeline on. Results saved before it have no version. */
+export const PIPELINE_VERSION = 2;
+
 export async function runDataPipeline(file: File, semanticOverrides: Partial<Record<string, BusinessRole>> = {}): Promise<PipelineOutcome> {
   /* 1. Parse */
   const parsed = await parseDataset(file);
   if (!parsed.ok) return { ok: false, error: parsed.error.message };
 
-  /* 2. Profile (raw) → 3. Clean → 2. Re-profile (cleaned) */
+  /* 2. Profile (raw) → 3. Clean (structure only) → re-profile */
   const rawProfile = profileDataset(parsed.data.rows);
-  const { rows: cleanedRows, report: cleaning } = cleanDataset(parsed.data.rows, rawProfile);
-  const profile = profileDataset(cleanedRows);
+  const { rows: tidiedRows, sourceRows, report: cleaning } = cleanDataset(parsed.data.rows, rawProfile);
+  const tidiedProfile = profileDataset(tidiedRows);
 
-  if (!cleanedRows.length) {
+  if (!tidiedRows.length) {
     return { ok: false, error: 'No usable rows remained after cleaning. Please check the file and try again.' };
   }
 
-  /* 4. Semantic detection → 5. Quality → 6. Capabilities */
-  const semantics = classifyColumns(cleanedRows, profile, semanticOverrides);
+  /* 4. Semantic detection, on the real values only */
+  const semantics = classifyColumns(tidiedRows, tidiedProfile, semanticOverrides);
   const index = buildSemanticIndex(semantics);
+
+  /* 5. Role-aware steps. Roles are final only here, because the role-mapping screen runs this pipeline
+        again with the user's overrides. Nothing is filled in: a blank stays blank. Revenue is calculated
+        from price x quantity where it can be, and rows that cannot count toward sales are set aside
+        with their row number and reason. Every row stays in `cleanedRows`. */
+  const steps = applyRoleAwareSteps(tidiedRows, tidiedProfile, index, sourceRows);
+  cleaning.actions.push(...steps.actions);
+  const cleanedRows = steps.rows;
+  const profile = steps.calculatedCount > 0 ? profileDataset(cleanedRows) : tidiedProfile;
+
+  /* 6. Quality → Capabilities */
   const quality = assessDataQuality(cleanedRows, profile, semantics);
   const capabilities = detectCapabilities(profile, index);
 
-  /* 7. Feature engineering → 8. Statistics */
-  const { rows: engineeredRows, addedFeatures } = engineerFeatures(cleanedRows, index);
+  /* 7. Feature engineering (on the rows that count toward sales) → 8. Statistics */
+  const { rows: engineeredRows, addedFeatures } = engineerFeatures(steps.analysisRows, index);
+  steps.calculated.forEach((wasCalculated, i) => { if (wasCalculated) engineeredRows[i]['__revenueCalculated'] = true; });
   const statistics = computeStatistics(engineeredRows, index);
 
   /* 9. Baseline analysis candidates (statistics-driven) */
@@ -95,10 +114,27 @@ export async function runDataPipeline(file: File, semanticOverrides: Partial<Rec
     index
   });
 
+  /* The cleaning report says, per column and in total, what was left blank, calculated or left out. */
+  const sales = salesSummary({ semantics, engineeredRows, excludedRows: steps.excludedRows, returnRows: steps.returnRows, cleaning: { ...cleaning, rowsCalculated: steps.calculatedCount } });
+  cleaning.columns = buildColumnReport(rawProfile, profile, semantics, steps, cleanedRows.length);
+  cleaning.rowsExcluded = { ...EMPTY_EXCLUDED, ...sales.excluded };
+  cleaning.rowsCalculated = steps.calculatedCount;
+  cleaning.returns = { count: sales.returnCount, total: sales.returnsTotal };
+  if (steps.calculatedCount > 0) cleaning.calculatedCells = steps.calculatedCells;
+  if (steps.duplicateCount > 0) {
+    cleaning.duplicateRowCount = steps.duplicateCount;
+    cleaning.duplicateHandling = steps.duplicateHandling ?? undefined;
+    cleaning.duplicateRows = steps.duplicateRows;
+  }
+
   return {
     ok: true,
     result: {
       source: { fileName: parsed.data.fileName, fileType: parsed.data.fileType, rowCount: cleanedRows.length },
+      pipelineVersion: PIPELINE_VERSION,
+      analysisRowCount: engineeredRows.length,
+      excludedRows: steps.excludedRows,
+      returnRows: steps.returnRows,
       profile,
       cleaning,
       semantics,
