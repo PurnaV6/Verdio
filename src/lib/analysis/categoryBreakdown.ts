@@ -1,5 +1,7 @@
 import type { EngineeredRow } from "../../types/features";
 import type { CategoryBreakdownRow } from "../../types/statistics";
+import { parseAmount } from "../dataPipeline/profileDataset";
+import { groupLabel } from "../dataPipeline/missingGroup";
 
 /* ================================================================
    VERDIO — Category Breakdown
@@ -9,16 +11,25 @@ import type { CategoryBreakdownRow } from "../../types/statistics";
    Products & Markets page.
    ================================================================ */
 
-export function computeCategoryBreakdown(rows: EngineeredRow[], categoryCol: string, measureCol: string): CategoryBreakdownRow[] {
+/**
+ * Total and row count of a measure per category label, in first-seen order. The one place that groups
+ * a measure by category: a row with a blank label or a blank measure is skipped, never counted as 0.
+ */
+export function sumByCategory(rows: EngineeredRow[], categoryCol: string, measureCol: string): Map<string, { value: number; count: number }> {
   const sums = new Map<string, { value: number; count: number }>();
   for (const row of rows) {
-    const label = String(row[categoryCol] ?? '').trim();
-    const v = Number(row[measureCol]);
-    if (!label || !Number.isFinite(v)) continue;
+    const label = groupLabel(row[categoryCol]); // a blank category is its own "(Missing)" group, never dropped
+    const v = parseAmount(row[measureCol]);
+    if (v === null) continue;
     const entry = sums.get(label) || { value: 0, count: 0 };
     entry.value += v; entry.count += 1;
     sums.set(label, entry);
   }
+  return sums;
+}
+
+export function computeCategoryBreakdown(rows: EngineeredRow[], categoryCol: string, measureCol: string): CategoryBreakdownRow[] {
+  const sums = sumByCategory(rows, categoryCol, measureCol);
   const total = Array.from(sums.values()).reduce((s, e) => s + e.value, 0);
   return Array.from(sums.entries())
     .map(([label, e]) => ({ label, value: Math.round(e.value * 100) / 100, count: e.count, pct: total ? Math.round((e.value / total) * 1000) / 10 : 0 }))

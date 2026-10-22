@@ -25,6 +25,17 @@ export default tseslint.config(
     },
   },
   {
+    // A blank cell read with Number() is 0, which turns a gap into a sale. Read measure cells with parseAmount.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/lib/calculateMetrics.ts', 'src/**/*.test.ts'],
+    rules: {
+      'no-restricted-syntax': ['error', {
+        selector: "CallExpression[callee.name='Number'] > MemberExpression.arguments[computed=true][object.name=/^(row|r)$/]",
+        message: 'Do not read a row cell with Number(): a blank becomes 0. Use parseAmount (src/lib/dataPipeline/profileDataset.ts), which gives null for a blank.',
+      }],
+    },
+  },
+  {
     files: ['api/**/*.ts'],
     languageOptions: { globals: globals.node },
   },

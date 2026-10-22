@@ -4,7 +4,8 @@ export type DatasetPurpose = 'sales' | 'inventory' | 'customers' | 'products' | 
 
 export interface OrganizationDataset {
   id: string;
-  fileName: string;
+  fileName: string;     // display name: "Book.xlsx · Sheet" for a workbook sheet
+  sheet?: string;       // the sheet name when the dataset is one sheet of a workbook (the File itself is not stored here)
   purpose: DatasetPurpose;
   rowCount: number;
   columnCount: number;

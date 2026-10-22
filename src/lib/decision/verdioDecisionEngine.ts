@@ -21,6 +21,7 @@ import type { DataQualityReport } from "../../types/dataPipeline";
 import type { MLResults } from "../../types/ml";
 import type { Risk, Recommendation } from "../../types/decision";
 import { labelForMeasure } from "../labels";
+import { sumColumn } from "../dataPipeline/salesRows";
 
 export interface FinancialImpact {
   estimatedValue: number; // GBP estimate of value at risk or opportunity
@@ -48,12 +49,7 @@ export interface VDEResult {
 }
 
 function calcTotalMeasure(rows: EngineeredRow[], measureCol: string): number {
-  let sum = 0;
-  for (const r of rows) {
-    const v = Number(r[measureCol]);
-    if (Number.isFinite(v)) sum += v;
-  }
-  return sum;
+  return sumColumn(rows, measureCol);
 }
 
 function scoreFinancialImpact(

@@ -13,7 +13,12 @@ export function bestColumnOfRole(semanticsColumns: ColumnSemantics[], role: stri
   return matches[0]?.columnName || null;
 }
 
+/** The one rule for "the sales measure": a computed transaction value, else revenue, else price, else quantity. */
+export function pickPrimaryMeasure(hasTransactionValue: boolean, bestOfRole: (role: string) => string | null): string | null {
+  if (hasTransactionValue) return '__transactionValue';
+  return bestOfRole('revenue') || bestOfRole('price') || bestOfRole('quantity');
+}
+
 export function primaryMeasureColumn(semanticsColumns: ColumnSemantics[], engineeredRows: EngineeredRow[]): string | null {
-  if (engineeredRows.some(row => row['__transactionValue'] !== undefined)) return '__transactionValue';
-  return bestColumnOfRole(semanticsColumns, 'revenue') || bestColumnOfRole(semanticsColumns, 'price') || bestColumnOfRole(semanticsColumns, 'quantity');
+  return pickPrimaryMeasure(engineeredRows.some(row => row['__transactionValue'] !== undefined), role => bestColumnOfRole(semanticsColumns, role));
 }

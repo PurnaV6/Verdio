@@ -2,6 +2,7 @@ import type { RawRow } from "../../types/dataPipeline";
 import type { SemanticIndex } from "../../types/semantic";
 import { parseStrictDate, dayOfWeek } from "./dateParsing";
 import type { EngineeredRow, EngineeredDataset, FeatureDefinition } from "../../types/features";
+import { parseAmount } from "./profileDataset";
 
 /* ================================================================
    VERDIO — Stage 7: Adaptive Feature Engineering
@@ -60,9 +61,9 @@ export function engineerFeatures(rows: RawRow[], index: SemanticIndex): Engineer
   if (priceCol && qtyCol && !revenueCol) {
     let computed = 0;
     for (const row of working) {
-      const p = Number(row[priceCol.columnName]);
-      const q = Number(row[qtyCol.columnName]);
-      if (!Number.isFinite(p) || !Number.isFinite(q)) continue;
+      const p = parseAmount(row[priceCol.columnName]);
+      const q = parseAmount(row[qtyCol.columnName]);
+      if (p === null || q === null) continue;
       row['__transactionValue'] = Math.round(p * q * 100) / 100;
       computed++;
     }
@@ -80,9 +81,9 @@ export function engineerFeatures(rows: RawRow[], index: SemanticIndex): Engineer
   if (moneyCol && costCol) {
     let computed = 0;
     for (const row of working) {
-      const rev = Number(row[moneyCol.columnName]);
-      const cost = Number(row[costCol.columnName]);
-      if (!Number.isFinite(rev) || !Number.isFinite(cost)) continue;
+      const rev = parseAmount(row[moneyCol.columnName]);
+      const cost = parseAmount(row[costCol.columnName]);
+      if (rev === null || cost === null) continue; // a blank cost is not a cost of 0, so no margin is invented
       row['__margin'] = Math.round((rev - cost) * 100) / 100;
       row['__marginPct'] = rev !== 0 ? Math.round(((rev - cost) / rev) * 1000) / 10 : 0;
       computed++;
@@ -101,13 +102,13 @@ export function engineerFeatures(rows: RawRow[], index: SemanticIndex): Engineer
   const primaryKey = (primaryMeasure && !working.some(r => r['__transactionValue'] !== undefined)) ? primaryMeasure.columnName : (working.some(r => r['__transactionValue'] !== undefined) ? '__transactionValue' : primaryMeasure?.columnName);
 
   if (primaryKey) {
-    const nums = working.map(r => Number(r[primaryKey])).filter(Number.isFinite).sort((a, b) => a - b);
+    const nums = working.map(r => parseAmount(r[primaryKey])).filter((v): v is number => v !== null).sort((a, b) => a - b);
     if (nums.length >= 8) {
       const q1 = quantile(nums, 0.25), q2 = quantile(nums, 0.5), q3 = quantile(nums, 0.75);
       let banded = 0;
       for (const row of working) {
-        const v = Number(row[primaryKey]);
-        if (!Number.isFinite(v)) continue;
+        const v = parseAmount(row[primaryKey]);
+        if (v === null) continue;
         row['__band'] = v <= q1 ? 'Low' : v <= q2 ? 'Medium' : v <= q3 ? 'High' : 'Very High';
         banded++;
       }

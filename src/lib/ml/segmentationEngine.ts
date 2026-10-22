@@ -1,5 +1,6 @@
 import type { EngineeredRow } from "../../types/features";
 import type { SegmentationResult, CustomerSegment, CustomerSegmentLabel } from "../../types/ml";
+import { parseAmount } from "../dataPipeline/profileDataset";
 
 /* ================================================================
    VERDIO — ML: RFM Segmentation + Churn Risk
@@ -7,6 +8,9 @@ import type { SegmentationResult, CustomerSegment, CustomerSegmentLabel } from "
    Only call when detectCapabilities confirms 'segmentation' is
    available (customer + date + monetary columns all present).
    ================================================================ */
+
+/** Spend is summed from the rows that count toward sales, so returns, zero rows and blank amounts are not in it. */
+export const SPEND_BASIS = 'Spend counts sales only. Returns are left out.';
 
 function quantile(arr: number[], q: number): number {
   const sorted = [...arr].sort((a, b) => a - b);
@@ -42,9 +46,9 @@ export function runSegmentation(
 
   for (const row of rows) {
     const id = String(row[customerCol] ?? '').trim();
-    const spend = Number(row[measureCol]);
+    const spend = parseAmount(row[measureCol]);
     const monthKey = String(row['__monthKey'] ?? '').trim() || String(row[dateCol] ?? '').slice(0, 7);
-    if (!id || !Number.isFinite(spend)) continue;
+    if (!id || spend === null) continue;
 
     custSpend[id] = (custSpend[id] || 0) + spend;
     custOrders[id] = (custOrders[id] || 0) + 1;
@@ -57,7 +61,7 @@ export function runSegmentation(
 
   const ids = Object.keys(custSpend);
   if (!ids.length) {
-    return { customerColumn: customerCol, dateColumn: dateCol, measureColumn: measureCol, segments: [], churnRiskScore: 0, revenueAtRisk: 0 };
+    return { customerColumn: customerCol, dateColumn: dateCol, measureColumn: measureCol, segments: [], churnRiskScore: 0, revenueAtRisk: 0, basis: SPEND_BASIS };
   }
 
   /* Recency = whole months between the customer's last activity and the last month in the data.
@@ -101,5 +105,5 @@ export function runSegmentation(
   const atRiskCount = segments.filter(s => s.segment === 'atRisk' || s.segment === 'lost').length;
   const revenueAtRisk = Math.round(totalRevenue * (churnRiskScore / 100) * (atRiskCount / (ids.length || 1)) * 0.5 + totalRevenue * churnRiskScore / 100 * 0.1);
 
-  return { customerColumn: customerCol, dateColumn: dateCol, measureColumn: measureCol, segments, churnRiskScore, revenueAtRisk };
+  return { customerColumn: customerCol, dateColumn: dateCol, measureColumn: measureCol, segments, churnRiskScore, revenueAtRisk, basis: SPEND_BASIS };
 }

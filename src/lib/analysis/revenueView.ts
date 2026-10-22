@@ -1,5 +1,6 @@
 import { bestColumnOfRole } from "./pickColumns";
 import type { PipelineResult } from "../../types/pipeline";
+import { salesSummary } from "./salesSummary";
 
 /* ================================================================
    VERDIO — Revenue view (pure)
@@ -15,10 +16,21 @@ export function computeChangePct(latest: number, previous: number | undefined): 
 
 export const NO_EARLIER_PERIOD = 'No earlier month to compare with';
 
+/**
+ * The connected-revenue headline. When it was summed from the same file the pipeline just analysed, the
+ * pipeline's own Sales figure is used instead, so the headline total can never disagree with the monthly series.
+ */
+export function connectedRevenueOf(result: PipelineResult, revenueColumn: string | null): number | undefined {
+  const metric=result.organization?.metrics?.find(item=>item.id==='connected-revenue');
+  if(!metric) return undefined;
+  const source=result.organization?.datasets?.find(dataset=>metric.sourceDatasetIds?.includes(dataset.id));
+  return revenueColumn&&source&&source.fileName===result.source.fileName?salesSummary(result).salesTotal:metric.value;
+}
+
 export function getRevenueView(result: PipelineResult) {
   const revenueColumn=bestColumnOfRole(result.semantics.columns,'revenue');
-  const connectedRevenue=result.organization?.metrics?.find(metric=>metric.id==='connected-revenue')?.value;
-  const total=connectedRevenue??(revenueColumn?result.engineeredRows.reduce((sum,row)=>sum+(Number(row[revenueColumn])||0),0):0);
+  const connectedRevenue=connectedRevenueOf(result,revenueColumn);
+  const total=connectedRevenue??(revenueColumn?salesSummary(result).salesTotal:0);
   const series=result.statistics.timeSeries.find(item=>item.measureColumn===revenueColumn)
     ?? result.statistics.timeSeries.find(item=>/revenue|sales|amount/i.test(item.measureColumn));
   const latest=series?.points.at(-1)?.value ?? 0;

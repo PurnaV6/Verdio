@@ -54,9 +54,10 @@ describe('findSliceDimensions', () => {
     expect(findSliceDimensions([col('Product', 'product')], rowsU)).toEqual([]);
   });
 
-  it('ignores blanks', () => {
+  // Changed from "ignores blanks": a blank is no longer dropped, it is shown as its own (Missing) value.
+  it('shows blanks as a (Missing) value instead of dropping them', () => {
     const r: EngineeredRow[] = [...fakeRows(3), { Product: '', Region: ' ', Revenue: '1' }];
-    expect(findSliceDimensions([col('Product', 'product')], r)[0].values).toEqual(['Alpha', 'Beta']);
+    expect(findSliceDimensions([col('Product', 'product')], r)[0].values).toEqual(['(Missing)', 'Alpha', 'Beta']);
   });
 });
 
