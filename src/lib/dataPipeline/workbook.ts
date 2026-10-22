@@ -1,6 +1,6 @@
 import type { WorkBook, WorkSheet } from "xlsx";
 import type { DatasetSource, ParseError } from "../../types/dataPipeline";
-import { isBlankCell, nonEmptyCount, sheetRows } from "./excelCells";
+import { locateHeader, nonEmptyCount, sheetRows, usedBounds } from "./excelCells";
 
 /* ================================================================
    VERDIO — Excel workbooks with several sheets
@@ -21,12 +21,11 @@ export const MAX_SHEETS = 25;
 /** Rows across all sheets of one workbook. The first usable sheet is always kept, even when it alone is larger. */
 export const MAX_TOTAL_ROWS = 500_000;
 
-const HEADER_SAMPLE_ROWS = 50;
-
-export interface SheetSummary { name: string; rowCount: number; columnCount: number }
+/** headerRow is the 1-based sheet row that holds the column names. */
+export interface SheetSummary { name: string; rowCount: number; columnCount: number; headerRow: number }
 export interface SkippedSheet { name: string; reason: string }
 export interface WorkbookListing { fileName: string; totalSheets: number; sheets: SheetSummary[]; skipped: SkippedSheet[] }
-export interface WorkbookNote { summary: string; skipped: string[] }
+export interface WorkbookNote { summary: string; adjusted: string[]; skipped: string[] }
 export type WorkbookListResult = { ok: true; data: WorkbookListing } | { ok: false; error: ParseError };
 
 export function isExcelName(name: string) {
@@ -66,30 +65,21 @@ export function loadWorkbook(file: File): Promise<WorkBook> {
 
 export const workbookUses1904 = (workbook: WorkBook) => !!workbook.Workbook?.WBProps?.date1904;
 
-function looksLikeData(cell: string) {
-  return Number.isFinite(Number(cell.replace(/[£$€,%\s]/g, ""))) || /^\d{4}-\d{2}-\d{2}/.test(cell.trim());
-}
-
-/** Counts a sheet's data rows and decides whether it is a table: a header-like first row (at least two names, covering
- *  at least half of the widest row, none of them a number or date) followed by at least two data rows. */
+/** Counts a sheet's data rows below its header and decides whether it is a table: a header-like row within the first
+ *  rows (title text above it is allowed), with at least two columns and at least two data rows below it. */
 function summariseSheet(XLSX: Xlsx, ws: WorkSheet | undefined, date1904: boolean): SheetSummary | { reason: string } {
-  if (!ws) return { reason: "empty" };
-  let header: string[] | null = null;
-  const widths: number[] = [];
-  let rowCount = 0;
-  for (const row of sheetRows(XLSX, ws, date1904)) {
-    const width = nonEmptyCount(row);
-    if (width === 0) continue;
-    if (!header) header = row; else rowCount += 1;
-    if (widths.length < HEADER_SAMPLE_ROWS) widths.push(width);
-  }
-  if (!header) return { reason: "empty" };
+  const bounds = ws ? usedBounds(XLSX, ws) : null;
+  if (!ws || !bounds) return { reason: "empty" };
+  const header = locateHeader(XLSX, ws, date1904);
+  if (!header) return { reason: "not a table" };
 
-  const columnCount = nonEmptyCount(header);
-  const widest = Math.max(...widths);
-  const headerLike = columnCount >= 2 && columnCount >= Math.ceil(widest / 2) && header.every(cell => isBlankCell(cell) || !looksLikeData(cell));
-  if (!headerLike || rowCount < 2) return { reason: "not a table" };
-  return { name: "", rowCount, columnCount };
+  let rowCount = 0, index = 0;
+  for (const row of sheetRows(XLSX, ws, date1904, header.row)) {
+    if (bounds.minR + index > header.row && nonEmptyCount(row) > 0) rowCount += 1;
+    index += 1;
+  }
+  if (rowCount < 2) return { reason: "not a table" };
+  return { name: "", rowCount, columnCount: header.columnCount, headerRow: header.row + 1 };
 }
 
 /** Which sheets of a workbook are loaded, and why the others are not. Never throws. */
@@ -140,6 +130,7 @@ export function describeWorkbookListing(listing: WorkbookListing): WorkbookNote 
   const parts = listing.sheets.map(sheet => `${sheet.name} (${plural(sheet.rowCount, "row")})`);
   return {
     summary: `Read ${plural(listing.sheets.length, "sheet")} from ${listing.fileName}${parts.length ? `: ${parts.join(", ")}` : ""}`,
+    adjusted: listing.sheets.filter(sheet => sheet.headerRow > 1).map(sheet => `${sheet.name}: headers found on row ${sheet.headerRow}.`),
     skipped: listing.skipped.map(sheet => `Skipped ${sheet.name} (${sheet.reason}).`),
   };
 }

@@ -57,7 +57,7 @@ const PageTeamWorkspace = lazyWithReload(() => import("../components/team/TeamWo
 
 function WorkbookNotes({ notes }: { notes: WorkbookNote[] }) {
   if (!notes.length) return null;
-  return <div className="v2-entry-guide is-notes" role="status"><Files size={18} aria-hidden="true"/><div>{notes.map(note=><div key={note.summary}><strong>{note.summary}</strong>{note.skipped.map(line=><p key={line}>{line}</p>)}</div>)}</div></div>;
+  return <div className="v2-entry-guide is-notes" role="status"><Files size={18} aria-hidden="true"/><div>{notes.map(note=><div key={note.summary}><strong>{note.summary}</strong>{[...note.adjusted,...note.skipped].map(line=><p key={line}>{line}</p>)}</div>)}</div></div>;
 }
 
 function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {

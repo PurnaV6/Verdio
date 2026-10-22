@@ -56,6 +56,7 @@ describe("listWorkbookSheets", () => {
     expect(listing.sheets.map(s => [s.name, s.rowCount, s.columnCount])).toEqual([["Orders", 24, 5], ["Customers", 5, 3], ["Products", 4, 3]]);
     expect(describeWorkbookListing(listing)).toEqual({
       summary: "Read 3 sheets from Sales.xlsx: Orders (24 rows), Customers (5 rows), Products (4 rows)",
+      adjusted: [],
       skipped: [],
     });
   });
@@ -68,7 +69,6 @@ describe("listWorkbookSheets", () => {
       { name: "One row", rows: [["Customer ID", "Name"], ["C-1", "Acme"]] },
       { name: "Notes", rows: [["Prepared by finance"], [], ["Check the totals before sending"]] },
       { name: "Numbers first", rows: [[1, 2], [3, 4], [5, 6]] },
-      { name: "Title above table", rows: [["Customer list"], ...customers] },
     ]));
     expect(listing.sheets.map(s => s.name)).toEqual(["Orders"]);
     expect(describeWorkbookListing(listing).skipped).toEqual([
@@ -77,7 +77,6 @@ describe("listWorkbookSheets", () => {
       "Skipped One row (not a table).",
       "Skipped Notes (not a table).",
       "Skipped Numbers first (not a table).",
-      "Skipped Title above table (not a table).",
     ]);
   });
 
@@ -90,6 +89,45 @@ describe("listWorkbookSheets", () => {
     ]));
     expect(listing.sheets.map(s => s.name)).toEqual(["Orders", "Customers"]);
     expect(describeWorkbookListing(listing).skipped).toEqual(["Skipped Lookups (hidden sheet).", "Skipped Cache (hidden sheet)."]);
+  });
+
+  it("loads a sheet with a title above its table and says where the headers were found", async () => {
+    const file = workbookFile("Sales.xlsx", [
+      { name: "Orders", rows: orders(24) },
+      {
+        name: "Quarterly",
+        rows: [["Quarterly sales report"], [], ["Quarter", "Region", "Revenue"], ["Q1", "North", 100], ["Q2", "North", 120], ["Q3", "South", 90]],
+        merges: [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }],
+      },
+      { name: "Notes", rows: [["Prepared by finance"], ["Figures exclude VAT"], [], ["Check totals before sending"]] },
+    ]);
+    const listing = await list(file);
+    expect(listing.sheets.map(s => [s.name, s.rowCount, s.headerRow])).toEqual([["Orders", 24, 1], ["Quarterly", 3, 3]]);
+    expect(describeWorkbookListing(listing)).toEqual({
+      summary: "Read 2 sheets from Sales.xlsx: Orders (24 rows), Quarterly (3 rows)",
+      adjusted: ["Quarterly: headers found on row 3."],
+      skipped: ["Skipped Notes (not a table)."],
+    });
+    const parsed = await parseDataset(file, "Quarterly");
+    if (!parsed.ok) throw new Error(parsed.error.message);
+    expect(parsed.data.headers).toEqual(["Quarter", "Region", "Revenue"]);
+    expect(parsed.data.rows).toEqual([
+      { Quarter: "Q1", Region: "North", Revenue: "100" },
+      { Quarter: "Q2", Region: "North", Revenue: "120" },
+      { Quarter: "Q3", Region: "South", Revenue: "90" },
+    ]);
+  });
+
+  it("finds a header that is not on the first row of the sheet even without a title", async () => {
+    const file = workbookFile("Sales.xlsx", [
+      { name: "Orders", rows: orders(5) },
+      { name: "Shifted", rows: [[], [], ["Customer ID", "Name"], ["C-1", "Acme"], ["C-2", "Bolt"]] },
+    ]);
+    const listing = await list(file);
+    expect(listing.sheets.map(s => [s.name, s.rowCount, s.headerRow])).toEqual([["Orders", 5, 1], ["Shifted", 2, 3]]);
+    const parsed = await parseDataset(file, "Shifted");
+    if (!parsed.ok) throw new Error(parsed.error.message);
+    expect(parsed.data.rows).toEqual([{ "Customer ID": "C-1", Name: "Acme" }, { "Customer ID": "C-2", Name: "Bolt" }]);
   });
 
   it("does not count blank rows between records", async () => {
@@ -191,7 +229,7 @@ describe("planUpload", () => {
     const plan = await planUpload([file]);
     expect(plan.sources).toEqual([{ file, sheet: "Orders" }, { file, sheet: "Customers" }, { file, sheet: "Products" }]);
     expect(plan.sources.every(source => source.file === file)).toBe(true);
-    expect(plan.notes).toEqual([{ summary: "Read 3 sheets from Sales.xlsx: Orders (24 rows), Customers (5 rows), Products (4 rows)", skipped: [] }]);
+    expect(plan.notes).toEqual([{ summary: "Read 3 sheets from Sales.xlsx: Orders (24 rows), Customers (5 rows), Products (4 rows)", adjusted: [], skipped: [] }]);
   });
 
   it("keeps a single-sheet workbook as the plain file, with no note", async () => {
@@ -210,7 +248,7 @@ describe("planUpload", () => {
     const file = workbookFile("Sales.xlsx", [{ name: "Orders", rows: orders(5) }, { name: "Notes", rows: [["Hello"]] }]);
     const plan = await planUpload([file]);
     expect(plan.sources).toEqual([{ file, sheet: "Orders" }]);
-    expect(plan.notes[0]).toEqual({ summary: "Read 1 sheet from Sales.xlsx: Orders (5 rows)", skipped: ["Skipped Notes (not a table)."] });
+    expect(plan.notes[0]).toEqual({ summary: "Read 1 sheet from Sales.xlsx: Orders (5 rows)", adjusted: [], skipped: ["Skipped Notes (not a table)."] });
   });
 
   it("passes CSV, TSV, JSON and corrupt Excel files through untouched", async () => {
@@ -249,7 +287,23 @@ describe("workbook sheets in the organisation flow", () => {
     expect(workspace.sources[datasets[2].id]).toEqual({ file, sheet: "Orders" });
   });
 
-  it("scores a sheet called Sales as sales from the workbook and sheet names together", async () => {
+  it("lets the sheet name decide first: a workbook called Customer Sales does not turn Notes into customers", async () => {
+    const file = workbookFile("Customer Sales.xlsx", [
+      { name: "Notes", rows: [["Topic", "Detail"], ["a", "b"], ["c", "d"]] },
+      { name: "Products", rows: products },
+    ]);
+    const workspace = await prepareOrganizationWorkspace((await planUpload([file])).sources);
+    expect(workspace.context.datasets.map(d => [d.sheet, d.purpose])).toEqual([["Notes", "operations"], ["Products", "products"]]);
+  });
+
+  it("uses the workbook name for a generically named sheet that has no purpose of its own", async () => {
+    const generic: Cell[][] = [["Topic", "Detail"], ["a", "b"], ["c", "d"]];
+    const file = workbookFile("Customer list.xlsx", [{ name: "Sheet1", rows: generic }, { name: "Notes", rows: generic }]);
+    const workspace = await prepareOrganizationWorkspace((await planUpload([file])).sources);
+    expect(workspace.context.datasets.map(d => [d.sheet, d.purpose])).toEqual([["Sheet1", "customers"], ["Notes", "operations"]]);
+  });
+
+  it("scores a sheet called Sales as sales", async () => {
     const file = workbookFile("Book.xlsx", [
       { name: "Lookup", rows: [["Topic", "Detail"], ["a", "b"], ["c", "d"]] },
       { name: "Sales", rows: [["Topic", "Detail"], ["e", "f"], ["g", "h"]] },

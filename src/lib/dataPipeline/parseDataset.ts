@@ -1,5 +1,5 @@
 import Papa from "papaparse";
-import { rowsToTable, sheetRows } from "./excelCells";
+import { locateHeader, rowsToTable, sheetRows, usedBounds } from "./excelCells";
 import { datasetDisplayName, excelSizeError, loadWorkbook, workbookUses1904 } from "./workbook";
 import type { ParsedDataset, ParseError, RawRow } from "../../types/dataPipeline";
 
@@ -86,7 +86,14 @@ export async function parseDataset(file: File, sheet?: string): Promise<ParseRes
       const wb = await loadWorkbook(file);
       const ws = wb.Sheets[sheet ?? wb.SheetNames[0]];
       if (!ws) return { ok: false, error: { code: 'NO_ROWS', message: sheet === undefined ? 'The workbook has no readable sheets.' : `The sheet "${sheet}" was not found in this workbook.` } };
-      rawRows = rowsToTable(sheetRows(XLSX, ws, workbookUses1904(wb))).rows;
+      const date1904 = workbookUses1904(wb);
+      if (sheet === undefined) {
+        rawRows = rowsToTable(sheetRows(XLSX, ws, date1904)).rows; // a whole file: the first row is the header, as always
+      } else {
+        // A sheet picked from a workbook may have title text above its table: start at the header row found when listing.
+        const header = locateHeader(XLSX, ws, date1904);
+        rawRows = header ? rowsToTable(sheetRows(XLSX, ws, date1904, header.row), header.row - usedBounds(XLSX, ws)!.minR).rows : [];
+      }
     } else if (fileType === 'tsv') {
       const text = await file.text();
       rawRows = await parseDelimitedText(text, '\t');

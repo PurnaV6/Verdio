@@ -58,7 +58,7 @@ export function cellValueText(XLSX: Xlsx, cell: CellObject | undefined, date1904
 }
 
 /** Rows and columns that hold a value. Ignores formatting-only ranges such as A1:XFD1048576. */
-function usedBounds(XLSX: Xlsx, ws: WorkSheet) {
+export function usedBounds(XLSX: Xlsx, ws: WorkSheet) {
   let minR = Infinity, maxR = -1, minC = Infinity, maxC = -1;
   for (const key in ws) {
     if (key.charCodeAt(0) === 33) continue; // "!ref", "!merges", ...
@@ -75,17 +75,17 @@ function usedBounds(XLSX: Xlsx, ws: WorkSheet) {
 
 /**
  * Yields the rows of a sheet as text, top to bottom, covering the cells that hold values.
- * Cells below the top row of a vertically merged block repeat that block's value, except when
- * the block starts on the first row (a merged header is not data).
+ * Cells below the top row of a vertically merged block repeat that block's value, except when the block starts
+ * on or above `fillBelowRow` (a 0-based sheet row, the first used row by default): titles and headers are not data.
  */
-export function* sheetRows(XLSX: Xlsx, ws: WorkSheet, date1904 = false): Generator<string[]> {
+export function* sheetRows(XLSX: Xlsx, ws: WorkSheet, date1904 = false, fillBelowRow?: number): Generator<string[]> {
   const bounds = usedBounds(XLSX, ws);
   if (!bounds) return;
 
   const mergeSource = new Map<string, string>();
   for (const merge of ws["!merges"] ?? []) {
     const rows = merge.e.r - merge.s.r + 1, cols = merge.e.c - merge.s.c + 1;
-    if (rows < 2 || merge.s.r <= bounds.minR || rows * cols > MAX_MERGE_CELLS) continue;
+    if (rows < 2 || merge.s.r <= (fillBelowRow ?? bounds.minR) || rows * cols > MAX_MERGE_CELLS) continue;
     const origin = XLSX.utils.encode_cell(merge.s);
     for (let r = merge.s.r; r <= merge.e.r; r += 1) {
       for (let c = merge.s.c; c <= merge.e.c; c += 1) {
@@ -115,6 +115,33 @@ export function nonEmptyCount(row: string[]) {
   return n;
 }
 
+const HEADER_SEARCH_ROWS = 50;
+
+function looksLikeData(cell: string) {
+  return Number.isFinite(Number(cell.replace(/[£$€,%\s]/g, ""))) || /^\d{4}-\d{2}-\d{2}/.test(cell.trim());
+}
+
+/**
+ * Where the header row is, among the first rows that hold anything: the first one with at least two names, spanning at
+ * least half the widest of those rows, and no number or date among its names. Title text above a table is passed over.
+ * Returns the 0-based sheet row and the number of columns, or null when no row looks like a header.
+ */
+export function locateHeader(XLSX: Xlsx, ws: WorkSheet, date1904 = false): { row: number; columnCount: number } | null {
+  const bounds = usedBounds(XLSX, ws);
+  if (!bounds) return null;
+  const sample: Array<{ row: number; cells: string[]; width: number }> = [];
+  let index = 0;
+  for (const cells of sheetRows(XLSX, ws, date1904, Infinity)) {
+    const width = nonEmptyCount(cells);
+    if (width > 0) sample.push({ row: bounds.minR + index, cells, width });
+    index += 1;
+    if (sample.length >= HEADER_SEARCH_ROWS) break;
+  }
+  const widest = sample.reduce((max, entry) => Math.max(max, entry.width), 0);
+  const found = sample.find(entry => entry.width >= 2 && entry.width >= Math.ceil(widest / 2) && entry.cells.every(cell => isBlankCell(cell) || !looksLikeData(cell)));
+  return found ? { row: found.row, columnCount: found.width } : null;
+}
+
 /** Header cleaning that matches what the CSV path produced: trimmed names, repeats suffixed _1, _2. */
 function buildHeaders(first: string[], keep: number[]): string[] {
   const seen = new Map<string, number>();
@@ -128,10 +155,12 @@ function buildHeaders(first: string[], keep: number[]): string[] {
 }
 
 /** First non-blank row is the header; blank rows and columns with no header and no data are dropped. */
-export function rowsToTable(rows: Iterable<string[]>): { headers: string[]; rows: Record<string, string>[] } {
+export function rowsToTable(rows: Iterable<string[]>, skipRows = 0): { headers: string[]; rows: Record<string, string>[] } {
   let first: string[] | null = null;
   const body: string[][] = [];
+  let seen = 0;
   for (const row of rows) {
+    if (seen++ < skipRows) continue; // rows above the header (titles)
     if (nonEmptyCount(row) === 0) continue;
     if (!first) first = row; else body.push(row);
   }

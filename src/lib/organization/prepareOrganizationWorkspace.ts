@@ -25,6 +25,17 @@ function purposeFor(fileName: string, roles: BusinessRole[]): DatasetPurpose {
   return 'operations';
 }
 
+/** Sheet names that say nothing about the content, so the workbook's name may speak for them. */
+const GENERIC_SHEET_NAME = /^(sheet|worksheet|table|data|export|report|page|tab)[\s_-]*\d*$/i;
+
+/** The sheet's own name decides first. The workbook name only helps a sheet that is unrecognised AND has a generic
+ *  name (Sheet1, Data), so a workbook called "Customer Sales.xlsx" does not turn a sheet called "Notes" into customers. */
+function purposeForSheet(workbookName: string, sheetName: string, roles: BusinessRole[]): DatasetPurpose {
+  const own = purposeFor(sheetName, roles);
+  if (own !== 'operations' || !GENERIC_SHEET_NAME.test(sheetName.trim())) return own;
+  return purposeFor(`${workbookName} ${sheetName}`, roles);
+}
+
 function normalise(value: string) { return value.toLowerCase().replace(/[^a-z0-9]/g, ''); }
 
 function overlap(rowsA: RawRow[], columnA: string, rowsB: RawRow[], columnB: string) {
@@ -127,7 +138,7 @@ export async function prepareOrganizationWorkspace(input: Array<File | DatasetSo
     const id = source.sheet===undefined ? slug(result.data.fileName,index) : slug(`${source.file.name.replace(/\.[^.]+$/, '')} ${source.sheet}`,index,false);
     const roles = semantics.columns.map(column=>column.businessRole);
     const dataset: OrganizationDataset = {
-      id, fileName: result.data.fileName, ...(source.sheet===undefined?{}:{sheet:source.sheet}), purpose: purposeFor(result.data.fileName,roles), // a sheet's display name holds the workbook and sheet names, so a sheet called Sales scores as sales
+      id, fileName: result.data.fileName, ...(source.sheet===undefined?{}:{sheet:source.sheet}), purpose: source.sheet===undefined ? purposeFor(result.data.fileName,roles) : purposeForSheet(source.file.name,source.sheet,roles),
       rowCount: result.data.rows.length, columnCount: result.data.headers.length, primary: false,
       columns: semantics.columns.map(column=>({ name: column.columnName, role: column.businessRole, dataType: column.dataType, confidence: column.confidence })),
     };
