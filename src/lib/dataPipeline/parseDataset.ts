@@ -1,4 +1,5 @@
 import Papa from "papaparse";
+import { rowsToTable, sheetRows } from "./excelCells";
 import { parseSheetFileName } from "./workbookSheets";
 import type { ParsedDataset, ParseError, RawRow } from "../../types/dataPipeline";
 
@@ -79,11 +80,11 @@ export async function parseDataset(file: File): Promise<ParseResult> {
     if (!sheetFile && (fileType === 'xlsx' || fileType === 'xls')) {
       const XLSX = await import("xlsx");
       const buf = await file.arrayBuffer();
-      const wb = XLSX.read(new Uint8Array(buf), { type: 'array', cellDates: true });
+      // Real cell values, not the text Excel displays (see excelCells.ts): cellNF keeps each cell's format so dates can be told from numbers.
+      const wb = XLSX.read(new Uint8Array(buf), { type: 'array', cellNF: true });
       const firstSheet = wb.Sheets[wb.SheetNames[0]];
       if (!firstSheet) return { ok: false, error: { code: 'NO_ROWS', message: 'The workbook has no readable sheets.' } };
-      const csv = XLSX.utils.sheet_to_csv(firstSheet);
-      rawRows = await parseDelimitedText(csv);
+      rawRows = rowsToTable(sheetRows(XLSX, firstSheet, !!wb.Workbook?.WBProps?.date1904)).rows;
     } else if (fileType === 'tsv') {
       const text = await file.text();
       rawRows = await parseDelimitedText(text, '\t');
