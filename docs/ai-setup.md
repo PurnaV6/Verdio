@@ -194,11 +194,62 @@ Counters live in Postgres, so they hold across serverless instances. The in-memo
 
 1. The server builds the prompt. The browser can send only a question, short history and the data context of its own file; a client-supplied system prompt, `messages` or `max_tokens` is rejected or dropped.
 2. A fixed server-side system prompt lists the allowed topics and the refusal texts.
-3. The user's data is placed in a delimited data block in a user message, never in the system prompt, and is described to the model as data and not instructions.
-4. A cheap pre-check refuses override attempts ("ignore previous", "system prompt", "you are now", "developer mode", code fences, URLs), requests about other users and obvious code-writing requests before any tokens are spent.
+3. The user's data is placed in a delimited data block in a user message, never in the system prompt. The prompt says that column names, cell values and titles inside the block are data, never instructions. The server also neutralises anything in that text that looks like the block's delimiter (angle brackets and their look-alikes, HTML entities, the delimiter name, chat-template markers, role labels at the start of a line), so a cell cannot close the block.
+4. A cheap pre-check refuses override attempts ("ignore previous instructions", "system prompt", "you are now", role-play, DAN-style jailbreaks, code fences, URLs), requests about other users or the database, and requests for code, creative writing, translation or obvious general knowledge, before any tokens are spent. The test set for it is described under "Misuse and abuse".
 5. Hard caps on input sizes, output tokens and requests per day. Replies containing code blocks or links are withheld and the built-in answer is used.
+6. An output check replaces an answer that is clearly off-scope (it leaks the hidden prompt, announces a jailbreak persona, says "here is your poem", or contains source code lines) with the off-topic refusal.
 
 No prompt-based limit is perfect. A determined user can sometimes talk a model into a short off-topic reply. The mitigations above shrink that to a few hundred tokens inside a daily cap, and the data exposed is only the user's own. A later change adds a check that every number in an answer exists in the file's facts and answers common questions from the built-in router first.
+
+## Misuse and abuse
+
+The Advisor must answer only about the signed-in user's own file and about Verd.io's pages. These are the layers that keep it that way and keep the bill small, from the outside in:
+
+| Layer | What it stops | Where |
+| --- | --- | --- |
+| Sign-in (JWT checked with Supabase) | Anonymous use | `api/chat.js` |
+| Email confirmation in Supabase Auth | Throw-away sign-ups getting their own allowance | Supabase settings (see below) |
+| Request shape and size limits | A client-supplied system prompt, huge inputs | `api/chat.js` |
+| Pre-check (`screenText`) | Override, role-play, jailbreak, off-topic and other-user requests, before any tokens are spent | `api/_lib/prompts.js` |
+| Server-built prompt with the file as untrusted data | Instructions hidden in column names or cells | `api/_lib/prompts.js` |
+| Output scrub and off-scope check | Code, links, invented pages, a leaked prompt | `api/_lib/answerScrub.js` |
+| Token limits per call | One call costing much | `MAX_TOKENS` in `api/chat.js` |
+| Per-user and global daily quotas, burst gap, SQL ceilings | Many calls from one user or many users | `api/chat.js` and the migration |
+| Refusal logging | Not knowing it is happening | `refused` and `refusalKind` in the `ai_chat` log |
+
+### Testing it
+
+The standing abuse test set is `api/_lib/screenText.abuse.test.js`. It is a table of real analysis questions that must pass the pre-check (including the app's own quick actions) and of abuse that must be refused (override, other users, off-topic), and it runs with the rest of the suite:
+
+```sh
+npx vitest run api/_lib/screenText.abuse.test.js
+```
+
+When you change the screen, add a row for every new pattern, and keep every "must pass" row passing: a false refusal of a real question is a bug. `api/_lib/prompts.test.js` covers the data block (hostile column names, cell values and attempts to close the delimiter), `api/_lib/answerScrub.test.js` covers the output check, and `api/chat.test.js` covers the whole route with the mock provider. None of them call a real provider. The pre-check is a speed bump, not a security boundary: it cannot catch every rephrasing, which is why the other layers exist. Nothing here has been tested against a real model, so after deploying, try a few of the refused phrasings by hand while signed in and watch the refusal counts in the logs.
+
+### Set a hard monthly spend limit at the provider
+
+The daily quotas bound the number of calls, but only the provider can enforce a money limit. In the provider's console, find the billing or limits page and set a hard monthly spend limit (a cap that blocks further calls, not just an email alert), plus a lower alert threshold. Console layouts change, so look for "spend limit", "budget" or "usage limits": Anthropic and OpenAI both have a monthly limit setting under billing. A free Groq key has no billing, so it cannot overspend, but its own rate limits apply (see "Free-tier facts"); if you move to a paid tier, set the spend limit at the same time. Do this before raising any of the `AI_*_DAILY_LIMIT` variables.
+
+### Worst-case cost estimate
+
+This is an estimate, not a bill. Method: tokens per call multiplied by the daily caps, then by 30 days, then by the provider's current price per million tokens. The assumptions, which you should recheck if the prompts or limits change:
+
+- About 4 characters per token.
+- Advisor call, worst case: the system prompt (about 3,600 characters, so about 900 tokens), a full 12,000 character data block (about 3,000), six history turns of 1,000 characters (about 1,500) and a 500 character question (about 125), so roughly 5,500 input tokens. Output is capped at 500 tokens, and a reasoning model such as `openai/gpt-oss-*` is given 1,500 more for hidden reasoning, so assume 2,000 billed output tokens.
+- Insights call, worst case: about 4,000 input tokens (a similar prompt plus the data block) and 3,300 output tokens (1,800 plus the same 1,500 reasoning headroom).
+- Traffic is at the global daily cap every day, which is the most the app allows.
+
+| Setting | Input tokens per day | Output tokens per day | Per 30 days |
+| --- | --- | --- | --- |
+| Free defaults: 150 Advisor and 30 insights globally | about 0.95 million | about 0.40 million | about 28 million in, 12 million out |
+| Pro example: 400 Advisor and 60 insights globally | about 2.44 million | about 1.00 million | about 73 million in, 30 million out |
+
+To turn that into money, multiply the monthly millions by the provider's current prices. For example, at a made-up 0.50 dollars per million input tokens and 1.50 dollars per million output tokens, the free defaults come to about 14 plus 18, so roughly 32 dollars a month at the absolute worst; your real prices will differ, so substitute them. One user alone can use at most 5 Advisor questions and 1 insights run a day (about 32,000 input and 13,000 output tokens), and many sign-ups cannot go past the global cap, which is the number that bounds the bill. Real traffic is normally far below the worst case because most calls use short contexts.
+
+### Require email confirmation
+
+In the Supabase dashboard, open Authentication settings for the Email provider and make sure "Confirm email" is on, so a sign-up must prove it owns the address before it can use the Advisor. Without it, anyone can create many accounts with made-up addresses, and each gets its own per-user allowance (the global cap still bounds the total). Consider also turning on Supabase's CAPTCHA protection for sign-ups. Check the setting again after any change of Supabase project, because it is per project.
 
 ## Isolation
 
@@ -206,7 +257,7 @@ The model gets no tools and no database access. Its only input is the one reques
 
 ## Testing without a provider
 
-Set `AI_PROVIDER=mock` (never on production; it is ignored there) to use canned answers. `AI_MOCK_MODE` picks the behaviour: `grounded` (default), `off-topic`, `injection-following`, `busy` or `throws`. The unit tests use this with a mocked `fetch`, so they need no network and no keys:
+Set `AI_PROVIDER=mock` (never on production; it is ignored there) to use canned answers. `AI_MOCK_MODE` picks the behaviour: `grounded` (default), `off-topic`, `injection-following`, `invented-page`, `only-invented-page`, `prompt-leak`, `code-lines`, `poem-delivery`, `busy` or `throws`. The unit tests use this with a mocked `fetch`, so they need no network and no keys:
 
 ```sh
 npm test
