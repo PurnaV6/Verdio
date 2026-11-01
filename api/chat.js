@@ -16,21 +16,24 @@
 // Every non-200 JSON body carries a stable, safe `code` (too_fast, daily_limit, global_limit, busy,
 // unavailable, sign_in, not_allowed, bad_request) so the browser can say the right thing. A code never
 // carries internals, keys or provider text.
+// A refusal (pre-check or output check) is a 200 whose log line has `refused: true` and a `refusalKind`
+// (override | other_users | off_topic | scrubbed); the question text is never logged.
 // Every non-200 response writes one structured `ai_chat` log line with a stable `reason` so an
 // operator can tell failures apart. The response bodies stay fixed generic strings: reasons are
 // for server logs only (see docs/ai-setup.md).
 
 import { createHash } from 'node:crypto';
 import { aiConfig, getProvider, ProviderError } from './_lib/aiProvider.js';
-import { buildMessages, screenText } from './_lib/prompts.js';
-import { chartNamesFromContext, isEffectivelyEmpty, normaliseTypography, removeInventedReferences } from './_lib/answerScrub.js';
+import { buildMessages, REFUSALS, refusalKindOf, screenText } from './_lib/prompts.js';
+import { chartNamesFromContext, isClearlyOffScope, isEffectivelyEmpty, normaliseTypography, removeInventedReferences } from './_lib/answerScrub.js';
 
 const LIMITS = { question: 500, historyTurns: 6, historyContent: 1000, context: 12000 };
 const MAX_TOKENS = { advisor: 500, insights: 1800 };
 const MAX_ANSWER_CHARS = { advisor: 2500, insights: 14000 };
 const DAILY_DEFAULTS = {
-  advisor: { user: 20, global: 400, userEnv: 'AI_ADVISOR_DAILY_LIMIT', globalEnv: 'AI_GLOBAL_ADVISOR_DAILY_LIMIT' },
-  insights: { user: 5, global: 60, userEnv: 'AI_INSIGHTS_DAILY_LIMIT', globalEnv: 'AI_GLOBAL_INSIGHTS_DAILY_LIMIT' },
+  // Free-tier defaults. The env vars below override them (and the SQL ceilings still cap whatever is sent).
+  advisor: { user: 5, global: 150, userEnv: 'AI_ADVISOR_DAILY_LIMIT', globalEnv: 'AI_GLOBAL_ADVISOR_DAILY_LIMIT' },
+  insights: { user: 1, global: 30, userEnv: 'AI_INSIGHTS_DAILY_LIMIT', globalEnv: 'AI_GLOBAL_INSIGHTS_DAILY_LIMIT' },
 };
 const MIN_GAP_SECONDS = 3;
 const SUPABASE_TIMEOUT_MS = 5000;
@@ -227,7 +230,7 @@ export default async function handler(req, res) {
   // Cheap pre-check: refuse before any quota or tokens are spent. Insights ignore the question.
   if (task === 'advisor') {
     const refusal = screenText(request.question);
-    if (refusal) return finish(200, { result: refusal, source: 'ai' }, { refused: true });
+    if (refusal) return finish(200, { result: refusal, source: 'ai' }, { refused: true, refusalKind: refusalKindOf(refusal) });
   }
 
   const config = aiConfig();
@@ -277,5 +280,11 @@ export default async function handler(req, res) {
   const usage = { model: completion.model, inputTokens: completion.usage?.inputTokens, outputTokens: completion.usage?.outputTokens };
   const result = scrubAnswer(task, completion.text, request.context);
   if (result === null) return finish(502, { error: 'Assistant unavailable', fallback: true, code: 'unavailable' }, { reason: 'scrubbed_reply', ...usage });
+  // An answer that leaks the hidden prompt, announces a jailbreak persona or is source code is replaced by the refusal.
+  // The insights are JSON for a fixed screen, so a flagged reply is withheld and the built-in insights are shown.
+  if (isClearlyOffScope(result)) {
+    if (task === 'insights') return finish(502, { error: 'Assistant unavailable', fallback: true, code: 'unavailable' }, { reason: 'scrubbed_reply', ...usage });
+    return finish(200, { result: REFUSALS.offTopic, source: 'ai' }, { ...usage, refused: true, refusalKind: 'scrubbed' });
+  }
   return finish(200, { result, source: 'ai' }, usage);
 }
