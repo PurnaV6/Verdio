@@ -2,7 +2,7 @@
    VERDIO — Feature Engineering Types (Stage 7)
    ================================================================ */
 
-export type EngineeredValue = string | number;
+export type EngineeredValue = string | number | boolean;
 export type EngineeredRow = Record<string, EngineeredValue>;
 
 export type FeatureKind = 'date_part' | 'total' | 'ratio' | 'band' | 'difference';

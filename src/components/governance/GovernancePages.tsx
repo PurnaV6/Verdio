@@ -43,6 +43,23 @@ export function PageOutcomes({ r }: { r: PipelineResult }) {
   </div>;
 }
 
+const LEFT_OUT_LISTED = 200;
+const LEFT_OUT_VALUES = 4;
+
+/** The rows left out of sales totals, so "listed with the row number" is true: original row number, reason and the first few values. */
+function RowsLeftOut({ r }: { r: PipelineResult }) {
+  const rows = r.excludedRows ?? [];
+  if (!rows.length) return null;
+  const shown = rows.slice(0, LEFT_OUT_LISTED);
+  const more = rows.length - shown.length;
+  return <section className="v2-op-sect"><div className="v2-op-sect-head"><h2>Rows left out</h2><span className="v2-tag">{rows.length.toLocaleString()} {rows.length === 1 ? 'row' : 'rows'}</span></div>
+    <p className="v2-muted">These rows stay in your data. They are left out of sales totals, the monthly trend and the breakdowns.</p>
+    <div className="v2-table-wrap" role="region" aria-label="Rows left out of sales totals" tabIndex={0}><table className="v2-table"><caption className="sr-only">Rows left out of sales totals, with the original row number and the reason</caption>
+      <thead><tr><th scope="col" className="num">Row</th><th scope="col">Reason</th><th scope="col">First values</th></tr></thead>
+      <tbody>{shown.map(item => <tr key={`${item.row}-${item.reason}`}><td className="num">{item.row.toLocaleString()}</td><th scope="row" className="v2-op-wrap">{item.reasonText}</th><td className="v2-op-wrap">{Object.entries(item.values).slice(0, LEFT_OUT_VALUES).map(([name, value]) => `${name}: ${value === '' ? '(blank)' : value}`).join(' · ')}</td></tr>)}</tbody></table></div>
+    {more > 0 && <p className="v2-muted">and {more.toLocaleString()} more</p>}</section>;
+}
+
 export function PageEvidence({ r }: { r: PipelineResult }) {
   const reviewedColumns = r.semantics.columns.filter(column => !column.needsReview).length;
   const availableModels = [r.ml.forecast && 'Forecasting', r.ml.anomalies && 'Anomaly detection', r.ml.segmentation && 'Customer segmentation'].filter(Boolean) as string[];
@@ -62,6 +79,7 @@ export function PageEvidence({ r }: { r: PipelineResult }) {
         <thead><tr><th scope="col">No.</th><th scope="col">Action</th><th scope="col" className="num">Values affected</th></tr></thead>
         <tbody>{r.cleaning.actions.map((action, index) => <tr key={`${action.type}-${action.column}-${index}`}><td className="v2-op-index">{index + 1}</td><th scope="row"><strong>{action.detail}</strong><span className="v2-tag v2-op-sub">{action.column || 'Dataset level'} · {action.type.replaceAll('_', ' ')}</span></th><td className="num">{action.count.toLocaleString()}</td></tr>)}</tbody></table></div>
         : <InlineEmpty message="No cleaning changes were required."/>}</section>
+    <RowsLeftOut r={r}/>
     <section className="v2-op-sect"><div className="v2-op-sect-head"><h2>Semantic mapping register</h2><span className="v2-tag">{reviewedColumns} confirmed</span></div><p className="v2-muted">How source columns were classified for business analysis.</p>
       <div className="v2-table-wrap" role="region" aria-label="Semantic mapping register" tabIndex={0}><table className="v2-table"><caption className="sr-only">Business role, data type and confidence for each source column</caption>
         <thead><tr><th scope="col">Column</th><th scope="col">Business role</th><th scope="col">Data type</th><th scope="col" className="num">Confidence</th><th scope="col">Review</th></tr></thead>
