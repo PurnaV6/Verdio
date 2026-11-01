@@ -1,16 +1,14 @@
-import { bestColumnOfRole } from "../../lib/analysis/pickColumns";
 import type { PipelineResult } from "../../types/pipeline";
 import { ChartRenderer } from "../workspace/lazy";
 import { SkeletonLine } from "../workspace/Skeleton";
 import { findNarrative } from "./aiLookup";
 import { Figure, Figures, PageHead } from "./PageParts";
 import { pageLabel } from "../workspace/navigation";
+import { getRevenueView } from "../../lib/analysis/revenueView";
 
 export function PageAnalyses({ r }: { r: PipelineResult }) {
   const filtered = r.analyses.filter(a => !['comparison', 'concentration_analysis', 'segmentation'].includes(a.capability));
-  const revenueColumn=bestColumnOfRole(r.semantics.columns,'revenue');
-  const connectedRevenue=r.organization?.metrics?.find(metric=>metric.id==='connected-revenue')?.value;
-  const revenue=connectedRevenue??(revenueColumn?r.engineeredRows.reduce((sum,row)=>sum+(Number(row[revenueColumn])||0),0):0);
+  const { revenueColumn, connectedRevenue, total: revenue } = getRevenueView(r);
   const inventoryCoverage=r.organization?.metrics?.find(metric=>metric.id==='inventory-demand-coverage');
   const stockReview=r.organization?.metrics?.find(metric=>metric.id==='products-requiring-review');
   return <div className="v2-view">
