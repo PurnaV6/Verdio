@@ -31,8 +31,9 @@ const LIMITS = { question: 500, historyTurns: 6, historyContent: 1000, context: 
 const MAX_TOKENS = { advisor: 500, insights: 1800 };
 const MAX_ANSWER_CHARS = { advisor: 2500, insights: 14000 };
 const DAILY_DEFAULTS = {
-  advisor: { user: 20, global: 400, userEnv: 'AI_ADVISOR_DAILY_LIMIT', globalEnv: 'AI_GLOBAL_ADVISOR_DAILY_LIMIT' },
-  insights: { user: 5, global: 60, userEnv: 'AI_INSIGHTS_DAILY_LIMIT', globalEnv: 'AI_GLOBAL_INSIGHTS_DAILY_LIMIT' },
+  // Free-tier defaults. The env vars below override them (and the SQL ceilings still cap whatever is sent).
+  advisor: { user: 5, global: 150, userEnv: 'AI_ADVISOR_DAILY_LIMIT', globalEnv: 'AI_GLOBAL_ADVISOR_DAILY_LIMIT' },
+  insights: { user: 1, global: 30, userEnv: 'AI_INSIGHTS_DAILY_LIMIT', globalEnv: 'AI_GLOBAL_INSIGHTS_DAILY_LIMIT' },
 };
 const MIN_GAP_SECONDS = 3;
 const SUPABASE_TIMEOUT_MS = 5000;

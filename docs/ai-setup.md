@@ -18,11 +18,20 @@ Set these in the Vercel project settings. Never put a value in code, in the repo
 | `APP_ORIGINS` | yes for any browser origin other than the deployment's own host | Comma-separated allowed origins, for example your custom domain. Unset means only same-origin requests work. |
 | `SUPABASE_URL` | yes | Project URL, used to verify the user's session and call the quota function. |
 | `SUPABASE_ANON_KEY` (or `VITE_SUPABASE_ANON_KEY`) | yes | Public anon key. The service-role key is never used by `/api/chat`. |
-| `AI_ADVISOR_DAILY_LIMIT` | no | Advisor questions per user per UTC day. Default 20. |
-| `AI_INSIGHTS_DAILY_LIMIT` | no | Insight generations per user per UTC day. Default 5. |
-| `AI_GLOBAL_ADVISOR_DAILY_LIMIT` | no | Advisor questions across all users per UTC day. Default 400. |
-| `AI_GLOBAL_INSIGHTS_DAILY_LIMIT` | no | Insight generations across all users per UTC day. Default 60. |
+| `AI_ADVISOR_DAILY_LIMIT` | no | Advisor questions per user per UTC day. Default 5 (free tier). |
+| `AI_INSIGHTS_DAILY_LIMIT` | no | Insight generations per user per UTC day. Default 1 (free tier). |
+| `AI_GLOBAL_ADVISOR_DAILY_LIMIT` | no | Advisor questions across all users per UTC day. Default 150 (free tier). |
+| `AI_GLOBAL_INSIGHTS_DAILY_LIMIT` | no | Insight generations across all users per UTC day. Default 30 (free tier). |
 | `AI_BURST_GAP_MS` | no | Per-instance burst guard in milliseconds. Default 1000. Best effort only (see below). |
+
+The defaults are sized for a free provider key, so one visitor cannot spend much and the shared daily budget stays inside a free tier. A variable that is already set in Vercel overrides the default, so existing deployments keep their current limits until the variable is changed or removed. To raise the limits for a Pro plan or a paid provider key, set the four variables in Vercel (Settings, Environment Variables, Production) and redeploy, for example:
+
+| Plan | `AI_ADVISOR_DAILY_LIMIT` | `AI_INSIGHTS_DAILY_LIMIT` | `AI_GLOBAL_ADVISOR_DAILY_LIMIT` | `AI_GLOBAL_INSIGHTS_DAILY_LIMIT` |
+| --- | --- | --- | --- | --- |
+| Free (the defaults) | 5 | 1 | 150 | 30 |
+| Pro, paid provider key (an example, not a recommendation) | 20 | 5 | 400 | 60 |
+
+A value above the database ceiling is clamped to the ceiling, and raising a ceiling needs a migration (below). Work out the worst-case cost of any new numbers first (see "Misuse and abuse").
 
 `OPENAI_API_KEY` still works as an alternative to `GROQ_API_KEY` for the default provider. The database function also enforces a minimum 3 second gap between calls per user and hard ceilings (advisor 100 per user and 2000 global per day, insights 20 and 400); raising a ceiling needs a new migration.
 
@@ -162,7 +171,7 @@ Groq's own documentation is inconsistent about `llama-3.3-70b-versatile`: its mo
 ## Free-tier facts
 
 - Groq's free-tier limits apply to the whole organisation, so all Verd.io users share them. That is why there is a global daily budget as well as a per-user one. A provider 429 includes a `retry-after`; the app treats it as "busy" and shows the built-in answer.
-- For `openai/gpt-oss-*` on a free key Groq's limits are about 30 requests per minute, 1,000 requests per day, 8K tokens per minute and 200K tokens per day. 200K tokens a day is only about 80 Advisor questions, so with a free key set `AI_GLOBAL_ADVISOR_DAILY_LIMIT=60` and `AI_GLOBAL_INSIGHTS_DAILY_LIMIT=15`. The defaults (400 and 60) are meant for a paid tier and would let the provider run out first. Check the current numbers on Groq's rate limits page, since they change.
+- For `openai/gpt-oss-*` on a free key Groq's limits are about 30 requests per minute, 1,000 requests per day, 8K tokens per minute and 200K tokens per day. 200K tokens a day is only about 80 Advisor questions on that model, so the free-tier defaults (150 Advisor questions and 30 insight generations a day across all users) can still exceed that one model's daily token budget on a busy day; the chain then moves on only for gone models, and a provider 429 is shown as "busy". If you see that, lower the global limits to `AI_GLOBAL_ADVISOR_DAILY_LIMIT=60` and `AI_GLOBAL_INSIGHTS_DAILY_LIMIT=15`. The previous defaults (400 and 60) were meant for a paid tier and would have let the provider run out first. Check the current numbers on Groq's rate limits page, since they change.
 - Groq states that it does not retain inference data by default (logs may be kept up to 30 days for reliability and abuse purposes) and that every customer can enable Zero Data Retention in its console. Recommendation: the owner enables Zero Data Retention in the Groq console. Groq does not state anything about model training, so Verd.io does not claim that data is "not used for training".
 - Google's Gemini free tier is excluded: Google says free-tier content may be used to improve its products.
 - Anthropic has no ongoing free API tier, so the Anthropic adapter is optional.

@@ -426,6 +426,25 @@ describe('limits', () => {
     expect(quotaCalls).toHaveLength(1);
   });
 
+  it('uses the free-tier defaults when no limit variable is set', async () => {
+    for (const name of ['AI_ADVISOR_DAILY_LIMIT', 'AI_GLOBAL_ADVISOR_DAILY_LIMIT', 'AI_INSIGHTS_DAILY_LIMIT', 'AI_GLOBAL_INSIGHTS_DAILY_LIMIT']) delete process.env[name];
+    await call(request());
+    await call(request({ body: { task: 'insights', context: 'Rows=100' } }));
+    expect(JSON.parse(quotaCalls[0].options.body)).toEqual({ p_kind: 'advisor', p_user_max: 5, p_global_max: 150, p_min_gap_seconds: 3 });
+    expect(JSON.parse(quotaCalls[1].options.body)).toEqual({ p_kind: 'insights', p_user_max: 1, p_global_max: 30, p_min_gap_seconds: 3 });
+  });
+
+  it('lets the environment variables raise the defaults (a Pro plan)', async () => {
+    process.env.AI_ADVISOR_DAILY_LIMIT = '20';
+    process.env.AI_GLOBAL_ADVISOR_DAILY_LIMIT = '400';
+    process.env.AI_INSIGHTS_DAILY_LIMIT = '5';
+    process.env.AI_GLOBAL_INSIGHTS_DAILY_LIMIT = '60';
+    await call(request());
+    await call(request({ body: { task: 'insights', context: 'Rows=100' } }));
+    expect(JSON.parse(quotaCalls[0].options.body)).toMatchObject({ p_user_max: 20, p_global_max: 400 });
+    expect(JSON.parse(quotaCalls[1].options.body)).toMatchObject({ p_user_max: 5, p_global_max: 60 });
+  });
+
   it('sends the configured limits to the database function', async () => {
     process.env.AI_ADVISOR_DAILY_LIMIT = '7';
     process.env.AI_GLOBAL_ADVISOR_DAILY_LIMIT = '123';
