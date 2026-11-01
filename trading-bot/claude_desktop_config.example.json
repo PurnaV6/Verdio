@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "alpaca": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/absolute/path/to/alpaca-mcp-server",
+        "run",
+        "alpaca_mcp_server.py"
+      ],
+      "env": {
+        "ALPACA_API_KEY": "YOUR_PAPER_KEY_ID",
+        "ALPACA_SECRET_KEY": "YOUR_PAPER_SECRET_KEY",
+        "ALPACA_PAPER_TRADE": "True",
+        "TRADE_API_URL": "https://paper-api.alpaca.markets/v2"
+      }
+    }
+  }
+}
