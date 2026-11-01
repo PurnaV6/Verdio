@@ -2,6 +2,7 @@ import type { PipelineResult } from "../../types/pipeline";
 import type { CustomerSegmentLabel } from "../../types/ml";
 import { getRevenueView } from "../analysis/revenueView";
 import { formatters } from "../story";
+import { headlineHealth, headlineQuality, UNRELIABLE_LABEL } from "../dataPipeline/headlineScores";
 
 /* ================================================================
    VERDIO — Upload comparison (pure)
@@ -27,8 +28,11 @@ export interface UploadSnapshot {
   latestMonth: { key: string; value: number } | null;
   /** Every month the sales series covers, as "YYYY-MM", oldest first. */
   monthKeys: string[];
-  health: number;
-  quality: number;
+  /** The headline scores as shown (they follow the dataset status); null when none is shown. */
+  health: number | null;
+  quality: number | null;
+  /** Set only for a file the dataset status calls not compatible: its money figures are not compared. */
+  unreliable?: boolean;
   risks: { total: number; high: number; medium: number; low: number };
   /** Customers per segment; null when the file has no customer analysis. */
   customers: { total: number; segments: Record<CustomerSegmentLabel, number> } | null;
@@ -46,11 +50,12 @@ export function takeSnapshot(result: PipelineResult): UploadSnapshot {
     fileName: result.source.fileName,
     revenueColumn: view.revenueColumn,
     dateColumn: view.series?.dateColumn ?? null,
-    totalSales: salesKnown && Number.isFinite(view.total) && view.total ? view.total : null,
-    latestMonth: latest && Number.isFinite(latest.value) ? { key: latest.periodKey, value: latest.value } : null,
+    totalSales: salesKnown && Number.isFinite(view.total) && view.total && result.datasetStatus?.status !== 'not_compatible' ? view.total : null,
+    latestMonth: latest && Number.isFinite(latest.value) && result.datasetStatus?.status !== 'not_compatible' ? { key: latest.periodKey, value: latest.value } : null,
     monthKeys: points.map(point => point.periodKey),
-    health: result.decision.health.total,
-    quality: result.quality.overallScore,
+    health: headlineHealth(result).value,
+    quality: headlineQuality(result).value,
+    ...(result.datasetStatus?.status === 'not_compatible' ? { unreliable: true } : {}),
     risks: { total: result.decision.risks.length, high: level('high'), medium: level('medium'), low: level('low') },
     customers: segmentation && segmentation.segments.length > 0
       ? {
@@ -152,8 +157,9 @@ function identicalNumbers(previous: UploadSnapshot, current: UploadSnapshot): bo
     && previous.latestMonth?.key === current.latestMonth?.key
     && round(previous.latestMonth?.value ?? null) === round(current.latestMonth?.value ?? null)
     && sameKeys(previous.monthKeys, current.monthKeys)
-    && Math.round(previous.health) === Math.round(current.health)
-    && Math.round(previous.quality) === Math.round(current.quality)
+    && round(previous.health) === round(current.health)
+    && round(previous.quality) === round(current.quality)
+    && !!previous.unreliable === !!current.unreliable
     && risksSame && customersSame;
 }
 
@@ -182,7 +188,10 @@ export function compareUploads(previous: UploadSnapshot | null, current: UploadS
   const rows: ChangeRow[] = [];
   const sameSpan = sameKeys(previous.monthKeys, current.monthKeys);
 
-  if (previous.totalSales !== null && current.totalSales !== null) {
+  const unreliableFile = previous.unreliable ? previous.fileName : current.unreliable ? current.fileName : null;
+  if (unreliableFile) {
+    rows.push(notCompared('sales', 'Total sales', `${UNRELIABLE_LABEL}: ${unreliableFile}.`));
+  } else if (previous.totalSales !== null && current.totalSales !== null) {
     rows.push(moved('sales', 'Total sales', previous.totalSales, current.totalSales, formatPounds));
   } else if (previous.totalSales !== null || current.totalSales !== null) {
     rows.push(notCompared('sales', 'Total sales', `${previous.totalSales === null ? previous.fileName : current.fileName} has no sales total.`));
@@ -190,7 +199,9 @@ export function compareUploads(previous: UploadSnapshot | null, current: UploadS
 
   const before = previous.latestMonth;
   const now = current.latestMonth;
-  if (before && now) {
+  if (unreliableFile) {
+    rows.push(notCompared('latest', 'Latest month', `${UNRELIABLE_LABEL}: ${unreliableFile}.`));
+  } else if (before && now) {
     if (before.key === now.key) {
       rows.push(moved('latest', `Sales in ${periodName(now.key)}`, before.value, now.value, formatPounds));
     } else {
@@ -214,8 +225,12 @@ export function compareUploads(previous: UploadSnapshot | null, current: UploadS
     rows.push(notCompared('months', 'New months added', `${previous.monthKeys.length === 0 ? previous.fileName : current.fileName} has no dated sales.`));
   }
 
-  rows.push(moved('health', 'Business health', previous.health, current.health, value => `${formatCount(value)} out of 100`, count => pluralise(count, 'point')));
-  rows.push(moved('quality', 'Data quality', previous.quality, current.quality, value => `${formatCount(value)} out of 100`, count => pluralise(count, 'point')));
+  const score = (id: 'health' | 'quality', label: string, before: number | null, now: number | null) => {
+    if (before === null || now === null) return notCompared(id, label, `${UNRELIABLE_LABEL}: ${before === null ? previous.fileName : current.fileName}.`);
+    return moved(id, label, before, now, value => `${formatCount(value)} out of 100`, count => pluralise(count, 'point'));
+  };
+  rows.push(score('health', 'Business health', previous.health, current.health));
+  rows.push(score('quality', 'Data quality', previous.quality, current.quality));
 
   {
     const delta = current.risks.total - previous.risks.total;

@@ -16,6 +16,7 @@ import { useOverviewSlices, type OverviewSlices } from "./overviewSlices";
 import { SkeletonBlock } from "./Skeleton";
 import { StateMark } from "./StateMark";
 import { WhatChanged } from "./WhatChanged";
+import { guardMoneyText } from "./moneyTextModel";
 import { fmtN } from "./format";
 import { forecastAhead, moveReading, riskCounts, riskReading, segmentCounts, shareItems } from "./overviewModel";
 import { getRevenueView, NO_EARLIER_PERIOD } from "./revenue";
@@ -85,10 +86,10 @@ export function PageOverview({ r, previous = null }: { r: PipelineResult; previo
             <section className="v2-ov-panel" aria-labelledby="v2-ov-action-title">
               <h2 id="v2-ov-action-title" className="v2-ov-h">Recommended action</h2>
               <h3 className="v2-ov-action">{topRec?.title || 'No immediate recommendation'}</h3>
-              <p className="v2-ov-copy">{topRec?.desc || 'Continue monitoring the current business signals.'}</p>
+              <p className="v2-ov-copy">{topRec ? guardMoneyText(r.datasetStatus, topRec.desc) : 'Continue monitoring the current business signals.'}</p>
               <div className="v2-ov-ai" aria-busy={r.aiLoading}>
                 <p className="v2-ov-label">{r.aiInsights?.source==='built-in'&&!r.aiLoading?'Built-in summary':`AI summary · ${r.aiLoading?'generating':'ready'}`}</p>
-                {r.aiLoading?<SkeletonBlock lines={2}/>:<p>{r.aiInsights?.executiveSummary || 'AI analysis will appear here when the executive summary is available.'}</p>}{!r.aiLoading&&r.aiInsights?.notice&&<p className="v2-ai-notice">{r.aiInsights.notice}</p>}
+                {r.aiLoading?<SkeletonBlock lines={2}/>:<p>{r.aiInsights?.executiveSummary ? guardMoneyText(r.datasetStatus, r.aiInsights.executiveSummary) : 'AI analysis will appear here when the executive summary is available.'}</p>}{!r.aiLoading&&r.aiInsights?.notice&&<p className="v2-ai-notice">{r.aiInsights.notice}</p>}
               </div>
             </section>
             <section className="v2-ov-panel" aria-labelledby="v2-ov-evidence-title">
