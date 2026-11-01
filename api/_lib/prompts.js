@@ -91,16 +91,56 @@ export function sanitizeText(value) {
   return String(value).replace(CONTROL_CHARS, '').replace(/`/g, "'");
 }
 
+// Screening is deliberately conservative: a pattern is added only when it almost never matches a real
+// analysis question. "ignore the previous quarter", "write a summary of my sales for the board",
+// "create a 30-day action plan" and the app's other quick actions must always pass. The standing
+// test set is api/_lib/screenText.abuse.test.js; add a row there with every change.
+
+// "ignore the previous ..." is an override only when it is followed by an instruction-like noun or ends the clause.
+const FILLER = '(?:all\\s+|any\\s+|the\\s+|your\\s+|my\\s+|these\\s+|those\\s+|of\\s+the\\s+)*';
+const INSTRUCTION_NOUN = '(?:instructions?|rules?|prompts?|messages?|directions?|context|conversation|commands?|guidelines?|programming)';
+const PREVIOUS = '(?:previous|prior|above|earlier|preceding)';
+const CLAUSE_END = '(?=\\s*(?:$|[.,;:!?]|\\b(?:and|then|but|instead|now|just|only)\\b))';
+
 const OVERRIDE_PATTERNS = [
-  /\bignore\s+(?:all\s+|any\s+|the\s+|your\s+|my\s+|these\s+)*(?:previous|prior|above|earlier|preceding)/i,
-  /\bdisregard\s+(?:all\s+|any\s+|the\s+|your\s+|these\s+)*(?:previous|prior|above|earlier|instructions|rules)/i,
-  /\bforget\s+(?:all\s+|everything\s+|your\s+|the\s+)*(?:previous|prior|instructions|rules)/i,
+  new RegExp(`\\b(?:ignore|disregard|forget)\\s+${FILLER}${PREVIOUS}(?:\\s+${INSTRUCTION_NOUN})?${CLAUSE_END}`, 'i'),
+  new RegExp(`\\b(?:ignore|disregard|forget|override|bypass|circumvent)\\s+${FILLER}(?:system\\s+|safety\\s+|security\\s+)?(?:instructions?|rules|prompts?|directions|commands|guidelines|programming)\\b`, 'i'),
+  /\b(?:ignore|disregard|forget)\s+(?:everything|anything|all)\s+(?:above|before|you\s+(?:were|have\s+been)\s+(?:told|given|taught))/i,
+  /\b(?:bypass|circumvent|disable|turn\s+off|lift|remove)\s+(?:your\s+|the\s+|all\s+)*(?:safety|content|ethical)\s+(?:filters?|rules|checks|restrictions|guidelines|features)\b/i,
+  /\b(?:bypass|circumvent)\s+(?:your\s+)(?:restrictions|guardrails|safeguards|censorship|limitations)\b/i,
   /system\s*prompt/i,
   /\byou\s+are\s+now\b/i,
-  /\bdeveloper\s+mode\b/i,
+  /\bfrom\s+now\s+on,?\s+(?:you|ignore|forget|disregard)\b/i,
+  /\byour\s+new\s+(?:rules?|instructions?|role|persona|task|purpose|job)\b/i,
+  /\bnew\s+instructions?\s*:/i,
+  /\bdeveloper\s+mode\b|\bgod\s+mode\b|\bdebug\s+mode\b|\bsudo\s+mode\b/i,
   /\bjail\s*break/i,
-  /\b(?:reveal|show|print|repeat)\s+(?:me\s+)?(?:your|the)\s+(?:instructions|rules|prompt)/i,
-  /\bpretend\s+(?:to\s+be|you\s+are)\b/i,
+  /\bdo\s+anything\s+now\b/i,
+  /\b(?:as|be|am|are|is|named|called|become|like)\s+DAN\b|\bDAN\s+mode\b|\bDAN\s*,\s*(?:an?|the)\b/,
+  /\b(?:unrestricted|unfiltered|uncensored|jailbroken)\s+(?:mode|ai|assistant|model|version|response|answer)s?\b/i,
+  // Revealing the hidden prompt or rules.
+  /\b(?:reveal|show|print|repeat|display|tell|give|leak|share|output|recite|dump|read|echo)\s+(?:me\s+)?(?:back\s+)?(?:your|the|all\s+your)\s+(?:(?:system|hidden|secret|initial|original|internal)\s+)+(?:instructions|rules|prompt|guidelines|configuration|directives|message)/i,
+  /\b(?:reveal|show|print|repeat|display|tell|give|leak|share|output|recite|dump|read|echo)\s+(?:me\s+)?(?:your)\s+(?:instructions|rules|prompt|guidelines|directives)/i,
+  /\b(?:reveal|show|print|repeat|display|tell|give|leak|share|output|recite|dump|read|echo)\s+(?:me\s+)?(?:the\s+)?(?:instructions|rules|prompt|guidelines)\s+(?:you\s+(?:were|have\s+been|are)\s+(?:given|told|following)|above)/i,
+  /\bwhat\s+(?:are|were|is)\s+your\s+(?:(?:system|hidden|secret|initial|original|internal)\s+)*(?:instructions|rules|prompt|guidelines|directives|restrictions)\b/i,
+  /\bwhat\s+(?:instructions|rules|prompt|guidelines)\s+(?:were\s+you\s+given|do\s+you\s+follow|are\s+you\s+following)\b/i,
+  /\b(?:hidden|secret)\s+(?:rules|instructions|prompt|guidelines)\b/i,
+  /\b(?:initial|original)\s+(?:instructions|prompt)\b/i,
+  /\b(?:repeat|print|output|echo|copy)\s+(?:the\s+|all\s+|everything\s+)?(?:text|words|message|content|everything)\s+(?:above|before\s+this)\b/i,
+  // Secrets of the service itself.
+  /\b(?:your|the\s+server'?s?|the\s+admin'?s?)\s+(?:api[\s_-]?keys?|passwords?|credentials|secrets?|access\s+tokens?|env(?:ironment)?\s+variables?)\b/i,
+  /\b(?:print|show|reveal|output|leak|give|share)\s+(?:me\s+)?(?:the\s+)?(?:api[\s_-]?key|access\s+token|secret\s+key|service[\s_-]?role)/i,
+  // Personas and role-play.
+  /\bpretend\s+(?:to\s+be|you\s+are|you're|that\s+you|we\s+are|we're)\b/i,
+  /\brole[\s-]?play(?:ing)?\b/i,
+  /\b(?:play|take)\s+(?:the\s+|a\s+)?(?:role|part)\s+of\b/i,
+  /\b(?:act|behave|respond|reply|answer|talk|speak)\s+(?:as|like)\s+(?:if\s+you\s+(?:were|are)\s+|though\s+you\s+(?:were|are)\s+)?(?:an?\s+|my\s+|the\s+)?(?:pirate|character|dan|robot|king|queen|wizard|poet|comedian|therapist|girlfriend|boyfriend|grandmother|grandma|unrestricted|unfiltered|uncensored|evil)\b/i,
+  /\b(?:act|behave)\s+as\s+(?:if|though)\s+you\s+(?:have|had|are|were|can)\b/i,
+  /\b(?:adopt|assume|switch\s+to)\s+(?:a|the|another|new)\s+(?:persona|personality|character|role|identity)\b/i,
+  // Chat-template and role markers pasted into the question.
+  /<\|[^|]{1,30}\|>|\[\/?(?:INST|SYS)\]|<<\s*SYS\s*>>/i,
+  /<\/?\s*(?:system|assistant|developer|instructions?|verdio_data)\b/i,
+  /^\s*(?:system|assistant|developer)\s*:/im,
   /```/,
   /https?:\/\/|\bwww\./i,
 ];
@@ -109,10 +149,66 @@ const OTHER_USER_PATTERNS = [
   /\b(?:other|another|different)\s+(?:verd\.?io\s+)?(?:users?|accounts?|tenants?|organi[sz]ations?)\b/i,
   /\b(?:someone|somebody|everyone|anyone)\s+else'?s?\s+(?:data|files?|accounts?|uploads?)/i,
   /\b(?:users?|accounts?|tenants?)'?s?\s+(?:other\s+than|besides)\s+(?:me|mine)\b/i,
+  /\bother\s+people'?s?\s+(?:data|files?|uploads?|accounts?|workspaces?)/i,
+  /\b(?:everyone|everybody|others)'s?\s+(?:data|files?|uploads?|accounts?)/i,
+  /\bbelonging\s+to\s+(?:someone|somebody|another|other|a\s+different)\b/i,
+  /\bverd\.?io'?s?\s+(?:other\s+)?(?:users?|customers|clients|accounts?|tenants|database)\b/i,
+  /\b(?:other|another|different)\s+(?:customers|clients|companies|businesses)\s+(?:of|on|using|in)\s+verd/i,
+  /\b(?:all|every)\s+(?:the\s+)?(?:verd\.?io\s+)?(?:users|accounts|tenants|organi[sz]ations)\b[^.?!]{0,30}\b(?:data|files?|uploads?|e-?mails?|passwords?)\b/i,
+  /\b(?:e-?mails?|passwords?|phone\s+numbers?)\s+(?:of|for|from)\s+(?:all|every|the)\s+(?:verd\.?io\s+)?(?:users|accounts)\b/i,
+  /\b(?:impersonat\w*|log\s*(?:in|on)|sign\s*in|switch)\s+(?:as|to|into)\s+(?:another|someone|somebody|other|the\s+admin|an?\s+admin|user\b)/i,
+  /\bimpersonat(?:e|ing|ion)\b/i,
+  /\b(?:query|dump|access)\s+(?:the\s+|your\s+)(?:database|supabase)\b/i,
+  /\b(?:user|account|tenant|org(?:anisation|anization)?)[\s_-]*id\b[^.?!]{0,10}[0-9a-f]{8}-[0-9a-f]{4}/i,
 ];
 
+// Words that tie a request to the user's own file. A request to write an email, speech or similar is
+// off-topic only when none of them appears.
+const DATA_WORDS = /\b(?:data|dataset|file|spreadsheet|upload(?:ed)?|sales|revenue|profit|margin|churn|forecast|kpi|metric|trend|risk|cost|expense|customer|quarter|budget|performance|health\s+score|growth|seasonality|insight|analysis|board|stakeholder)s?\b/i;
+
+const WRITING_VERBS = '(?:write|compose|generate|draft|create|make|produce|come\\s+up\\s+with)';
+const LANGUAGES = 'french|spanish|german|italian|portuguese|chinese|mandarin|cantonese|japanese|korean|hindi|arabic|russian|dutch|swedish|norwegian|danish|latin|telugu|tamil|urdu|bengali|turkish|polish|greek|hebrew|thai|vietnamese|klingon|pig\\s+latin|emoji|morse(?:\\s+code)?|binary|leetspeak';
+// "code" in a business sense (product code, error code) is not a code request.
+const CODE_WORD = '(?<!\\b(?:product|zip|post|country|area|promo|discount|currency|sku|item|region|account|customer|status|error|colou?r|source|campaign)\\s)code\\b(?!\\s+(?:review|of\\s+conduct))';
+
 const OFF_TOPIC_PATTERNS = [
-  /\b(?:write|compose|generate|draft)\b[^.?!]{0,40}\b(?:poem|story|essay|song|joke|haiku|python|javascript|typescript|code|script|sql\s+query|program)\b/i,
+  // Code, scripts and programs.
+  new RegExp(`\\b${WRITING_VERBS}\\b[^.?!]{0,30}(?:\\b(?:python|javascript|typescript|powershell|bash|html|css|regex|golang|kotlin|php|vba|programming)\\b|${CODE_WORD})`, 'i'),
+  /\bscripts?\s+(?:to|that|which)\s+(?:automate|scrape|download|run|parse|delete|rename|back\s?up|convert|process|install|crawl|fetch)\b/i,
+  /\b(?:python|javascript|typescript|powershell|golang|kotlin)\b/i,
+  /\b(?:sql\s+(?:quer(?:y|ies)|injection|statements?|scripts?|code|commands?)|stack\s*overflow|github\s+repo|regular\s+expressions?)\b/i,
+  // Creative writing, always off-topic.
+  new RegExp(`\\b${WRITING_VERBS}\\b[^.?!]{0,30}\\b(?:poems?|poetry|songs?|lyrics|jokes?|haiku|limericks?|sonnets?|riddles?|screenplay|fairy\\s*tale)\\b`, 'i'),
+  /\b(?:tell|sing|give)\s+(?:me\s+)?(?:a|an|another|some)\s+(?:joke|riddle|fun\s+fact|bedtime\s+story|song|poem)\b(?!-)/i,
+  /\bsing\s+(?:me\s+)?(?:a|the)\b/i,
+  // Documents and stories: off-topic only when no data word ties them to the file, so
+  // "draft an email to the board about our revenue decline" and "write the story of my sales" pass.
+  {
+    test: text => new RegExp(`\\b${WRITING_VERBS}\\b[^.?!]{0,30}\\b(?:e-?mails?|letters?|speech|toast|tweets?|blog\\s+post|linkedin|press\\s+release|newsletter|r[e\\u00e9]sum[e\\u00e9]|cv|text\\s+message|sms|assignment|thesis|dissertation|essays?|stor(?:y|ies)|scripts?)\\b`, 'i').test(text) && !DATA_WORDS.test(text),
+  },
+  {
+    test: text => /\b(?:tell|give)\s+me\s+(?:a|an|another|some)\s+(?:\w+\s+){0,2}stor(?:y|ies)\b/i.test(text) && !DATA_WORDS.test(text),
+  },
+  // Translation into another language (translating into plain English stays allowed).
+  new RegExp(`\\btranslat(?:e|ion|ing)\\b[^.?!]{0,40}\\b(?:into|to)\\s+(?:${LANGUAGES})\\b`, 'i'),
+  new RegExp(`\\b(?:say|write|put)\\s+(?:this|that|it)\\s+in\\s+(?:${LANGUAGES})\\b`, 'i'),
+  /\b(?:decode|decrypt)\b[^.?!]{0,30}\b(?:base64|rot13|hex(?:adecimal)?|cipher)\b/i,
+  // Obvious general knowledge and chit-chat.
+  /\bcapital\s+(?:city\s+)?of\s+(?:france|germany|spain|italy|japan|china|india|australia|canada|brazil|russia|england|ireland|scotland|texas|california|the\s+(?:uk|us|usa|united))\b/i,
+  /\bwho\s+(?:is|was)\s+the\s+(?:current\s+|first\s+)?(?:president|prime\s+minister|king|queen|pope|chancellor)\b(?:\s+of\b|\s*[?.!]*$)/i,
+  /\bwho\s+(?:invented|discovered|painted|directed|composed)\b/i,
+  /\bwhat(?:'s|\s+is)\s+the\s+weather\b/i,
+  /\b(?:give|tell|show|write|share|find)\s+me\s+(?:a|an|the|your)\s+(?:\w+\s+){0,2}recipe\b|\bhow\s+(?:do\s+i|to)\s+(?:cook|bake|grill|roast)\b/i,
+  /\b(?:explain|teach\s+me|tell\s+me\s+about)\b[^.?!]{0,25}\b(?:quantum|relativity|photosynthesis|black\s+holes?|world\s+war|big\s+bang|the\s+universe)\b/i,
+  /\bshould\s+i\s+(?:buy|sell|invest\s+in)\b[^.?!]{0,20}\b(?:bitcoin|ethereum|dogecoin|crypto(?:currency)?|nfts?|gold|tesla)\b/i,
+  /\bmeaning\s+of\s+life\b/i,
+  /\bhomework\b/i,
+  /\b(?:medical|legal|relationship|dating)\s+advice\b/i,
+  /\b(?:lose\s+weight|my\s+symptoms|girlfriend|boyfriend)\b/i,
+  /\bhow\s+(?:do\s+i|can\s+i|to)\s+(?:hack\s+(?:into|a|someone|wi-?fi|the\s+(?:server|account|database))|crack\s+(?:a\s+)?(?:password|wi-?fi)|pick\s+a\s+lock)\b/i,
+  /\b(?:make|build|create)\s+(?:a\s+|an\s+)?(?:bomb|weapon|malware|virus|ransomware|keylogger|phishing)\b/i,
+  /\b(?:let'?s\s+play|play\s+(?:a\s+)?(?:game|chess|trivia|20\s+questions|tic[\s-]?tac[\s-]?toe))\b/i,
+  /\bwhat\s+(?:model|llm|ai|chatbot)\s+are\s+you\b|\bare\s+you\s+(?:chat\s*gpt|gpt|claude|llama|gemini|openai|a\s+bot)\b|\bwho\s+(?:made|created|built|trained)\s+you\b/i,
 ];
 
 /**
