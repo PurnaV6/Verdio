@@ -4,6 +4,7 @@ import { LIMITS, asSentence, firstSentence, fitPart, stripFinalPeriod } from "..
 import type { AlertPreferencesInput, StoryOutcome } from "../types";
 import { joinNames, recommendationMatching } from "./shared";
 import { leftOutNotes } from "./dataHonesty";
+import { statusNotes } from "../statusStory";
 
 /* ── Data Profile ── */
 
@@ -32,7 +33,7 @@ export function profileStory(c: Ctx): StoryOutcome {
       [`Date: ${found(date)}, sales: ${found(sales)}, customer: ${found(customer)}.`],
     ],
     next: review.length ? fitPart([[`Confirm the role of ${joinNames(shown.slice(0, 2))} in Data Hub.`, 'Confirm the flagged column roles in Data Hub.']], LIMITS.next) : null,
-    notes,
+    notes: [...statusNotes(c), ...notes],
     columns: [date, sales, customer],
   });
 }
@@ -64,7 +65,7 @@ export function qualityStory(c: Ctx, pageId: 'quality'): StoryOutcome {
     happened: [[`Quality is ${formatCount(Q)}/100.`], [`Weakest area: ${weakest.name} (${formatCount(weakScore)}/100).`]],
     why: [issues, [filledSentence, '']],
     next: nextFromRecommendation(c, recommendationMatching(c, /data collection/i)),
-    notes: leftOutNotes(c),
+    notes: [...statusNotes(c), ...leftOutNotes(c)],
   });
 }
 

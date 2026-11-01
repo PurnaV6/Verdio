@@ -5,6 +5,7 @@ import { cleanDataset } from "./cleanDataset";
 import { applyRoleAwareSteps } from "./roleAwareSteps";
 import { findUndatedRows } from "./undatedRows";
 import { buildColumnReport } from "./cleaningReport";
+import { computeDatasetStatus } from "./datasetStatus";
 import { salesSummary, EMPTY_EXCLUDED } from "../analysis/salesSummary";
 
 import { classifyColumns, buildSemanticIndex } from "./semanticEngine";
@@ -134,12 +135,15 @@ export async function runDataPipeline(input: File | DatasetSource, semanticOverr
     cleaning.duplicateRows = steps.duplicateRows;
   }
 
+  const datasetStatus = computeDatasetStatus({ cleaning, semantics, analysisRowCount: engineeredRows.length });
+
   return {
     ok: true,
     result: {
       source: { fileName: parsed.data.fileName, fileType: parsed.data.fileType, rowCount: cleanedRows.length },
       pipelineVersion: PIPELINE_VERSION,
       analysisRowCount: engineeredRows.length,
+      datasetStatus,
       ...(undatedRows ? { undatedRows } : {}),
       excludedRows: steps.excludedRows,
       returnRows: steps.returnRows,
