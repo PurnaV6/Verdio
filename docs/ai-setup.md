@@ -75,6 +75,23 @@ In Vercel, open the project, then Logs, and filter by the path `/api/chat` (or s
 | `method_not_allowed` | 405 | The route only accepts `POST`. | None. |
 | `internal_error` | 502 | An unexpected server error before the provider answered. | Check the function logs around that time. |
 
+### Counting refusals
+
+A refusal is not an error: the browser gets a normal 200 answer containing the fixed refusal text. The log line for it carries two extra fields so you can see how often the Advisor is asked for things it should not do:
+
+```json
+{"event":"ai_chat","user":"3f9a1c0b7d2e","task":"advisor","status":200,"latencyMs":4,"refused":true,"refusalKind":"override"}
+```
+
+| `refusalKind` | Meaning | Tokens spent? |
+| --- | --- | --- |
+| `override` | The question tried to change the rules, reveal the prompt, start a role-play or jailbreak, or contained a link or code fence. | No |
+| `other_users` | The question asked about other users, accounts or the database. | No |
+| `off_topic` | The question asked for code, creative writing, a translation or general knowledge. | No |
+| `scrubbed` | The question passed the screen, but the model's answer was clearly off-scope (it leaked the hidden prompt, announced a jailbreak persona, or was source code) and was replaced by the off-topic refusal. | Yes, and one daily quota unit |
+
+Neither the question nor the file's content is ever written to the log. To count them in Vercel, open Logs, filter by the path `/api/chat`, and search for `"refused":true`; add `refusalKind` (for example `"refusalKind":"override"`) to narrow it down, and compare against the same search for `ai_chat` to get a rate. Many `override` lines from one hashed `user` value in a day is the sign of someone probing. A reply withheld for a code block or link is not a refusal: it is the 502 `scrubbed_reply` described in the table above.
+
 ## What the browser is told
 
 Every non-200 JSON body has a `code` next to the fixed `error` text. The code is safe to show: it never contains internals, keys or provider text. Status codes, error strings and the log `reason` values above are unchanged.

@@ -11,6 +11,13 @@ export const REFUSALS = {
     "I can't change how I work. I'll stay with your file and the app. What would you like to know about your data?",
 };
 
+/** The log label for a refusal text: 'override' | 'other_users' | 'off_topic'. Never carries the question. */
+export function refusalKindOf(refusal) {
+  if (refusal === REFUSALS.override) return 'override';
+  if (refusal === REFUSALS.otherUsers) return 'other_users';
+  return 'off_topic';
+}
+
 // The pages that exist in Verd.io, by their exact visible names. Must match the PAGES labels in
 // src/components/workspace/navigation.ts (api/_lib/prompts.test.js fails if they drift). The model may
 // point a user only to these; api/_lib/answerScrub.js drops sentences that name any other page.
