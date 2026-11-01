@@ -20,6 +20,7 @@ import { fmtN } from "./format";
 import { forecastAhead, moveReading, riskCounts, riskReading, segmentCounts, shareItems } from "./overviewModel";
 import { getRevenueView, NO_EARLIER_PERIOD } from "./revenue";
 import { healthReading, type Tone } from "./status";
+import { moneyFiguresView, type MoneyFiguresView } from "./statusBannerModel";
 
 type RevenueView = ReturnType<typeof getRevenueView>;
 type Section = 'overview' | 'revenue';
@@ -38,6 +39,8 @@ export function PageOverview({ r, previous = null }: { r: PipelineResult; previo
   const revenue=useMemo(()=>getRevenueView(r),[r]);
   const slices=useOverviewSlices(r,revenue.series);
   const story=useMemo(()=>buildStory('overview',r),[r]);
+  // A file whose sales cannot be relied on shows no money figures, only the reason.
+  const figures=useMemo(()=>moneyFiguresView(r.datasetStatus),[r.datasetStatus]);
   const brief=useMemo(()=>buildMondayBrief(r),[r]);
   const comparison=useMemo(()=>compareUploads(previous,takeSnapshot(r)),[previous,r]);
   const recConfidence=(topRec as Partial<EnrichedRecommendation>|undefined)?.confidence;
@@ -64,18 +67,18 @@ export function PageOverview({ r, previous = null }: { r: PipelineResult; previo
       </div>
 
       {section==='revenue'
-        ?<div role="tabpanel" id="v2-panel-revenue" aria-labelledby="v2-tab-revenue"><ExecutiveRevenue result={r}/></div>
+        ?<div role="tabpanel" id="v2-panel-revenue" aria-labelledby="v2-tab-revenue">{figures.withheld?<WithheldPanel title="Revenue" figures={figures}/>:<ExecutiveRevenue result={r}/>}</div>
         :<div role="tabpanel" id="v2-panel-overview" aria-labelledby="v2-tab-overview" className="v2-ov-body">
           <StoryStrip outcome={story} title="Story for this file" brief={brief}/>
           {comparison&&<WhatChanged comparison={comparison}/>}
-          <KeyFigures r={r} view={revenue} healthLabel={health.label} healthTone={health.tone}/>
-          <OverviewSlicers slices={slices}/>
+          <KeyFigures r={r} view={revenue} healthLabel={health.label} healthTone={health.tone} figures={figures}/>
+          {!figures.withheld&&<OverviewSlicers slices={slices}/>}
           <div className="v2-ov-row is-wide">
-            <TrendPanel r={r} view={revenue} slices={slices}/>
+            {figures.withheld?<WithheldPanel title="Sales trend and forecast" figures={figures}/>:<TrendPanel r={r} view={revenue} slices={slices}/>}
             <RisksPanel r={r}/>
           </div>
           <div className="v2-ov-row">
-            <SharesPanel r={r} slices={slices}/>
+            {figures.withheld?<WithheldPanel title="Where sales come from" figures={figures}/>:<SharesPanel r={r} slices={slices}/>}
             <SegmentsPanel r={r}/>
           </div>
           <div className="v2-ov-row is-wide">
@@ -106,7 +109,7 @@ export function PageOverview({ r, previous = null }: { r: PipelineResult; previo
 
 /* ── Key figures: six tiles, every value read from the pipeline ── */
 
-function KeyFigures({ r, view, healthLabel, healthTone }: { r: PipelineResult; view: RevenueView; healthLabel: string; healthTone: Tone }) {
+function KeyFigures({ r, view, healthLabel, healthTone, figures }: { r: PipelineResult; view: RevenueView; healthLabel: string; healthTone: Tone; figures: MoneyFiguresView }) {
   const series = view.series;
   const points = series?.points ?? [];
   const latest = points.at(-1);
@@ -133,6 +136,13 @@ function KeyFigures({ r, view, healthLabel, healthTone }: { r: PipelineResult; v
           <KpiTile label="Business health" value={<>{formatCount(r.decision.health.total)}<span className="v2-ov-unit"> /100</span></>}
             sub={<><StateMark tone={healthTone} label={healthLabel}/><span className="v2-tag v2-ov-src">combined operational, quality and risk assessment</span></>}/>
         </li>
+        {figures.withheld
+          ?<li className="v2-ov-tile v2-ds-nofig">
+            <p className="v2-kc-kpi-label">Sales figures</p>
+            <p className="v2-ds-nofig-line">{figures.message}.</p>
+            {figures.reason&&<p className="v2-ds-nofig-reason">{figures.reason}</p>}
+          </li>
+          :<>
         <li className="v2-ov-tile">
           <KpiTile label="Total sales in your file" value={salesKnown && view.total ? formatPounds(view.total) : 'Not available'}
             sub={<span className="v2-tag v2-ov-src">{view.connectedRevenue!==undefined?<><b>connected sales source</b> · reconciled across the connected source</>:view.revenueColumn?<><b>{view.revenueColumn}</b> · mapped sales field</>:'Sales field not detected'}</span>}/>
@@ -150,6 +160,7 @@ function KeyFigures({ r, view, healthLabel, healthTone }: { r: PipelineResult; v
               ? <><StateMark tone="watch" label={`Estimate, ${forecast.scenario} case`}/><span className="v2-tag v2-ov-src">Planning range {formatPounds(first.low)} to {formatPounds(first.high)}</span></>
               : <span className="v2-ov-vs">A forecast needs at least {minMonths} months of dated sales. {points.length > 0 ? `Your file has ${points.length}.` : 'Your file has no dated sales series.'}</span>}/>
         </li>
+          </>}
         <li className="v2-ov-tile">
           <KpiTile label="Customers" value={seg ? formatCount(seg.segments.length) : 'Not available'}
             sub={seg
@@ -163,6 +174,17 @@ function KeyFigures({ r, view, healthLabel, healthTone }: { r: PipelineResult; v
             sub={<span className="v2-tag v2-ov-src"><b>quality check</b> · completeness, validity, consistency</span>}/>
         </li>
       </ul>
+    </section>
+  );
+}
+
+/* ── Shown in place of a money chart when the file's sales figures cannot be relied on ── */
+
+function WithheldPanel({ title, figures }: { title: string; figures: MoneyFiguresView }) {
+  return (
+    <section className="v2-ov-panel">
+      <h2 className="v2-ov-h">{title}</h2>
+      <CannotShow message={`${figures.message}.${figures.reason ? ` ${figures.reason}` : ''}`}/>
     </section>
   );
 }

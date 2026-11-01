@@ -4,6 +4,7 @@ import { advisorStory, analysesStory, forecastStory, overviewStory, recsStory, r
 import { alertsStory, connectionsStory, profileStory, qualityStory, relationshipsStory } from "./pages/data";
 import { customersStory, healthStory, productsStory, scenariosStory, seasonalityStory } from "./pages/explore";
 import { evidenceStory, executionStory, modelsStory, organisationCountStory, trustStory } from "./pages/operations";
+import { notCompatibleStory } from "./statusStory";
 import type { StoryInputs, StoryOutcome, StoryPageId } from "./types";
 
 /* ================================================================
@@ -17,6 +18,11 @@ import type { StoryInputs, StoryOutcome, StoryPageId } from "./types";
 export function buildStory(pageId: StoryPageId, result: PipelineResult, inputs: StoryInputs = {}): StoryOutcome {
   try {
     const c = makeCtx(result, inputs);
+    // A file whose sales figures cannot be relied on gets no money story on the Overview.
+    if (pageId === 'overview') {
+      const refused = notCompatibleStory(c, pageId);
+      if (refused) return refused;
+    }
     switch (pageId) {
       case 'overview': return overviewStory(c);
       case 'revenue': return revenueStory(c);

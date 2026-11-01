@@ -37,6 +37,7 @@ import { PageDataProfile } from "../components/pages/PageDataProfile";
 import { PageQuality } from "../components/pages/PageQuality";
 import { PageAdvisor } from "../components/pages/PageAdvisor";
 import { Sidebar } from "../components/workspace/Sidebar";
+import { StatusBanner } from "../components/workspace/StatusBanner";
 import { pageLabel } from "../components/workspace/navigation";
 import { PageOverview } from "../components/workspace/PageOverview";
 const PageAlerts = lazyWithReload(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageAlerts })));
@@ -234,6 +235,8 @@ export default function App() {
   // A small summary of the dataset the user had open before the current one, kept in memory only for "What changed since your last upload".
   const [previousUpload, setPreviousUpload] = useState<UploadSnapshot | null>(null);
   const [page, setPage] = useState('overview');
+  // The status banner's link: open the Data Hub, then bring its cleaning report into view.
+  const [reportJump, setReportJump] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [projectLibraryOpen, setProjectLibraryOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -257,6 +260,7 @@ export default function App() {
   }, [publicMode, result]);
   const currentProjectIdRef = useRef(currentProjectId);
   useEffect(() => { currentProjectIdRef.current = currentProjectId; }, [currentProjectId]);
+  useEffect(() => { if (!reportJump || page !== 'profile') return; const section = document.getElementById('v2-cr'); section?.scrollIntoView({ block: 'start' }); section?.focus({ preventScroll: true }); setReportJump(false); }, [reportJump, page]);
   useEffect(() => { if (!result || !result.aiLoading) return; let cancelled=false; generateAIInsights(result).then(ai=>{ if(!cancelled) setResult(prev=>prev?{...prev, aiInsights: ai, aiLoading:false}:prev); }); return()=>{cancelled=true;}; }, [result]);
   useEffect(() => { if (!result || result.aiLoading) return; saveToHistory(result); saveProject(result, currentProjectIdRef.current || undefined).then(setCurrentProjectId).catch(e=>console.warn('Project save failed', e)); }, [result]);
   useEffect(()=>{if(!user)return;const token=new URLSearchParams(window.location.search).get('invite');if(!token)return;const sb=getSupabase();if(!sb)return;void sb.rpc('accept_organization_invitation',{invitation_token:token}).then(({error})=>{setInviteMessage(error?error.message:'Invitation accepted. Your workspace role is now active.');if(!error)window.history.replaceState({},'',window.location.pathname)})},[user]);
@@ -298,7 +302,7 @@ export default function App() {
             {publicMode==='demo'&&!user?<button onClick={()=>setPublicView('signup')} className="header-action is-primary flex">Create free account <ArrowUpRight size={13}/></button>:<div className="user-menu group relative"><button className="user-avatar" aria-label="Account menu">{(user?.email?.[0] || 'V').toUpperCase()}</button><div className="user-popover"><p className="truncate text-xs font-semibold text-slate-900">{user?.email || 'Local workspace'}</p><button onClick={reset}><RefreshCw size={13}/> New dataset</button><button onClick={()=>setPage('governance')}><Settings size={13}/> Settings</button><button onClick={async()=>{ const sb=getSupabase(); if(sb) await sb.auth.signOut(); }}>Sign out</button></div></div>}
           </div>
         </header>
-        <main className={`app-main p-4 md:p-7 max-w-[1480px] mx-auto ${access.role==='viewer'?'read-only-workspace':''}`}><ErrorBoundary key={page}><Suspense fallback={<PageLoadingFallback />}>{page==='overview'&&<PageOverview r={result} previous={previousUpload} />}{page==='execution'&&<PageExecutionHub r={result} />}{page==='governance'&&<PageGovernanceHub r={result} />}{page==='advisor'&&<PageAdvisor r={result} />}{page==='forecast'&&<PageForecast r={result} />}{page==='scenarios'&&<PageScenarioPlanner r={result} />}{page==='analyses'&&<PageAnalyses r={result} />}{page==='customers'&&<PageCustomers r={result} />}{page==='seasonality'&&<PageSeasonality r={result} />}{page==='health'&&<PageHealth r={result} />}{page==='risks'&&<PageRisks r={result} />}{page==='recs'&&<PageRecs r={result} />}{page==='products'&&<PageProducts r={result} />}{page==='profile'&&<PageDataProfile r={result} />}{page==='connections'&&<PageConnections r={result} />}{page==='relationships'&&<PageRelationships r={result} />}{page==='alerts'&&<PageAlerts r={result} />}</Suspense></ErrorBoundary></main>
+        <main className={`app-main p-4 md:p-7 max-w-[1480px] mx-auto ${access.role==='viewer'?'read-only-workspace':''}`}><StatusBanner status={result.datasetStatus} onSeeReport={()=>{setPage('profile');setReportJump(true)}}/><ErrorBoundary key={page}><Suspense fallback={<PageLoadingFallback />}>{page==='overview'&&<PageOverview r={result} previous={previousUpload} />}{page==='execution'&&<PageExecutionHub r={result} />}{page==='governance'&&<PageGovernanceHub r={result} />}{page==='advisor'&&<PageAdvisor r={result} />}{page==='forecast'&&<PageForecast r={result} />}{page==='scenarios'&&<PageScenarioPlanner r={result} />}{page==='analyses'&&<PageAnalyses r={result} />}{page==='customers'&&<PageCustomers r={result} />}{page==='seasonality'&&<PageSeasonality r={result} />}{page==='health'&&<PageHealth r={result} />}{page==='risks'&&<PageRisks r={result} />}{page==='recs'&&<PageRecs r={result} />}{page==='products'&&<PageProducts r={result} />}{page==='profile'&&<PageDataProfile r={result} onOpenPage={setPage} />}{page==='connections'&&<PageConnections r={result} />}{page==='relationships'&&<PageRelationships r={result} />}{page==='alerts'&&<PageAlerts r={result} />}</Suspense></ErrorBoundary></main>
       </div>
       <ProjectLibrary open={projectLibraryOpen} onClose={()=>setProjectLibraryOpen(false)} onOpen={project=>{ void recordProjectOpened(project);setPreviousUpload(null);setResult(project.result);setCurrentProjectId(project.id);setPage('overview');setProjectLibraryOpen(false); }} />
       <ExportDialog result={result} open={exportOpen} onClose={()=>setExportOpen(false)} />

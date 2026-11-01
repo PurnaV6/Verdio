@@ -1,6 +1,7 @@
 import { bestColumnOfRole } from "../analysis/pickColumns";
 import { computeConfidence } from "./confidence";
 import { FactBook } from "./facts";
+import { statusLowConfidence } from "./statusStory";
 import { formatCount, formatPercent, formatPounds, pluralise, roundPercent } from "./formatters";
 import { findBannedWords, fitPart, hasBrokenValue, LIMITS } from "./text";
 import { validateNumbers } from "./validateNumbers";
@@ -186,7 +187,7 @@ export function compose(c: Ctx, pageId: StoryPageId, draft: Draft): StoryResult 
     quality: c.Q, rows: c.N, months: c.P,
     timeBased: draft.timeBased, customerBased: draft.customers !== undefined, customers: draft.customers,
     citedColumns: columns.map(name => ({ name, needsReview: reviewByName.get(name) === true })),
-    forceLow: draft.forceLow,
+    forceLow: draft.forceLow ?? statusLowConfidence(c),
   });
 
   const listed = [...columns, ...(draft.calculatedSales ? ['calculated sales amount'] : [])];

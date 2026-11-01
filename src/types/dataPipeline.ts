@@ -148,6 +148,31 @@ export interface CleaningReport {
   duplicateRows?:     DuplicateRow[];                   // the first duplicates, with their original row numbers
 }
 
+/* ── Dataset status: how far the numbers can be trusted, and why ── */
+
+export type DatasetStatusKind = 'ready' | 'caveats' | 'incomplete' | 'not_compatible';
+
+/** One check that fired. `reason` is the plain sentence the user reads; the numbers in it are in the fields. */
+export interface StatusTrigger {
+  id:       string;
+  severity: Exclude<DatasetStatusKind, 'ready'>;
+  reason:   string;
+  count:    number;                  // rows (or columns) behind the sentence
+  total:    number;                  // rows the share is taken of
+  pct:      number;                  // 0-100, unrounded
+  column?:  string;
+  repeatedRows?: number;   // rows_left_out triggers: repeated rows set aside before the share was taken
+  /** For a trigger that covers several columns: each column's own numbers, in the order the sentence lists them. */
+  details?: { column: string; count: number; total: number; pct: number }[];
+}
+
+/** The highest severity of any trigger, and the sentence for EVERY trigger that fired. 'ready' has no triggers. */
+export interface DatasetStatus {
+  status:   DatasetStatusKind;
+  reasons:  string[];
+  triggers: StatusTrigger[];
+}
+
 /** What the file's rows add up to. Sales are positive rows that count; returns are summed apart as a positive amount. */
 export interface SalesSummary {
   measureColumn:  string | null;      // the column the totals are summed from; null when the file has no sales measure
