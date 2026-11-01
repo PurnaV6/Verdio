@@ -97,6 +97,12 @@ describe("rows left out: 2 to 10 percent is a caveat, over 10 is incomplete", ()
     expect(status({ excluded: { duplicate: 10, zero_quantity: 9 } }).status).toBe('caveats');
     expect(status({ excluded: { duplicate: 10, zero_quantity: 10 } }).status).toBe('incomplete');
   });
+  it("says when repeated rows were set aside before the share was taken", () => {
+    const s = status({ excluded: { duplicate: 1, zero_quantity: 3 }, rows: 31 });
+    expect(s.reasons[0]).toBe('3 of 30 rows (10%) are left out of sales totals for a zero or blank amount, not counting 1 repeated row.');
+    expect(s.triggers[0].repeatedRows).toBe(1);
+    expect(status({ excluded: { zero_quantity: 3 } }).reasons[0]).not.toContain('repeated');
+  });
   it("does not count the repeated rows themselves as left out", () => {
     expect(status({ excluded: { duplicate: 30 } }).status).toBe('ready');
   });
