@@ -11,6 +11,14 @@ import { isMissingValue, looksNumeric, looksDate } from "./profileDataset";
 
 const WEIGHTS = { completeness: 0.4, validity: 0.3, consistency: 0.2, uniqueness: 0.1 };
 
+/** Columns the semantic engine reads as revenue, price, quantity, date or the primary identifier carry the file's sales figures. */
+export const KEY_ROLES: readonly string[] = ['revenue', 'price', 'quantity', 'date', 'identifier'];
+/** A key column counts this many times in the completeness average, so one mostly blank sales column cannot hide among the others. */
+export const KEY_COLUMN_WEIGHT = 3;
+/** The worst key column's blank share also docks the overall score directly (like duplicate rows): this share of it, up to the cap. */
+export const KEY_GAP_FACTOR = 0.4;
+export const KEY_GAP_CAP = 30;
+
 function validityForColumn(values: string[], inferredType: string): number {
   const nonEmpty = values.filter(v => !isMissingValue(v));
   if (!nonEmpty.length) return 100; // nothing to be invalid
@@ -75,9 +83,17 @@ export function assessDataQuality(rows: RawRow[], profile: DatasetProfile, seman
     return { column: col.name, completeness, validity, consistency, uniqueness, overall };
   });
 
+  const isKey = (name: string) => KEY_ROLES.includes(semByName.get(name)?.businessRole || 'unknown');
+  const keyBlankPcts = columns.filter(c => isKey(c.column)).map(c => 100 - c.completeness);
+  const keyGapPenalty = Math.min(KEY_GAP_CAP, KEY_GAP_FACTOR * Math.max(0, ...keyBlankPcts));
+  const weightOf = (name: string) => (isKey(name) ? KEY_COLUMN_WEIGHT : 1);
+  const weightedCompleteness = () => {
+    const total = columns.reduce((s, c) => s + weightOf(c.column), 0);
+    return total ? Math.round(columns.reduce((s, c) => s + c.completeness * weightOf(c.column), 0) / total) : 0;
+  };
   const avg = (key: keyof ColumnQualityScore) => columns.length ? Math.round(columns.reduce((s, c) => s + (c[key] as number), 0) / columns.length) : 0;
 
-  const completenessScore = avg('completeness');
+  const completenessScore = weightedCompleteness();
   const validityScore     = avg('validity');
   const consistencyScore  = avg('consistency');
   const uniquenessScore   = avg('uniqueness');
@@ -90,7 +106,8 @@ export function assessDataQuality(rows: RawRow[], profile: DatasetProfile, seman
     (validityScore * WEIGHTS.validity) +
     (consistencyScore * WEIGHTS.consistency) +
     (uniquenessScore * WEIGHTS.uniqueness) -
-    Math.min(15, duplicateRowPct) // duplicate rows dock the overall score directly, capped
+    Math.min(15, duplicateRowPct) - // duplicate rows dock the overall score directly, capped
+    keyGapPenalty // so does a mostly blank key column
   );
 
   return {
