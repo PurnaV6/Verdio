@@ -19,7 +19,7 @@ export function leftOutNotes(c: Ctx): string[] {
     }
     if (excluded.duplicate > 0) {
       const n = f.n('duplicateRowsLeftOut', excluded.duplicate, 'cleaning.rowsExcluded.duplicate');
-      notes.push(`${pluralise(n, 'repeated row')} ${n === 1 ? 'is' : 'are'} left out of sales totals because the order ID repeats.`);
+      notes.push(`${pluralise(n, 'repeated row')} ${n === 1 ? 'is' : 'are'} left out of sales totals, as the order ID repeats.`);
     }
   }
   if (r.cleaning.returns && r.cleaning.returns.count > 0) {

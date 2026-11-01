@@ -61,11 +61,17 @@ export function qualityStory(c: Ctx, pageId: 'quality'): StoryOutcome {
   const filled = f.n('cellsImputed', r.cleaning.cellsImputed, 'cleaning.cellsImputed');
   const filledSentence = filled === 0 ? 'No blank cells were filled.' : `${pluralise(filled, 'blank cell')} ${filled === 1 ? 'was' : 'were'} filled.`;
 
+  // The score is for the file as uploaded. When the rows used for sales score differently, say both.
+  const after = r.qualityAfter?.overallScore;
+  const afterNote = after !== undefined && after !== Q
+    ? [`Data quality is ${formatCount(Q)}/100 on the file as uploaded and ${formatCount(f.n('dataQualityAfter', after, 'qualityAfter.overallScore'))}/100 on the rows used for sales.`]
+    : [];
+
   return compose(c, pageId, {
     happened: [[`Quality is ${formatCount(Q)}/100.`], [`Weakest area: ${weakest.name} (${formatCount(weakScore)}/100).`]],
     why: [issues, [filledSentence, '']],
     next: nextFromRecommendation(c, recommendationMatching(c, /data collection/i)),
-    notes: [...statusNotes(c), ...leftOutNotes(c)],
+    notes: [...statusNotes(c), ...afterNote, ...leftOutNotes(c)],
   });
 }
 

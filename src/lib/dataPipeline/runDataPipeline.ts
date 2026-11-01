@@ -63,8 +63,13 @@ export async function runDataPipeline(input: File | DatasetSource, semanticOverr
   const cleanedRows = steps.rows;
   const profile = steps.calculatedCount > 0 ? profileDataset(cleanedRows) : tidiedProfile;
 
-  /* 6. Quality → Capabilities */
-  const quality = assessDataQuality(cleanedRows, profile, semantics);
+  /* 6. Quality → Capabilities
+        `quality` is scored on the file as uploaded, so filling, calculating or leaving rows out can never raise it.
+        `qualityAfter` scores the rows that count toward sales, for the "after" view in the cleaning report. */
+  const quality = assessDataQuality(parsed.data.rows, rawProfile, semantics);
+  const qualityAfter = steps.analysisRows.length === 0 ? undefined
+    : steps.analysisRows.length === cleanedRows.length ? assessDataQuality(cleanedRows, profile, semantics)
+    : assessDataQuality(steps.analysisRows, profileDataset(steps.analysisRows), semantics);
   const capabilities = detectCapabilities(profile, index);
 
   /* 7. Feature engineering (on the rows that count toward sales) → 8. Statistics */
@@ -151,6 +156,7 @@ export async function runDataPipeline(input: File | DatasetSource, semanticOverr
       cleaning,
       semantics,
       quality,
+      ...(qualityAfter ? { qualityAfter } : {}),
       capabilities,
       features: addedFeatures,
       engineeredRows,
