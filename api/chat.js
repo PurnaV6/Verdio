@@ -13,6 +13,9 @@
 // Isolation: the model has no tools or database access, the server never queries user data
 // for the AI, nothing is stored server-side about a conversation, and prompts and replies
 // are never logged.
+// Every non-200 JSON body carries a stable, safe `code` (too_fast, daily_limit, global_limit, busy,
+// unavailable, sign_in, not_allowed, bad_request) so the browser can say the right thing. A code never
+// carries internals, keys or provider text.
 // Every non-200 response writes one structured `ai_chat` log line with a stable `reason` so an
 // operator can tell failures apart. The response bodies stay fixed generic strings: reasons are
 // for server logs only (see docs/ai-setup.md).
@@ -194,30 +197,30 @@ export default async function handler(req, res) {
     console.log(JSON.stringify({ event: 'ai_chat', user: userHash, task, status, latencyMs: Date.now() - started, ...extra }));
     return res.status(status).json(body);
   };
-  const busy = (reason, extra) => finish(503, { error: 'Assistant busy', fallback: true }, { reason, ...extra });
+  const busy = (reason, extra, code = 'busy') => finish(503, { error: 'Assistant busy', fallback: true, code }, { reason, ...extra });
 
-  if (req.method === 'OPTIONS') return allowed ? res.status(204).end() : finish(403, { error: 'Forbidden' }, { reason: 'origin_forbidden' });
-  if (req.method !== 'POST') return finish(405, { error: 'Method not allowed, use POST' }, { reason: 'method_not_allowed' });
-  if (!allowed) return finish(403, { error: 'Forbidden' }, { reason: 'origin_forbidden' });
+  if (req.method === 'OPTIONS') return allowed ? res.status(204).end() : finish(403, { error: 'Forbidden', code: 'not_allowed' }, { reason: 'origin_forbidden' });
+  if (req.method !== 'POST') return finish(405, { error: 'Method not allowed, use POST', code: 'bad_request' }, { reason: 'method_not_allowed' });
+  if (!allowed) return finish(403, { error: 'Forbidden', code: 'not_allowed' }, { reason: 'origin_forbidden' });
 
   const jwt = /^Bearer\s+(\S+)$/i.exec(req.headers?.authorization || '')?.[1];
-  if (!jwt) return finish(401, { error: 'Sign in to use the assistant' }, { reason: 'no_token' });
+  if (!jwt) return finish(401, { error: 'Sign in to use the assistant', code: 'sign_in' }, { reason: 'no_token' });
 
   const supabaseUrl = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
   const anonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
   if (!supabaseUrl || !anonKey) {
     return busy('supabase_not_configured', {
       supabaseUrlSet: Boolean(supabaseUrl), anonKeySet: Boolean(anonKey),
-    });
+    }, 'unavailable');
   }
 
   let user;
   try { user = await verifyUser(supabaseUrl, anonKey, jwt); } catch { return busy('auth_unavailable'); }
-  if (!user) return finish(401, { error: 'Sign in to use the assistant' }, { reason: 'invalid_token' });
+  if (!user) return finish(401, { error: 'Sign in to use the assistant', code: 'sign_in' }, { reason: 'invalid_token' });
   userHash = hashUser(user.id);
 
   const checked = validate(req.body);
-  if (checked.error) return finish(400, { error: 'Invalid request' }, { reason: 'bad_request' });
+  if (checked.error) return finish(400, { error: 'Invalid request', code: 'bad_request' }, { reason: 'bad_request' });
   const request = checked.value;
   task = request.task;
 
@@ -229,14 +232,14 @@ export default async function handler(req, res) {
 
   const config = aiConfig();
   const provider = getProvider(config);
-  if (!provider) return busy('provider_not_configured', { provider: config.provider });
+  if (!provider) return busy('provider_not_configured', { provider: config.provider }, 'unavailable');
 
   const gapMs = Number.parseInt(process.env.AI_BURST_GAP_MS ?? '', 10);
   const burstGapMs = Number.isFinite(gapMs) && gapMs >= 0 ? gapMs : 1000;
   const lastCall = lastCallByUser.get(user.id);
   if (burstGapMs > 0 && lastCall !== undefined && started - lastCall < burstGapMs) {
     res.setHeader('Retry-After', String(MIN_GAP_SECONDS));
-    return finish(429, { error: 'Please wait a moment' }, { reason: 'too_fast', guard: 'memory' });
+    return finish(429, { error: 'Please wait a moment', code: 'too_fast', retryAfterSeconds: MIN_GAP_SECONDS }, { reason: 'too_fast', guard: 'memory' });
   }
   lastCallByUser.set(user.id, started);
   if (lastCallByUser.size > 2000) lastCallByUser.clear();
@@ -250,13 +253,13 @@ export default async function handler(req, res) {
   }
   if (quota === 'too_fast') {
     res.setHeader('Retry-After', String(MIN_GAP_SECONDS));
-    return finish(429, { error: 'Please wait a moment' }, { reason: 'too_fast', guard: 'database' });
+    return finish(429, { error: 'Please wait a moment', code: 'too_fast', retryAfterSeconds: MIN_GAP_SECONDS }, { reason: 'too_fast', guard: 'database' });
   }
   if (quota === 'user_limit') {
     res.setHeader('Retry-After', String(secondsUntilUtcMidnight()));
-    return finish(429, { error: 'Daily limit reached' }, { reason: 'quota_user_limit' });
+    return finish(429, { error: 'Daily limit reached', code: 'daily_limit' }, { reason: 'quota_user_limit' });
   }
-  if (quota === 'global_limit') return busy('quota_global_limit');
+  if (quota === 'global_limit') return busy('quota_global_limit', {}, 'global_limit');
   if (quota !== 'ok') return busy('quota_unexpected_answer');
 
   let completion;
@@ -267,12 +270,12 @@ export default async function handler(req, res) {
     const details = error instanceof ProviderError
       ? { reason: error.reason, ...(error.status !== undefined ? { upstreamStatus: error.status } : {}), ...(error.model ? { model: error.model } : {}) }
       : { reason: 'internal_error' };
-    if (error instanceof ProviderError && error.kind === 'busy') return finish(503, { error: 'Assistant busy', fallback: true }, details);
-    return finish(502, { error: 'Assistant unavailable', fallback: true }, details);
+    if (error instanceof ProviderError && error.kind === 'busy') return finish(503, { error: 'Assistant busy', fallback: true, code: 'busy' }, details);
+    return finish(502, { error: 'Assistant unavailable', fallback: true, code: 'unavailable' }, details);
   }
 
   const usage = { model: completion.model, inputTokens: completion.usage?.inputTokens, outputTokens: completion.usage?.outputTokens };
   const result = scrubAnswer(task, completion.text, request.context);
-  if (result === null) return finish(502, { error: 'Assistant unavailable', fallback: true }, { reason: 'scrubbed_reply', ...usage });
+  if (result === null) return finish(502, { error: 'Assistant unavailable', fallback: true, code: 'unavailable' }, { reason: 'scrubbed_reply', ...usage });
   return finish(200, { result, source: 'ai' }, usage);
 }

@@ -97,7 +97,7 @@ describe('authentication', () => {
   it('rejects a request with no token and never reaches Supabase or the provider', async () => {
     const res = await call(request({ token: '' }));
     expect(res.statusCode).toBe(401);
-    expect(res.body).toEqual({ error: 'Sign in to use the assistant' });
+    expect(res.body).toEqual({ error: 'Sign in to use the assistant', code: 'sign_in' });
     expect(lastLog()).toMatchObject({ status: 401, reason: 'no_token' });
     expect(fetchMock).not.toHaveBeenCalled();
     expect(mockProviderState.calls).toHaveLength(0);
@@ -106,7 +106,7 @@ describe('authentication', () => {
   it('rejects an invalid token with a fixed message and does not consume quota', async () => {
     const res = await call(request({ token: 'forged' }));
     expect(res.statusCode).toBe(401);
-    expect(res.body).toEqual({ error: 'Sign in to use the assistant' });
+    expect(res.body).toEqual({ error: 'Sign in to use the assistant', code: 'sign_in' });
     expect(lastLog()).toMatchObject({ status: 401, reason: 'invalid_token' });
     expect(quotaCalls).toHaveLength(0);
     expect(mockProviderState.calls).toHaveLength(0);
@@ -116,7 +116,7 @@ describe('authentication', () => {
     fetchMock.mockImplementation(async () => ({ ok: false, status: 500, json: async () => ({}) }));
     const res = await call(request());
     expect(res.statusCode).toBe(503);
-    expect(res.body).toEqual({ error: 'Assistant busy', fallback: true });
+    expect(res.body).toEqual({ error: 'Assistant busy', fallback: true, code: 'busy' });
     expect(lastLog()).toMatchObject({ status: 503, reason: 'auth_unavailable' });
   });
 
@@ -124,7 +124,7 @@ describe('authentication', () => {
     delete process.env.SUPABASE_URL;
     const res = await call(request());
     expect(res.statusCode).toBe(503);
-    expect(res.body).toEqual({ error: 'Assistant busy', fallback: true });
+    expect(res.body).toEqual({ error: 'Assistant busy', fallback: true, code: 'unavailable' });
     expect(lastLog()).toMatchObject({ reason: 'supabase_not_configured', supabaseUrlSet: false, anonKeySet: true });
     expect(JSON.stringify(logLines())).not.toContain(ANON_KEY_VALUE);
   });
@@ -217,7 +217,7 @@ describe('request shape', () => {
   ])('rejects %s with 400 and does not call the provider', async (_label, extra) => {
     const res = await call(request({ body: validBody(extra) }));
     expect(res.statusCode).toBe(400);
-    expect(res.body).toEqual({ error: 'Invalid request' });
+    expect(res.body).toEqual({ error: 'Invalid request', code: 'bad_request' });
     expect(lastLog()).toMatchObject({ status: 400, reason: 'bad_request' });
     expect(mockProviderState.calls).toHaveLength(0);
     expect(quotaCalls).toHaveLength(0);
@@ -311,7 +311,7 @@ describe('scope limiting', () => {
     process.env.AI_MOCK_MODE = 'injection-following';
     const res = await call(request());
     expect(res.statusCode).toBe(502);
-    expect(res.body).toEqual({ error: 'Assistant unavailable', fallback: true });
+    expect(res.body).toEqual({ error: 'Assistant unavailable', fallback: true, code: 'unavailable' });
     expect(lastLog()).toMatchObject({ status: 502, reason: 'scrubbed_reply' });
     expect(JSON.stringify(res.body)).not.toContain('evil.example');
     expect(JSON.stringify(logLines())).not.toContain('evil.example');
@@ -329,7 +329,7 @@ describe('scope limiting', () => {
     process.env.AI_MOCK_MODE = 'only-invented-page';
     const res = await call(request());
     expect(res.statusCode).toBe(502);
-    expect(res.body).toEqual({ error: 'Assistant unavailable', fallback: true });
+    expect(res.body).toEqual({ error: 'Assistant unavailable', fallback: true, code: 'unavailable' });
     expect(lastLog()).toMatchObject({ status: 502, reason: 'scrubbed_reply' });
   });
 
@@ -345,7 +345,7 @@ describe('limits', () => {
     quotaAnswer = 'user_limit';
     const res = await call(request());
     expect(res.statusCode).toBe(429);
-    expect(res.body).toEqual({ error: 'Daily limit reached' });
+    expect(res.body).toEqual({ error: 'Daily limit reached', code: 'daily_limit' });
     expect(Number(res.headers['Retry-After'])).toBeGreaterThan(0);
     expect(lastLog()).toMatchObject({ status: 429, reason: 'quota_user_limit' });
     expect(mockProviderState.calls).toHaveLength(0);
@@ -355,7 +355,7 @@ describe('limits', () => {
     quotaAnswer = 'global_limit';
     const res = await call(request());
     expect(res.statusCode).toBe(503);
-    expect(res.body).toEqual({ error: 'Assistant busy', fallback: true });
+    expect(res.body).toEqual({ error: 'Assistant busy', fallback: true, code: 'global_limit' });
     expect(lastLog()).toMatchObject({ status: 503, reason: 'quota_global_limit' });
     expect(mockProviderState.calls).toHaveLength(0);
   });
@@ -404,7 +404,7 @@ describe('limits', () => {
     quotaFails(status, body);
     const res = await call(request());
     expect(res.statusCode).toBe(503);
-    expect(res.body).toEqual({ error: 'Assistant busy', fallback: true });
+    expect(res.body).toEqual({ error: 'Assistant busy', fallback: true, code: 'busy' });
     expect(lastLog()).toMatchObject({ status: 503, reason, upstreamStatus: status });
     expect(JSON.stringify(logLines())).not.toContain('SECRET-DB-ERROR-TEXT');
     expect(mockProviderState.calls).toHaveLength(0);
@@ -429,12 +429,118 @@ describe('limits', () => {
   });
 });
 
+describe('stable error codes', () => {
+  const expectCode = (res, status, code) => {
+    expect(res.statusCode).toBe(status);
+    expect(res.body.code).toBe(code);
+  };
+
+  it('too_fast carries retryAfterSeconds from the burst gap (database and memory guards)', async () => {
+    quotaAnswer = 'too_fast';
+    const database = await call(request());
+    expectCode(database, 429, 'too_fast');
+    expect(database.body).toEqual({ error: 'Please wait a moment', code: 'too_fast', retryAfterSeconds: 3 });
+    expect(database.headers['Retry-After']).toBe('3');
+
+    quotaAnswer = 'ok';
+    process.env.AI_BURST_GAP_MS = '60000';
+    await call(request({ token: 'good-codes' }));
+    const memory = await call(request({ token: 'good-codes' }));
+    expectCode(memory, 429, 'too_fast');
+    expect(memory.body.retryAfterSeconds).toBe(3);
+  });
+
+  it('daily_limit is not too_fast and has no retryAfterSeconds', async () => {
+    quotaAnswer = 'user_limit';
+    const res = await call(request());
+    expectCode(res, 429, 'daily_limit');
+    expect(res.body.retryAfterSeconds).toBeUndefined();
+  });
+
+  it('global_limit', async () => {
+    quotaAnswer = 'global_limit';
+    expectCode(await call(request()), 503, 'global_limit');
+  });
+
+  it.each([
+    ['quota_rpc_failed', 500, {}],
+    ['quota_rpc_missing', 404, {}],
+  ])('busy for %s', async (_reason, status, body) => {
+    fetchMock.mockImplementation(async url => {
+      if (String(url).endsWith('/auth/v1/user')) return { ok: true, status: 200, json: async () => ({ id: 'user-x' }) };
+      return { ok: false, status, json: async () => body };
+    });
+    expectCode(await call(request()), 503, 'busy');
+  });
+
+  it('busy for quota_unexpected_answer, auth_unavailable and provider_rate_limited', async () => {
+    quotaAnswer = 'maybe';
+    expectCode(await call(request()), 503, 'busy');
+
+    quotaAnswer = 'ok';
+    process.env.AI_MOCK_MODE = 'busy';
+    const limited = await call(request());
+    expectCode(limited, 503, 'busy');
+    expect(lastLog().reason).toBe('provider_rate_limited');
+
+    fetchMock.mockImplementation(async () => ({ ok: false, status: 500, json: async () => ({}) }));
+    expectCode(await call(request()), 503, 'busy');
+    expect(lastLog().reason).toBe('auth_unavailable');
+  });
+
+  it('unavailable for provider_error and scrubbed_reply', async () => {
+    process.env.AI_MOCK_MODE = 'throws';
+    expectCode(await call(request()), 502, 'unavailable');
+    expect(lastLog().reason).toBe('provider_error');
+    process.env.AI_MOCK_MODE = 'injection-following';
+    expectCode(await call(request()), 502, 'unavailable');
+    expect(lastLog().reason).toBe('scrubbed_reply');
+  });
+
+  it('unavailable for supabase_not_configured and provider_not_configured (status stays 503)', async () => {
+    delete process.env.SUPABASE_URL;
+    expectCode(await call(request()), 503, 'unavailable');
+    expect(lastLog().reason).toBe('supabase_not_configured');
+    process.env.SUPABASE_URL = SUPABASE;
+    delete process.env.AI_PROVIDER;
+    delete process.env.GROQ_API_KEY;
+    delete process.env.OPENAI_API_KEY;
+    expectCode(await call(request()), 503, 'unavailable');
+    expect(lastLog().reason).toBe('provider_not_configured');
+  });
+
+  it('sign_in for a missing and an invalid token', async () => {
+    expectCode(await call(request({ token: '' })), 401, 'sign_in');
+    expectCode(await call(request({ token: 'bad' })), 401, 'sign_in');
+  });
+
+  it('not_allowed for a forbidden origin, on POST and on preflight', async () => {
+    expectCode(await call(request({ headers: { origin: 'https://evil.example' } })), 403, 'not_allowed');
+    const preflight = await call({ method: 'OPTIONS', headers: { host: 'verd.test', origin: 'https://evil.example' } });
+    expectCode(preflight, 403, 'not_allowed');
+  });
+
+  it('bad_request for invalid input and a wrong method', async () => {
+    expectCode(await call(request({ body: validBody({ extra: 1 }) })), 400, 'bad_request');
+    expectCode(await call(request({ method: 'GET' })), 405, 'bad_request');
+  });
+
+  it('no error body carries internals, keys or provider text', async () => {
+    process.env.AI_MOCK_MODE = 'throws';
+    const res = await call(request());
+    const text = JSON.stringify(res.body);
+    expect(text).not.toContain(ANON_KEY_VALUE);
+    expect(text).not.toContain(SERVICE_KEY_VALUE);
+    expect(text).not.toMatch(/upstream|reason|status|supabase/i);
+  });
+});
+
 describe('provider behaviour and responses', () => {
   it('returns a generic 502 on provider failure with no provider text', async () => {
     process.env.AI_MOCK_MODE = 'throws';
     const res = await call(request());
     expect(res.statusCode).toBe(502);
-    expect(res.body).toEqual({ error: 'Assistant unavailable', fallback: true });
+    expect(res.body).toEqual({ error: 'Assistant unavailable', fallback: true, code: 'unavailable' });
     expect(lastLog()).toMatchObject({ status: 502, reason: 'provider_error', upstreamStatus: 500 });
   });
 
@@ -442,7 +548,7 @@ describe('provider behaviour and responses', () => {
     process.env.AI_MOCK_MODE = 'busy';
     const res = await call(request());
     expect(res.statusCode).toBe(503);
-    expect(res.body).toEqual({ error: 'Assistant busy', fallback: true });
+    expect(res.body).toEqual({ error: 'Assistant busy', fallback: true, code: 'busy' });
     expect(lastLog()).toMatchObject({ status: 503, reason: 'provider_rate_limited', upstreamStatus: 429 });
   });
 

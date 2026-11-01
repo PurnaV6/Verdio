@@ -17,4 +17,6 @@ export interface AIInsights {
   recommendations:     AIRecommendationDetail[];   // one per Recommendation produced by the decision engine
   keyInsights:          string[];
   analysisNarratives:  AIAnalysisNarrative[];       // one per top-ranked AnalysisCandidate actually shown
+  source?:             'ai' | 'built-in';           // who wrote it; absent on results saved before this field existed
+  notice?:             string;                      // why a built-in version is shown, in plain words
 }

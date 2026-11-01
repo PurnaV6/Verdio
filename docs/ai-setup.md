@@ -50,7 +50,7 @@ In Vercel, open the project, then Logs, and filter by the path `/api/chat` (or s
 {"event":"ai_chat","user":"3f9a1c0b7d2e","task":"advisor","status":503,"latencyMs":212,"reason":"quota_rpc_missing","upstreamStatus":404}
 ```
 
-`user` is a hashed id, never an email. Successful calls have no `reason` and log the model that answered plus token counts. Failures carry a `reason`. Prompts, replies, keys and provider error bodies are never logged. The `reason` is for operators only: the browser always receives the same fixed generic message and status code.
+`user` is a hashed id, never an email. Successful calls have no `reason` and log the model that answered plus token counts. Failures carry a `reason`. Prompts, replies, keys and provider error bodies are never logged. The `reason` is for operators only and never leaves the server. The browser receives a fixed generic message, the status code and a short stable `code` (see "What the browser is told" below).
 
 | `reason` | Status | Cause | Fix |
 | --- | --- | --- | --- |
@@ -71,9 +71,53 @@ In Vercel, open the project, then Logs, and filter by the path `/api/chat` (or s
 | `provider_empty_reply` | 502 | The provider answered with no visible text, even after trying the next model. | Usually a reasoning model that used its whole budget thinking. Put a non-reasoning model such as `llama-3.1-8b-instant` first via `AI_MODELS`. |
 | `scrubbed_reply` | 502 | The reply was withheld because it had a code block or link, nothing was left after removing invented page or chart references, or insights JSON was too long or empty. | Expected occasionally. If constant, check the model. |
 | `bad_request` | 400 | The request failed validation (unknown field, oversized input). | Client bug if seen from the real app. |
-| `origin_forbidden` | 403 | The request came from an origin not in `APP_ORIGINS` and not the deployment host. | Add the custom domain to `APP_ORIGINS`. |
+| `origin_forbidden` | 403 | The page and `/api/chat` are on different hosts and the page's origin is not in `APP_ORIGINS`. A page calling its own deployment's `/api/chat` is always allowed. | Add the page's origin to `APP_ORIGINS` (see "Previews and custom domains"). |
 | `method_not_allowed` | 405 | The route only accepts `POST`. | None. |
 | `internal_error` | 502 | An unexpected server error before the provider answered. | Check the function logs around that time. |
+
+## What the browser is told
+
+Every non-200 JSON body has a `code` next to the fixed `error` text. The code is safe to show: it never contains internals, keys or provider text. Status codes, error strings and the log `reason` values above are unchanged.
+
+| `code` | Status | Logged `reason` values | Plain meaning | Fix |
+| --- | --- | --- | --- | --- |
+| `too_fast` | 429 | `too_fast` | Two questions were sent a few seconds apart. The body also has `retryAfterSeconds`. | None. The user waits a few seconds. |
+| `daily_limit` | 429 | `quota_user_limit` | This user used today's allowance. | Resets at UTC midnight. Raise `AI_ADVISOR_DAILY_LIMIT` or `AI_INSIGHTS_DAILY_LIMIT` if too low. |
+| `global_limit` | 503 | `quota_global_limit` | The shared daily budget for all users is used up. | Resets at UTC midnight. Raise the `AI_GLOBAL_*` limits only if the provider allows it. |
+| `busy` | 503 | `provider_rate_limited`, other provider 5xx or timeout, `auth_unavailable`, `quota_rpc_failed`, `quota_rpc_missing`, `quota_unexpected_answer` | A temporary problem on the provider or Supabase side, or the quota function is missing. | Wait. If it never clears, find the `reason` in the log and use the table above. `quota_rpc_missing` needs the migration. |
+| `unavailable` | 502, or 503 | `provider_model_unavailable`, `provider_error` (non-transient), `provider_empty_reply`, `scrubbed_reply`, `internal_error`, `supabase_not_configured`, `provider_not_configured` | The AI cannot answer this request, or this deployment is not set up for AI. | Check the `reason` in the log. The two `*_not_configured` reasons mean environment variables are missing for this environment. |
+| `sign_in` | 401 | `no_token`, `invalid_token` | No session, or the session expired. | The app refreshes the session once and retries; if that fails the user signs in again. |
+| `not_allowed` | 403 | `origin_forbidden` | The page is on a different host than the API and its origin is not allowed. | Add the origin to `APP_ORIGINS`. |
+| `bad_request` | 400, or 405 | `bad_request`, `method_not_allowed` | The request failed validation or used the wrong method. | A bug if seen from the real app. |
+
+A provider error that the adapter classes as transient (HTTP 429, 5xx or a timeout) is reported as `busy`; every other provider error is `unavailable`.
+
+What the app does with each code:
+
+| Code or event | Shown to the user | Retried by the app |
+| --- | --- | --- |
+| `too_fast` | "Please wait a few seconds between questions." plus a Try again button | No |
+| `daily_limit` | Limit reached, resets tomorrow | No |
+| `global_limit`, `busy` | "The AI assistant is busy. Try again in a minute." plus a Try again button | `busy` once after about 2 seconds, `global_limit` never |
+| No answer within 30 seconds | "The AI assistant took too long to answer." plus a Try again button | Once after about 2 seconds |
+| `sign_in` or 401 | "Sign in to use the AI Advisor." | The session is refreshed once and the call repeated once |
+| `not_allowed`, `unavailable` | "The AI assistant is not available right now." | No |
+
+Every Advisor answer carries a small tag, AI or Built-in, so the user always knows which one they got.
+
+## Previews and custom domains
+
+`APP_ORIGINS` is needed only when the page and `/api/chat` are on different hosts. A page served by a Vercel preview deployment or a custom domain that calls its own `/api/chat` is same-origin and is allowed without any entry. If you do host the page and the API separately, list the page's origin in `APP_ORIGINS`, comma-separated (for example `https://app.example.com,https://www.example.com`), and redeploy.
+
+When AI does not work on a preview or a new domain, the usual causes are these, in order:
+
+1. **Environment variables are scoped per Vercel environment** (Production, Preview, Development). `GROQ_API_KEY`, `SUPABASE_URL`, the anon key and any `AI_*` values must also be added to Preview if previews should use AI. Otherwise `/api/chat` answers 503 with the reason `supabase_not_configured` or `provider_not_configured` (code `unavailable`).
+2. **Supabase Auth must list the preview or custom domain** under Site URL and Redirect URLs. Otherwise sign-in does not complete there, the client has no session, and the Advisor stays on built-in answers like the demo.
+3. **Vercel Deployment Protection** on previews can put a login in front of `/api`, so the call never reaches the function.
+
+## What "busy" means on the Groq free tier
+
+Groq's free-tier limits are shared by the whole organisation (requests per minute, requests per day, tokens per minute and tokens per day), so one user's burst can make another user's call fail. Groq answers those with HTTP 429, which `/api/chat` reports as `busy` (reason `provider_rate_limited`). The app waits about 2 seconds and tries once more, which clears short per-minute limits. If the limit is the daily token budget, retrying does not help: the user sees "busy" and the built-in answer until the window resets. Lower the `AI_GLOBAL_*` limits, as described under "Free-tier facts", so the app's own budget stops before the provider's does.
 
 ## Pages and charts the Advisor may mention
 
@@ -111,10 +155,12 @@ Groq's own documentation is inconsistent about `llama-3.3-70b-versatile`: its mo
 | Situation | Response | What the user sees |
 | --- | --- | --- |
 | Not signed in (no-login demo) | No request is made | Built-in answers and fallback insights |
-| Per-user daily limit, or calls too close together | 429 with `Retry-After` | A short notice and the built-in answer |
-| Shared daily budget used up, provider rate limit or outage, or migration missing | 503 `Assistant busy` | A short notice and the built-in answer |
-| Provider error or an unusable reply | 502 `Assistant unavailable` | The built-in answer |
-| Invalid or oversized request | 400 | The built-in answer |
+| Per-user daily limit | 429 `daily_limit` with `Retry-After` | A notice that today's questions are used, and the built-in answer |
+| Calls too close together | 429 `too_fast` with `Retry-After` | A notice to wait a few seconds, and the built-in answer with a Try again button |
+| Shared daily budget used up, provider rate limit or outage, or migration missing | 503 `global_limit` or `busy` | A notice and the built-in answer (Try again for `busy`) |
+| Provider error, an unusable reply or a deployment without AI set up | 502 or 503 `unavailable` | A notice that the AI is not available, and the built-in answer |
+| Expired session | 401 `sign_in` | The session is refreshed once; if that fails, a sign-in notice and the built-in answer |
+| Invalid or oversized request | 400 `bad_request` | The built-in answer |
 
 Counters live in Postgres, so they hold across serverless instances. The in-memory burst guard does not (each instance has its own memory and instances are recycled); it only trims rapid repeats before they reach the database.
 
