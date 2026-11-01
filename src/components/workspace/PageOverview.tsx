@@ -84,8 +84,8 @@ export function PageOverview({ r, previous = null }: { r: PipelineResult; previo
               <h3 className="v2-ov-action">{topRec?.title || 'No immediate recommendation'}</h3>
               <p className="v2-ov-copy">{topRec?.desc || 'Continue monitoring the current business signals.'}</p>
               <div className="v2-ov-ai" aria-busy={r.aiLoading}>
-                <p className="v2-ov-label">AI summary · {r.aiLoading?'generating':'ready'}</p>
-                {r.aiLoading?<SkeletonBlock lines={2}/>:<p>{r.aiInsights?.executiveSummary || 'AI analysis will appear here when the executive summary is available.'}</p>}
+                <p className="v2-ov-label">{r.aiInsights?.source==='built-in'&&!r.aiLoading?'Built-in summary':`AI summary · ${r.aiLoading?'generating':'ready'}`}</p>
+                {r.aiLoading?<SkeletonBlock lines={2}/>:<p>{r.aiInsights?.executiveSummary || 'AI analysis will appear here when the executive summary is available.'}</p>}{!r.aiLoading&&r.aiInsights?.notice&&<p className="v2-ai-notice">{r.aiInsights.notice}</p>}
               </div>
             </section>
             <section className="v2-ov-panel" aria-labelledby="v2-ov-evidence-title">

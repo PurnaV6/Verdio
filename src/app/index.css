@@ -1046,3 +1046,11 @@ button { cursor: pointer; }
   .v2-sl-fields > .v2-sl-field { flex: 1 1 140px; }
   .v2-sl-select { width: 100%; min-width: 0; }
 }
+
+/* AI Advisor: which kind of answer this is, and how to ask again */
+.v2-ai-source { display: block; margin-bottom: 6px; font: 600 10.5px/1.3 var(--v-font-body); letter-spacing: .1em; text-transform: uppercase; }
+.v2-ai-source.is-ai { color: var(--v-verd); }
+.v2-ai-source.is-built-in { color: var(--v-muted); }
+.v2-ai-retry { display: block; margin-top: 10px; padding: 6px 14px; border: 1px solid var(--vc-accent-line); border-radius: var(--vc-r-ctl); color: var(--v-verd); background: var(--v-sheet); font: 600 13px/1.3 var(--v-font-body); transition: color .15s ease, background-color .15s ease; }
+.v2-ai-retry:hover { background: var(--vc-hover); }
+.v2-ov-ai .v2-ai-notice { margin: 8px 0 0; font-size: 13px; color: var(--v-muted); }
