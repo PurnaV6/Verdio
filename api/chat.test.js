@@ -317,6 +317,23 @@ describe('scope limiting', () => {
     expect(JSON.stringify(logLines())).not.toContain('evil.example');
   });
 
+  it.each(['prompt-leak', 'code-lines', 'poem-delivery'])('replaces a clearly off-scope answer (%s) with the off-topic refusal and logs it', async mode => {
+    process.env.AI_MOCK_MODE = mode;
+    const res = await call(request());
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ result: REFUSALS.offTopic, source: 'ai' });
+    expect(lastLog()).toMatchObject({ status: 200, refused: true });
+    expect(JSON.stringify(logLines())).not.toContain('SCOPE');
+  });
+
+  it('withholds insights that leak the hidden prompt, so the built-in insights are shown', async () => {
+    process.env.AI_MOCK_MODE = 'prompt-leak';
+    const res = await call(request({ body: { task: 'insights', context: 'Rows=100' } }));
+    expect(res.statusCode).toBe(502);
+    expect(res.body).toEqual({ error: 'Assistant unavailable', fallback: true, code: 'unavailable' });
+    expect(lastLog()).toMatchObject({ status: 502, reason: 'scrubbed_reply' });
+  });
+
   it('removes a sentence that sends the user to a page that does not exist and tidies the punctuation', async () => {
     process.env.AI_MOCK_MODE = 'invented-page';
     const body = validBody({ context: 'Rows=100\nCHARTS: ID="concentration" Title="Revenue Concentration by Product Category"\nIf chart helps, add [CHART:id].' });
