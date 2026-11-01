@@ -37,6 +37,7 @@ export function recordTriggerFacts(c: Ctx, triggers: StatusTrigger[]): void {
     c.f.n(`${name}Count`, trigger.count, `${path}.count`);
     c.f.n(`${name}Total`, trigger.total, `${path}.total`);
     c.f.n(`${name}Pct`, trigger.pct, `${path}.pct`);
+    if (trigger.repeatedRows) c.f.n(`${name}RepeatedRows`, trigger.repeatedRows, `${path}.repeatedRows`);
   }
 }
 

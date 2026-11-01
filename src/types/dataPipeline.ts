@@ -161,6 +161,7 @@ export interface StatusTrigger {
   total:    number;                  // rows the share is taken of
   pct:      number;                  // 0-100, unrounded
   column?:  string;
+  repeatedRows?: number;   // rows_left_out triggers: repeated rows set aside before the share was taken
   /** For a trigger that covers several columns: each column's own numbers, in the order the sentence lists them. */
   details?: { column: string; count: number; total: number; pct: number }[];
 }

@@ -68,6 +68,7 @@ export function pctText(count: number, total: number, limits: readonly number[] 
 
 const n = (value: number) => value.toLocaleString('en-GB');
 const rowsOf = (count: number, total: number) => `${n(count)} of ${n(total)} rows`;
+const notCounting = (repeated: number) => (repeated > 0 ? `, not counting ${n(repeated)} repeated ${repeated === 1 ? 'row' : 'rows'}` : '');
 
 type StatusInput = Pick<PipelineResult, 'cleaning' | 'semantics'> & Partial<Pick<PipelineResult, 'analysisRowCount'>>;
 
@@ -121,11 +122,11 @@ export function computeDatasetStatus(result: StatusInput): DatasetStatus {
 
   /* 4. Rows left out of sales totals. */
   if (over(leftOut, afterRepeats, T.rowsLeftOutOverPct)) {
-    add({ id: 'rows_left_out_many', severity: 'incomplete', count: leftOut, total: afterRepeats, pct: share(leftOut, afterRepeats),
-      reason: `${rowsOf(leftOut, afterRepeats)} (${pctText(leftOut, afterRepeats, [T.rowsLeftOutOverPct])}) are left out of sales totals for a zero or blank amount, so totals cover only part of the file.` });
+    add({ id: 'rows_left_out_many', severity: 'incomplete', repeatedRows: excluded.duplicate, count: leftOut, total: afterRepeats, pct: share(leftOut, afterRepeats),
+      reason: `${rowsOf(leftOut, afterRepeats)} (${pctText(leftOut, afterRepeats, [T.rowsLeftOutOverPct])}) are left out of sales totals for a zero or blank amount${notCounting(excluded.duplicate)}, so totals cover only part of the file.` });
   } else if (atLeast(leftOut, afterRepeats, T.rowsLeftOutFromPct)) {
-    add({ id: 'rows_left_out_some', severity: 'caveats', count: leftOut, total: afterRepeats, pct: share(leftOut, afterRepeats),
-      reason: `${rowsOf(leftOut, afterRepeats)} (${pctText(leftOut, afterRepeats, [T.rowsLeftOutFromPct, T.rowsLeftOutOverPct])}) are left out of sales totals for a zero or blank amount.` });
+    add({ id: 'rows_left_out_some', severity: 'caveats', repeatedRows: excluded.duplicate, count: leftOut, total: afterRepeats, pct: share(leftOut, afterRepeats),
+      reason: `${rowsOf(leftOut, afterRepeats)} (${pctText(leftOut, afterRepeats, [T.rowsLeftOutFromPct, T.rowsLeftOutOverPct])}) are left out of sales totals for a zero or blank amount${notCounting(excluded.duplicate)}.` });
   }
 
   /* 5. Dates blank. */

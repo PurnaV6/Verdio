@@ -54,8 +54,8 @@ export function CleaningReport({ r, onOpenPage }: { r: PipelineResult; onOpenPag
                     <caption>Columns with blank values: how many were blank before and after cleaning, and what was done</caption>
                     <thead>
                       <tr>
-                        <th scope="col">Column</th><th scope="col">Role</th><th scope="col">Blank before</th><th scope="col">Blank after</th>
-                        <th scope="col">What was done</th><th scope="col">Rows left out</th><th scope="col">Reliability</th>
+                        <th scope="col">Column</th><th scope="col" className="is-text">Role</th><th scope="col">Blank before</th><th scope="col">Blank after</th>
+                        <th scope="col" className="is-text">What was done</th><th scope="col">Rows left out</th><th scope="col" className="is-text">Reliability</th>
                       </tr>
                     </thead>
                     <tbody>
