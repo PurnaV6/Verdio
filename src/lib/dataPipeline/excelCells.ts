@@ -48,7 +48,8 @@ export function cellValueText(XLSX: Xlsx, cell: CellObject | undefined, date1904
     }
     case "d": {
       const d = cell.v as Date;
-      return Number.isNaN(d.getTime()) ? "" : `${pad(d.getFullYear(), 4)}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      // Date cells are UTC instants since SheetJS 0.20 (a local reading would shift the day west of Greenwich).
+      return Number.isNaN(d.getTime()) ? "" : `${pad(d.getUTCFullYear(), 4)}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
     }
     case "b": return cell.v ? "TRUE" : "FALSE";
     case "e": return cell.w ?? "";
