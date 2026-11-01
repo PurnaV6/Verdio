@@ -1114,3 +1114,7 @@ button { cursor: pointer; }
   .v2-cr { padding: 16px; }
   .v2-cr-q-pair { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Status coherence: scores and money text that follow the dataset status. */
+.v2-sc-asis { margin-top: 12px; }
+.v2-sc-asis-line { margin: 0; font: 600 15px/1.4 var(--v-font-body); font-variant-numeric: tabular-nums; }

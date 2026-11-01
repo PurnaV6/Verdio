@@ -1,6 +1,7 @@
 import type { PipelineResult } from "../types/pipeline";
 import type { AIInsights } from "../types/aiInsights";
 import { buildAdvisorContext } from "../lib/analysis/factSummary";
+import { headlineHealth, headlineQuality } from "../lib/dataPipeline/headlineScores";
 import { getSupabase } from "../lib/auth/supabaseClient";
 import { noticeFor, type AssistantFailureReason } from "./aiNotice";
 
@@ -102,12 +103,15 @@ export async function askAssistant(task: 'advisor' | 'insights', context: string
   }
 }
 
+/** "68/100", or "n/a" when the dataset status says the score is not reliable for this file. */
+const scoreOf = (shown: { value: number | null; text: string }) => (shown.value === null ? shown.text : `${shown.text}/100`);
+
 function fallback(p: PipelineResult): AIInsights {
   return {
-    executiveSummary: `Analysed ${p.source.rowCount} rows, ${p.profile.columnCount} cols, health ${p.decision.health.total}/100, quality ${p.quality.overallScore}/100.`,
+    executiveSummary: `Analysed ${p.source.rowCount} rows, ${p.profile.columnCount} cols, health ${scoreOf(headlineHealth(p))}, quality ${scoreOf(headlineQuality(p))}.`,
     riskExplanations: p.decision.risks.map(r=>({title:r.title, impact:r.desc.slice(0,150), action:'See Risk Detection page for mitigation.'})),
     recommendations: p.decision.recommendations.map(r=>({title:r.title, action:r.desc.slice(0,150), impactEstimate:r.impact, timeline:'This month', priority:'high' as any})),
-    keyInsights: [`${p.source.rowCount} rows`, `Health ${p.decision.health.total}`, `Quality ${p.quality.overallScore}`, `${p.analyses.length} charts`],
+    keyInsights: [`${p.source.rowCount} rows`, `Health ${headlineHealth(p).text}`, `Quality ${headlineQuality(p).text}`, `${p.analyses.length} charts`],
     analysisNarratives: p.analyses.map(a=>({analysisId:a.id, title:a.title, narrative:a.explanation.slice(0,200)}))
   };
 }

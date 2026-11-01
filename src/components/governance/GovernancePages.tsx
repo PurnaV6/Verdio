@@ -6,7 +6,15 @@ import type { ModelSelection } from '../../lib/ml/modelManager';
 import { useWorkspaceState } from '../../lib/workspace/useWorkspaceState';
 import { getSupabase } from '../../lib/auth/supabaseClient';
 import { StateMark } from '../workspace/StateMark';
+import { qualityScoreView } from '../workspace/scoreCardModel';
 import { Figure, Figures, IdleMark, InlineEmpty, PageHead } from '../pages/PageParts';
+
+/** "94/100", or the limited score with the real one beside it when the dataset status limits the headline. */
+function qualityDetail(r: PipelineResult): string {
+  const shown = qualityScoreView(r);
+  if (!shown.limited) return `${shown.asUploaded}/100`;
+  return `${shown.hasScale ? `${shown.text}/100` : shown.text} (${shown.limited.toLowerCase()}; ${shown.asUploaded}/100 as uploaded)`;
+}
 
 type ReviewStatus = 'not_started' | 'monitoring' | 'validated';
 interface OutcomeRecord { id: string; decision: string; expected: number; actual: string; status: ReviewStatus; note: string; }
@@ -67,7 +75,7 @@ export function PageEvidence({ r }: { r: PipelineResult }) {
   const evidenceRows = [
     { check: 'Source integrity', record: r.source.fileName, detail: `${r.profile.rowCount.toLocaleString()} source rows · ${r.profile.columnCount} columns · processed ${generatedAt}` },
     { check: 'Transformation record', record: `${r.cleaning.actions.length} governed actions`, detail: `${r.cleaning.rowsBefore.toLocaleString()} rows received · ${r.cleaning.rowsAfter.toLocaleString()} retained · ${r.cleaning.cellsImputed.toLocaleString()} cells imputed` },
-    { check: 'Semantic assurance', record: `${reviewedColumns}/${r.semantics.columns.length} columns confirmed`, detail: `Overall quality ${r.quality.overallScore}/100 · ${r.quality.flags.length} quality flags` },
+    { check: 'Semantic assurance', record: `${reviewedColumns}/${r.semantics.columns.length} columns confirmed`, detail: `Overall quality ${qualityDetail(r)} · ${r.quality.flags.length} quality flags` },
     { check: 'Analytical coverage', record: `${r.capabilities.available.length} capabilities available`, detail: availableModels.length ? availableModels.join(' · ') : 'Statistical analysis only for this dataset' },
   ];
   return <div className="v2-view"><PageHead eyebrow="Decision governance" title="Evidence register">Inspect the data lineage, transformations and analytical capabilities supporting this decision workspace.</PageHead>

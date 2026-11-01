@@ -254,11 +254,13 @@ export function recsStory(c: Ctx): StoryOutcome {
 /* ── AI Advisor opening ── */
 
 export function advisorStory(c: Ctx): StoryOutcome {
-  const { f, H, N, Q, file } = c;
-  f.n('health', H, 'decision.health.total');
+  const { f, N, file } = c;
+  const scores = c.shownH.value === null || c.shownQ.value === null
+    ? 'health and data quality scores that are not reliable for this file'
+    : `health ${formatCount(f.n('health', c.shownH.value, 'headlineHealth(result).value'))}/100, data quality ${formatCount(f.n('dataQuality', c.shownQ.value, 'headlineQuality(result).value'))}/100`;
   const ask = c.r1 ? `Ask me about ${f.s('riskTitle', c.r1.title, 'decision.risks[0].title')}.` : 'Ask me what the file says about sales, customers or data quality.';
   return compose(c, 'advisor', {
-    happened: [[`I've read ${file}: ${formatCount(N)} rows, health ${formatCount(H)}/100, data quality ${formatCount(Q)}/100.`]],
+    happened: [[`I've read ${file}: ${formatCount(N)} rows, ${scores}.`]],
     next: ask,
   });
 }

@@ -4,6 +4,7 @@ import { bestColumnOfRole } from "../../lib/analysis/pickColumns";
 import type { ColumnCleaning, DataQualityReport, DatasetStatusKind, ExcludedReason } from "../../types/dataPipeline";
 import type { PipelineResult } from "../../types/pipeline";
 import type { Tone } from "../workspace/status";
+import { qualityScoreView, scoreText } from "../workspace/scoreCardModel";
 
 /* ================================================================
    VERDIO — Cleaning report model (pure)
@@ -113,6 +114,15 @@ function qualitySide(label: string, report: DataQualityReport): QualityViewSide 
 
 const STATUS_TONE: Record<DatasetStatusKind, Tone> = { ready: 'ok', caveats: 'watch', incomplete: 'risk', not_compatible: 'risk' };
 
+function shownQualityNote(r: PipelineResult): { asUploaded: string; explanation: string } | null {
+  const shown = qualityScoreView(r);
+  if (!shown.limited || !r.datasetStatus) return null;
+  return {
+    asUploaded: `Quality as uploaded: ${shown.asUploaded} / 100`,
+    explanation: `The sidebar and the Overview show it as ${scoreText(shown)}, ${shown.limited.toLowerCase()}, because the dataset status is ${STATUS_LABEL[r.datasetStatus.status]}. The score is not changed here, so nothing is hidden.`,
+  };
+}
+
 export type CleaningReportView =
   | { kind: 'older'; message: string }
   | {
@@ -122,6 +132,8 @@ export type CleaningReportView =
     columns: ColumnRowView[];
     noBlanks: boolean;
     quality: { before: QualityViewSide; after: QualityViewSide | null };
+    /** Set when the dataset status limits the quality shown on the dashboard: the real score stays here, with why. */
+    shownQuality: { asUploaded: string; explanation: string } | null;
     leftOutCount: number;
     unreliableNote: string;
   };
@@ -140,6 +152,7 @@ export function toCleaningReportView(r: PipelineResult): CleaningReportView {
       before: qualitySide('As uploaded', r.quality),
       after: r.qualityAfter ? qualitySide('Rows used for sales', r.qualityAfter) : null,
     },
+    shownQuality: shownQualityNote(r),
     leftOutCount: r.excludedRows?.length ?? 0,
     unreliableNote: UNRELIABLE_LIMIT_NOTE,
   };

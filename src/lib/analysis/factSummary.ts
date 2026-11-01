@@ -1,4 +1,5 @@
 import type { PipelineResult } from "../../types/pipeline";
+import { headlineHealth, headlineQuality } from "../dataPipeline/headlineScores";
 
 export function buildAdvisorContext(p: PipelineResult): string {
   const risks = p.decision.risks.map(r=>`[${r.level}] ${r.title}: ${r.desc}`).join('\n');
@@ -13,7 +14,7 @@ export function buildAdvisorContext(p: PipelineResult): string {
     : 'single dataset';
   
   return `You are Verd.io Advisor LLM. Full analysis:
-Rows=${p.source.rowCount} Health=${p.decision.health.total} Quality=${p.quality.overallScore}
+Rows=${p.source.rowCount} Health=${headlineHealth(p).text} Quality=${headlineQuality(p).text}
 ORGANISATIONAL_CONTEXT: ${organizationText}
 TIME_SERIES last 12: ${tsText}
 SEASONALITY: ${seasonText}

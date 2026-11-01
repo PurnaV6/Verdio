@@ -4,6 +4,7 @@ import type { EnrichedRecommendation } from '../../lib/decision/verdioDecisionEn
 import { useWorkspaceState } from '../../lib/workspace/useWorkspaceState';
 import { StateMark } from '../workspace/StateMark';
 import { Figure, Figures, IdleMark, InlineEmpty, PageHead } from '../pages/PageParts';
+import { guardMoneyText, guardPounds, isMoneyWithheld } from '../workspace/moneyTextModel';
 import { buildKpiTargets, mergeSavedTargets, type KpiTarget } from './kpiTargets';
 
 type ActionStatus = 'planned' | 'in_progress' | 'complete';
@@ -31,7 +32,7 @@ export function PageActionTracker({ r }: { r: PipelineResult }) {
     {actions.length === 0 ? <InlineEmpty message="No recommended actions are available for this dataset."/> : <div className="v2-table-wrap" role="region" aria-label="Priority actions" tabIndex={0}><table className="v2-table v2-op-table-wide"><caption className="sr-only">Priority actions with progress, owner, due date and status</caption>
       <thead><tr><th scope="col">Action</th><th scope="col">Progress</th><th scope="col">Owner</th><th scope="col">Due date</th><th scope="col">Status</th></tr></thead>
       <tbody>{actions.map(action => <tr key={action.id}>
-        <th scope="row"><strong>{action.title}</strong><span className="v2-tag v2-op-sub">{liveImpact(action) ? `£${liveImpact(action)!.estimatedValue.toLocaleString()} planning estimate` : action.impact}</span>{liveImpact(action) && <span className="v2-tag v2-op-sub">Basis: {liveImpact(action)!.basis}</span>}</th>
+        <th scope="row"><strong>{action.title}</strong><span className="v2-tag v2-op-sub">{liveImpact(action) ? (isMoneyWithheld(r.datasetStatus) ? `Planning estimate: ${guardPounds(r.datasetStatus, 0)}` : `£${liveImpact(action)!.estimatedValue.toLocaleString()} planning estimate`) : guardMoneyText(r.datasetStatus, action.impact)}</span>{liveImpact(action) && !isMoneyWithheld(r.datasetStatus) && <span className="v2-tag v2-op-sub">Basis: {liveImpact(action)!.basis}</span>}</th>
         <td><button type="button" className="v2-op-state-btn" onClick={() => update(action.id, { status: action.status === 'planned' ? 'in_progress' : action.status === 'in_progress' ? 'complete' : 'planned' })}>{statusMark(action.status)}<span className="sr-only">: change status for {action.title}</span></button></td>
         <td><label><span className="sr-only">Owner for {action.title}</span><input className="v2-op-input" value={action.owner} onChange={event => update(action.id, { owner: event.target.value })}/></label></td>
         <td><label><span className="sr-only">Due date for {action.title}</span><input className="v2-op-input is-num" type="date" value={action.dueDate} onChange={event => update(action.id, { dueDate: event.target.value })}/></label></td>

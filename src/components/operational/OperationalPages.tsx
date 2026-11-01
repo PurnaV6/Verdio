@@ -8,6 +8,7 @@ import { accessLevelLabel, projectStorageLabel } from '../../lib/auth/accessLabe
 import { StateMark } from '../workspace/StateMark';
 import { Figure, Figures, IdleMark, PageHead } from '../pages/PageParts';
 import { pageLabel } from "../workspace/navigation";
+import { headlineHealth, headlineQuality } from '../../lib/dataPipeline/headlineScores';
 import { sumColumn } from "../../lib/dataPipeline/salesRows";
 import { salesSummary } from "../../lib/analysis/salesSummary";
 
@@ -79,8 +80,8 @@ export function PageAlerts({ r }: { r: PipelineResult }) {
   const [saved, setSaved] = useState(false);
   const update = <K extends keyof OperationalPreferences>(key: K, value: OperationalPreferences[K]) => setPrefs(p=>({...p,[key]:value}));
   const activeSignals = [
-    prefs.healthAlert && r.decision.health.total < prefs.healthThreshold ? `Business health is below ${prefs.healthThreshold}` : null,
-    prefs.qualityAlert && r.quality.overallScore < prefs.qualityThreshold ? `Data quality is below ${prefs.qualityThreshold}` : null,
+    prefs.healthAlert && (headlineHealth(r).value ?? Infinity) < prefs.healthThreshold ? `Business health is below ${prefs.healthThreshold}` : null,
+    prefs.qualityAlert && (headlineQuality(r).value ?? Infinity) < prefs.qualityThreshold ? `Data quality is below ${prefs.qualityThreshold}` : null,
     prefs.revenueDropAlert && r.decision.risks.some(x=>/drop|variability|revenue/i.test(x.title) && x.level !== 'low') ? 'A material revenue movement requires review' : null,
   ].filter(Boolean);
   useEffect(()=>{const sb=getSupabase();if(!sb)return;void sb.auth.getUser().then(async({data})=>{if(!data.user)return;const {data:row}=await sb.from('report_schedules').select('cadence,recipient_email,active').eq('user_id',data.user.id).eq('dataset_key',r.source.fileName).maybeSingle();if(row)setPrefs(current=>({...current,reportCadence:row.active?row.cadence:'off',reportEmail:row.recipient_email}))})},[r.source.fileName]);

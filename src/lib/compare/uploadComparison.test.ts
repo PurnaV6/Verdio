@@ -176,7 +176,7 @@ describe("compareUploads: every number is a snapshot value or a difference of tw
     const pairs: [number, number][] = [
       [previous.totalSales ?? 0, current.totalSales ?? 0],
       [previous.latestMonth?.value ?? 0, current.latestMonth?.value ?? 0],
-      [previous.health, current.health], [previous.quality, current.quality],
+      [previous.health ?? 0, current.health ?? 0], [previous.quality ?? 0, current.quality ?? 0],
       [previous.risks.total, current.risks.total], [previous.monthKeys.length, current.monthKeys.length],
       [previous.customers?.segments.atRisk ?? 0, current.customers?.segments.atRisk ?? 0],
     ].map(([a, b]) => [Math.round(a), Math.round(b)]);
