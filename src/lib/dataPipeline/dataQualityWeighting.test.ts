@@ -24,7 +24,7 @@ describe("key column weighting", () => {
   const blankShares = [0, 33, 50, 60, 75];
 
   it("scores strictly lower as the revenue column gets emptier", async () => {
-    const scores = [];
+    const scores: number[] = [];
     for (const pct of blankShares) scores.push((await resultFromCsv(fiveColumns(pct))).quality.overallScore);
     for (let i = 1; i < scores.length; i += 1) expect(scores[i], `${blankShares[i]}% blank`).toBeLessThan(scores[i - 1]);
   });

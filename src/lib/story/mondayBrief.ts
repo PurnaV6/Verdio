@@ -2,6 +2,7 @@ import { healthReading } from "../analysis/healthReading";
 import { getRevenueView } from "../analysis/revenueView";
 import type { PipelineResult } from "../../types/pipeline";
 import type { TimePoint } from "../../types/statistics";
+import { headlineHealth, headlineQuality } from "../dataPipeline/headlineScores";
 import { buildStory } from "./buildStory";
 import { FactBook } from "./facts";
 import { formatCount, parsePeriodKey, pluralise, speakable, spokenPercent, spokenPounds } from "./formatters";
@@ -36,15 +37,22 @@ function spokenPeriod(f: FactBook, point: TimePoint, name: string): string {
   return `${parsed.month} ${parsed.year}`;
 }
 
+/** A file the status calls not compatible has no reliable money figures: the spoken line says so and gives none. */
+const isNotCompatible = (r: PipelineResult) => r.datasetStatus?.status === 'not_compatible';
+
 function sentenceOne(f: FactBook, r: PipelineResult): string {
-  const total = f.n('health', r.decision.health.total, 'decision.health.total');
+  const shown = headlineHealth(r);
+  if (shown.value === null) return 'Your business health score is not reliable for this file.';
+  const total = f.n('health', shown.value, 'headlineHealth(result).value');
   f.scale100();
   const { label, tone } = healthReading(total);
   const reading = tone === 'risk' ? 'which needs attention' : `which is ${label.toLowerCase()}`;
-  return `Your business health is ${formatCount(total)} out of 100, ${reading}.`;
+  const plain = `Your business health is ${formatCount(total)} out of 100, ${reading}.`;
+  return shown.label ? fitSpoken([`Your business health is ${formatCount(total)} out of 100, ${reading}, but limited by missing data.`, plain]) : plain;
 }
 
 function sentenceTwo(f: FactBook, r: PipelineResult): string {
+  if (isNotCompatible(r)) return 'I cannot give reliable sales figures for this file.';
   const series = getRevenueView(r).series;
   const points = series?.points ?? [];
   const latest = points.at(-1);
@@ -73,7 +81,7 @@ function sentenceFour(f: FactBook, r: PipelineResult): string {
   } | undefined;
   if (!top) return 'I have no ranked action for this file yet.';
   const title = f.s('actionTitle', speakable(top.title), 'decision.recommendations[0].title');
-  const value = top.financialImpact && Number.isFinite(top.financialImpact.estimatedValue) && top.financialImpact.estimatedValue > 0
+  const value = !isNotCompatible(r) && top.financialImpact && Number.isFinite(top.financialImpact.estimatedValue) && top.financialImpact.estimatedValue > 0
     ? spokenPounds(f.n('actionEstimate', top.financialImpact.estimatedValue, 'decision.recommendations[0].financialImpact.estimatedValue')) : null;
   const days = top.effortDays !== undefined && Number.isFinite(top.effortDays) && top.effortDays > 0
     ? pluralise(f.n('effortDays', top.effortDays, 'decision.recommendations[0].effortDays'), 'day') : null;
@@ -89,12 +97,15 @@ function sentenceFive(f: FactBook, r: PipelineResult): string {
   const overview = buildStory('overview', r);
   const label = (overview.kind === 'story' ? overview.confidence.label : 'Low').toLowerCase();
   const rows = formatCount(f.n('rows', r.source.rowCount, 'source.rowCount'));
-  const quality = formatCount(f.n('dataQuality', r.quality.overallScore, 'quality.overallScore'));
+  const shownQuality = headlineQuality(r);
+  const quality = shownQuality.value === null ? null : formatCount(f.n('dataQuality', shownQuality.value, 'headlineQuality(result).value'));
   const months = makeCtx(r).P;
   const span = months > 0 ? ` over ${pluralise(f.n('months', months, 'statistics.timeSeries[0].points.length'), 'month')}` : '';
   return fitSpoken([
-    `My confidence is ${label}, with ${rows} rows${span} and data quality of ${quality} out of 100.`,
-    `My confidence is ${label}, with data quality of ${quality} out of 100.`,
+    ...(quality === null ? [`My confidence is ${label}, with ${rows} rows${span}.`] : [
+      `My confidence is ${label}, with ${rows} rows${span} and data quality of ${quality} out of 100.`,
+      `My confidence is ${label}, with data quality of ${quality} out of 100.`,
+    ]),
     `My confidence is ${label}.`,
   ]);
 }

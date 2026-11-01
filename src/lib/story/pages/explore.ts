@@ -196,10 +196,10 @@ const PILLAR_MEANING: Record<string, string> = {
 };
 
 export function healthStory(c: Ctx): StoryOutcome {
-  const { f, r, H } = c;
+  const { f, r } = c;
   const pillars = r.decision.health.pillars;
   if (!pillars.length) return cannotSay(c, 'health', 'The health score has no parts to show.', 'Run the analysis again.');
-  f.n('health', H, 'decision.health.total');
+  const shownHealth = c.shownH.value === null ? null : f.n('health', c.shownH.value, 'headlineHealth(result).value');
 
   const seg = r.ml.segmentation;
   const assumed = new Set<string>();
@@ -229,7 +229,7 @@ export function healthStory(c: Ctx): StoryOutcome {
     : `${weak.name} is the lowest part.${meaning ? ` It reflects ${meaning}.` : ''}`;
 
   return compose(c, 'health', {
-    happened: [[`Health is ${formatCount(H)}/100.`], [second]],
+    happened: [[shownHealth === null ? 'The health score is not reliable for this file.' : `Health is ${formatCount(shownHealth)}/100.`], [second]],
     // The first two sit in "why"; any further ones go to notes (below).
     why: assumedSentences.length ? assumedSentences.map((sentence, i) => (i < 2 ? [sentence] : [sentence, ''])) : [[lowestPart]],
     notes: assumedSentences.slice(2),

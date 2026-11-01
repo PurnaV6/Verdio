@@ -9,9 +9,16 @@ import type { PipelineResult } from "../../types/pipeline";
 import { AdvisorChart } from "./AdvisorChart";
 import { PageHead } from "./PageParts";
 import { pageLabel } from "../workspace/navigation";
+import { healthScoreView, scoreText } from "../workspace/scoreCardModel";
+
+/** The opening line follows the dataset status, like the sidebar: a file that cannot be relied on shows no score. */
+function scoresText(r: PipelineResult): string {
+  const health = healthScoreView(r);
+  return health.hasScale ? `health ${scoreText(health).replace(' / ', '/')}` : 'a health score that is not reliable for this file';
+}
 
 export function PageAdvisor({ r }: { r: PipelineResult }) {
-  const [messages, setMessages] = useState<{ role: 'ai' | 'user'; text?: string; charts?: ChartSpec[]; sources?: string[]; origin?: 'ai' | 'built-in'; retryPrompt?: string }[]>([{ role: 'ai', text: `Full analysis loaded: ${r.source.rowCount} rows, ${r.analyses.length} charts, health ${r.decision.health.total}/100. Choose a decision task below or ask a specific question.`, sources: [r.source.fileName, 'Verd.io decision engine'] }]);
+  const [messages, setMessages] = useState<{ role: 'ai' | 'user'; text?: string; charts?: ChartSpec[]; sources?: string[]; origin?: 'ai' | 'built-in'; retryPrompt?: string }[]>([{ role: 'ai', text: `Full analysis loaded: ${r.source.rowCount} rows, ${r.analyses.length} charts, ${scoresText(r)}. Choose a decision task below or ask a specific question.`, sources: [r.source.fileName, 'Verd.io decision engine'] }]);
   const [input, setInput] = useState(''); const [loading, setLoading] = useState(false); const context = buildAdvisorContext(r);
   const quickActions = ['Explain the highest risk', 'Create a 30-day action plan', 'Compare recent performance', 'Summarise for the board'];
   async function send(prompt?: string) {

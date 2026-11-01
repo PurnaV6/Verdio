@@ -83,6 +83,12 @@ export function CleaningReport({ r, onOpenPage }: { r: PipelineResult; onOpenPag
               <QualitySide side={view.quality.before} />
               {view.quality.after && <QualitySide side={view.quality.after} />}
             </div>
+            {view.shownQuality && (
+              <div className="v2-sc-asis">
+                <p className="v2-sc-asis-line">{view.shownQuality.asUploaded}</p>
+                <p className="v2-cr-note">{view.shownQuality.explanation}</p>
+              </div>
+            )}
             <p className="v2-cr-note">
               {view.quality.after
                 ? 'The first score is for the file exactly as uploaded and is the one the health score uses. The second is for the rows that count toward sales.'

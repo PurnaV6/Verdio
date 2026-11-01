@@ -5,6 +5,7 @@ import { findNarrative } from "./aiLookup";
 import { Figure, Figures, PageHead } from "./PageParts";
 import { pageLabel } from "../workspace/navigation";
 import { getRevenueView } from "../../lib/analysis/revenueView";
+import { qualityScoreView, scoreText } from "../workspace/scoreCardModel";
 
 export function PageAnalyses({ r }: { r: PipelineResult }) {
   const filtered = r.analyses.filter(a => !['comparison', 'concentration_analysis', 'segmentation'].includes(a.capability));
@@ -16,7 +17,7 @@ export function PageAnalyses({ r }: { r: PipelineResult }) {
     <Figures label="Key figures">
       <Figure label="Recognised revenue" value={revenue?new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP',maximumFractionDigits:0}).format(revenue):'Not available'} sub={connectedRevenue!==undefined?'Connected sales source · reconciled organisational context':revenueColumn?<>Calculated from <b>{revenueColumn}</b></>:'A revenue measure was not detected'}/>
       <Figure label={inventoryCoverage?'Inventory coverage':'Transactions analysed'} value={inventoryCoverage?`${inventoryCoverage.value.toFixed(1)}%`:r.source.rowCount.toLocaleString('en-GB')} sub={inventoryCoverage?'Against demand represented in the sales period':`${r.profile.columnCount} classified columns`}/>
-      <Figure label={stockReview?'Products requiring review':'Data quality'} value={stockReview?Math.round(stockReview.value):`${r.quality.overallScore}/100`} sub={stockReview?'Validate lead times and safety stock':'Decision-grade source integrity'}/>
+      <Figure label={stockReview?'Products requiring review':'Data quality'} value={stockReview?Math.round(stockReview.value):scoreText(qualityScoreView(r)).replace(' / ', '/')} sub={stockReview?'Validate lead times and safety stock':'Decision-grade source integrity'}/>
       <Figure label="Analytical coverage" value={`${r.capabilities.available.length}/${r.capabilities.capabilities.length}`} sub="Capability-gated analyses available"/>
     </Figures>
     {filtered.length?<div className="v2-chart-list">{filtered.map((a, i) => { const narrative = findNarrative(r.aiInsights, a.id, i); return <section key={a.id} className="v2-chart-item"><ChartRenderer chart={a.chart} /><div className="v2-chart-note">{r.aiLoading ? <SkeletonLine width="60%" /> : narrative ? <p><b className="v2-ai-tag">{r.aiInsights?.source==='built-in'?'Built-in: ':'AI: '}</b>{narrative.narrative}</p> : <p className="v2-muted">{a.explanation}</p>}</div></section>; })}</div>:<section className="v2-empty" role="status"><div><h2>No analyses could be generated.</h2></div></section>}
