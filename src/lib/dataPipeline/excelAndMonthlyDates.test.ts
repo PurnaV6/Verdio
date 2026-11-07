@@ -41,9 +41,9 @@ describe("real .xlsx round trip", () => {
     if (!parsed.ok) throw new Error(parsed.error.message);
     const { rows } = parsed.data;
 
-    // sheet_to_csv writes Date cells as m/d/yy (default format) or the cell's own format.
-    expect(rows[0]["Order Date"]).toMatch(/^\d{1,2}\/\d{1,2}\/\d{2}$/);
-    expect(rows[0]["Order Time"]).toMatch(/^\d{1,2}\/\d{1,2}\/\d{2,4} \d{1,2}:\d{2}$/);
+    // Date cells are read from their stored serial number, not from the text Excel displays (m/d/yy).
+    expect(rows[0]["Order Date"]).toBe("2024-01-01");
+    expect(rows[0]["Order Time"]).toMatch(/^2024-01-01 \d{2}:\d{2}:\d{2}$/);
     expect(rows[0]["Period"]).toBe("Jan-24");
 
     const profile = profileDataset(rows);

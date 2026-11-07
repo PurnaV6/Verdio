@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef, Suspense } from "react";
 import { runDataPipeline } from "../lib/dataPipeline/runDataPipeline";
+import type { DatasetSource } from "../types/dataPipeline";
 import { generateAIInsights } from "../services/ai";
 
 import type { PipelineResult } from "../types/pipeline";
@@ -36,6 +37,7 @@ import { PageDataProfile } from "../components/pages/PageDataProfile";
 import { PageQuality } from "../components/pages/PageQuality";
 import { PageAdvisor } from "../components/pages/PageAdvisor";
 import { Sidebar } from "../components/workspace/Sidebar";
+import { StatusBanner } from "../components/workspace/StatusBanner";
 import { pageLabel } from "../components/workspace/navigation";
 import { PageOverview } from "../components/workspace/PageOverview";
 const PageAlerts = lazyWithReload(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageAlerts })));
@@ -43,6 +45,7 @@ const PageConnections = lazyWithReload(() => import("../components/operational/O
 const PageRelationships = lazyWithReload(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageRelationships })));
 const PageScenarioPlanner = lazyWithReload(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageScenarioPlanner })));
 const PageTrustCenter = lazyWithReload(() => import("../components/operational/OperationalPages").then(m => ({ default: m.PageTrustCenter })));
+import { planUpload, toDatasetSource, type WorkbookNote } from "../lib/dataPipeline/workbook";
 import { prepareOrganizationWorkspace, type PreparedOrganizationWorkspace } from "../lib/organization/prepareOrganizationWorkspace";
 const PageActionTracker = lazyWithReload(() => import("../components/execution/ExecutionPages").then(m => ({ default: m.PageActionTracker })));
 const PageKpiTargets = lazyWithReload(() => import("../components/execution/ExecutionPages").then(m => ({ default: m.PageKpiTargets })));
@@ -53,31 +56,44 @@ const PageOutcomes = lazyWithReload(() => import("../components/governance/Gover
 const PageAuditLog = lazyWithReload(() => import("../components/governance/GovernancePages").then(m => ({ default: m.PageAuditLog })));
 const PageTeamWorkspace = lazyWithReload(() => import("../components/team/TeamWorkspace").then(m => ({ default: m.PageTeamWorkspace })));
 
+function WorkbookNotes({ notes }: { notes: WorkbookNote[] }) {
+  if (!notes.length) return null;
+  return <div className="v2-entry-guide is-notes" role="status"><Files size={18} aria-hidden="true"/><div>{notes.map(note=><div key={note.summary}><strong>{note.summary}</strong>{[...note.adjusted,...note.skipped].map(line=><p key={line}>{line}</p>)}</div>)}</div></div>;
+}
+
 function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
   const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [stage, setStage] = useState('');
-  const [pending, setPending] = useState<{ file: File; result: PipelineResult } | null>(null);
+  const [pending, setPending] = useState<{ source: DatasetSource; result: PipelineResult } | null>(null);
   const [organization, setOrganization] = useState<PreparedOrganizationWorkspace | null>(null);
+  const [workbookNotes, setWorkbookNotes] = useState<WorkbookNote[]>([]);
   const [roleOverrides, setRoleOverrides] = useState<Record<string, BusinessRole>>({});
-  async function handleFile(file: File, isDemo = false) {
+  async function handleFile(input: File | DatasetSource, isDemo = false) {
+    const source = toDatasetSource(input);
     setError(''); setLoading(true);
     setStage(isDemo ? 'Preparing the sample business...' : 'Parsing file...'); await new Promise(r => setTimeout(r, 30));
     setStage('Profiling, cleaning and detecting columns...'); await new Promise(r => setTimeout(r, 30));
     setStage('Running statistics and ML models...');
-    const outcome = await runDataPipeline(file);
+    const outcome = await runDataPipeline(source);
     setLoading(false);
     if (!outcome.ok) { setError((outcome as any).error); return; }
     if (isDemo) { onLoaded(outcome.result); return; }
     setRoleOverrides(Object.fromEntries(outcome.result.semantics.columns.map(c => [c.columnName, c.businessRole])));
-    setPending({ file, result: outcome.result });
+    setPending({ source, result: outcome.result });
   }
   async function handleFiles(files: File[]) {
     if (!files.length) return;
-    if (files.length === 1) { await handleFile(files[0]); return; }
-    setError(''); setLoading(true); setStage(`Profiling ${files.length} organisational datasets...`);
-    try { setOrganization(await prepareOrganizationWorkspace(files)); }
+    setError(''); setLoading(true); setStage('Reading your files...');
+    let sources: DatasetSource[];
+    try {
+      const plan = await planUpload(files); // a workbook with several tables becomes one dataset per sheet
+      sources = plan.sources; setWorkbookNotes(plan.notes);
+    } catch (e:any) { setWorkbookNotes([]); setError(e?.message || 'The workbook could not be read.'); setLoading(false); return; }
+    if (sources.length === 1) { await handleFile(sources[0]); return; }
+    setStage(`Profiling ${sources.length} organisational datasets...`);
+    try { setOrganization(await prepareOrganizationWorkspace(sources)); }
     catch (e:any) { setError(e?.message || 'The organisational datasets could not be prepared.'); }
     setLoading(false);
   }
@@ -86,7 +102,7 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
     const primary=organization.context.datasets.find(dataset=>dataset.primary);
     if (!primary) { setError('Select one primary dataset for executive analysis.'); return; }
     setLoading(true); setStage('Building the organisational workspace...');
-    const outcome=await runDataPipeline(organization.files[primary.id]);
+    const outcome=await runDataPipeline(organization.sources[primary.id]);
     setLoading(false);
     if (!outcome.ok) { setError(outcome.error); return; }
     onLoaded({ ...outcome.result, organization: organization.context });
@@ -94,7 +110,7 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
   async function confirmMapping() {
     if (!pending) return;
     setLoading(true); setStage('Applying your mapping and building the analysis...');
-    const outcome = await runDataPipeline(pending.file, roleOverrides);
+    const outcome = await runDataPipeline(pending.source, roleOverrides);
     setLoading(false);
     if (!outcome.ok) { setError(outcome.error); return; }
     onLoaded(outcome.result);
@@ -115,6 +131,7 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
           <div><p className="v2-eyebrow">CONNECTED BUSINESS INTELLIGENCE</p><h1 className="v2-entry-title is-compact">Build your organisational workspace</h1><p className="v2-entry-lede">Choose the source that should drive forecasts and executive KPIs, then confirm the governed relationships Verd.io will use across supporting data.</p></div>
           <span className="v2-entry-count"><Files size={14} aria-hidden="true"/>{organization.context.datasets.length} datasets ready</span>
         </header>
+        <WorkbookNotes notes={workbookNotes}/>
         <div className="v2-entry-guide"><Target size={18} aria-hidden="true"/><div><strong>Which file should be primary?</strong><p>The primary source drives the main Business Intelligence, predictions, risks and decisions. Verd.io recommends the sales file because it contains dated transactions, quantities and revenue. Stock and finance remain connected supporting sources.</p></div></div>
         <div className="v2-entry-datasets" role="radiogroup" aria-label="Primary source">
           {organization.context.datasets.map(dataset=>{const recommended=dataset.purpose==='sales';return <article key={dataset.id} className={`v2-entry-ds${dataset.primary?' is-primary':''}`}><div className="v2-entry-ds-top"><span className="v2-entry-ds-purpose"><Database size={16} aria-hidden="true"/>{dataset.purpose}</span>{recommended&&<b className="v2-entry-ds-flag">Recommended</b>}</div><strong className="v2-entry-ds-name">{dataset.fileName}</strong><p className="v2-tag">{dataset.rowCount.toLocaleString()} rows · {dataset.columnCount} columns</p><p className="v2-entry-ds-note">{dataset.purpose==='sales'?'Best for revenue, forecasting and executive decisions':dataset.purpose==='inventory'?'Supports stock coverage and replenishment review':'Supports margin and financial reconciliation'}</p><label className="v2-entry-ds-pick"><input type="radio" name="primary-dataset" checked={dataset.primary} onChange={()=>setOrganization(current=>current?{...current,context:{...current.context,datasets:current.context.datasets.map(item=>({...item,primary:item.id===dataset.id}))}}:current)}/><span>{dataset.primary?'Selected as primary':'Use as primary source'}</span></label></article>})}
@@ -131,6 +148,7 @@ function UploadScreen({ onLoaded }: { onLoaded: (r: PipelineResult) => void }) {
       <main className="v2-entry-col is-mid">
         <p className="v2-entry-mark">Verd<i>.</i>io</p>
         <header className="v2-entry-head"><p className="v2-eyebrow">DATA MAPPING</p><h1 className="v2-entry-title is-compact">Confirm how Verd.io should read your data</h1><p className="v2-entry-lede">We detected these roles automatically. Correct anything that does not match your business before analysis.</p></header>
+        <WorkbookNotes notes={workbookNotes}/>
         <div className="v2-entry-map">
           {pending.result.semantics.columns.map(column => <div key={column.columnName} className="v2-entry-map-row">
             <div className="min-w-0"><strong>{column.columnName}</strong><span className="v2-tag">{column.dataType} · {Math.round(column.confidence * 100)}% detected confidence</span></div>
@@ -217,6 +235,8 @@ export default function App() {
   // A small summary of the dataset the user had open before the current one, kept in memory only for "What changed since your last upload".
   const [previousUpload, setPreviousUpload] = useState<UploadSnapshot | null>(null);
   const [page, setPage] = useState('overview');
+  // The status banner's link: open the Data Hub, then bring its cleaning report into view.
+  const [reportJump, setReportJump] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [projectLibraryOpen, setProjectLibraryOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -240,6 +260,7 @@ export default function App() {
   }, [publicMode, result]);
   const currentProjectIdRef = useRef(currentProjectId);
   useEffect(() => { currentProjectIdRef.current = currentProjectId; }, [currentProjectId]);
+  useEffect(() => { if (!reportJump || page !== 'profile') return; const section = document.getElementById('v2-cr'); section?.scrollIntoView({ block: 'start' }); section?.focus({ preventScroll: true }); setReportJump(false); }, [reportJump, page]);
   useEffect(() => { if (!result || !result.aiLoading) return; let cancelled=false; generateAIInsights(result).then(ai=>{ if(!cancelled) setResult(prev=>prev?{...prev, aiInsights: ai, aiLoading:false}:prev); }); return()=>{cancelled=true;}; }, [result]);
   useEffect(() => { if (!result || result.aiLoading) return; saveToHistory(result); saveProject(result, currentProjectIdRef.current || undefined).then(setCurrentProjectId).catch(e=>console.warn('Project save failed', e)); }, [result]);
   useEffect(()=>{if(!user)return;const token=new URLSearchParams(window.location.search).get('invite');if(!token)return;const sb=getSupabase();if(!sb)return;void sb.rpc('accept_organization_invitation',{invitation_token:token}).then(({error})=>{setInviteMessage(error?error.message:'Invitation accepted. Your workspace role is now active.');if(!error)window.history.replaceState({},'',window.location.pathname)})},[user]);
@@ -281,7 +302,7 @@ export default function App() {
             {publicMode==='demo'&&!user?<button onClick={()=>setPublicView('signup')} className="header-action is-primary flex">Create free account <ArrowUpRight size={13}/></button>:<div className="user-menu group relative"><button className="user-avatar" aria-label="Account menu">{(user?.email?.[0] || 'V').toUpperCase()}</button><div className="user-popover"><p className="truncate text-xs font-semibold text-slate-900">{user?.email || 'Local workspace'}</p><button onClick={reset}><RefreshCw size={13}/> New dataset</button><button onClick={()=>setPage('governance')}><Settings size={13}/> Settings</button><button onClick={async()=>{ const sb=getSupabase(); if(sb) await sb.auth.signOut(); }}>Sign out</button></div></div>}
           </div>
         </header>
-        <main className={`app-main p-4 md:p-7 max-w-[1480px] mx-auto ${access.role==='viewer'?'read-only-workspace':''}`}><ErrorBoundary key={page}><Suspense fallback={<PageLoadingFallback />}>{page==='overview'&&<PageOverview r={result} previous={previousUpload} />}{page==='execution'&&<PageExecutionHub r={result} />}{page==='governance'&&<PageGovernanceHub r={result} />}{page==='advisor'&&<PageAdvisor r={result} />}{page==='forecast'&&<PageForecast r={result} />}{page==='scenarios'&&<PageScenarioPlanner r={result} />}{page==='analyses'&&<PageAnalyses r={result} />}{page==='customers'&&<PageCustomers r={result} />}{page==='seasonality'&&<PageSeasonality r={result} />}{page==='health'&&<PageHealth r={result} />}{page==='risks'&&<PageRisks r={result} />}{page==='recs'&&<PageRecs r={result} />}{page==='products'&&<PageProducts r={result} />}{page==='profile'&&<PageDataProfile r={result} />}{page==='connections'&&<PageConnections r={result} />}{page==='relationships'&&<PageRelationships r={result} />}{page==='alerts'&&<PageAlerts r={result} />}</Suspense></ErrorBoundary></main>
+        <main className={`app-main p-4 md:p-7 max-w-[1480px] mx-auto ${access.role==='viewer'?'read-only-workspace':''}`}><StatusBanner status={result.datasetStatus} onSeeReport={()=>{setPage('profile');setReportJump(true)}}/><ErrorBoundary key={page}><Suspense fallback={<PageLoadingFallback />}>{page==='overview'&&<PageOverview r={result} previous={previousUpload} />}{page==='execution'&&<PageExecutionHub r={result} />}{page==='governance'&&<PageGovernanceHub r={result} />}{page==='advisor'&&<PageAdvisor r={result} />}{page==='forecast'&&<PageForecast r={result} />}{page==='scenarios'&&<PageScenarioPlanner r={result} />}{page==='analyses'&&<PageAnalyses r={result} />}{page==='customers'&&<PageCustomers r={result} />}{page==='seasonality'&&<PageSeasonality r={result} />}{page==='health'&&<PageHealth r={result} />}{page==='risks'&&<PageRisks r={result} />}{page==='recs'&&<PageRecs r={result} />}{page==='products'&&<PageProducts r={result} />}{page==='profile'&&<PageDataProfile r={result} onOpenPage={setPage} />}{page==='connections'&&<PageConnections r={result} />}{page==='relationships'&&<PageRelationships r={result} />}{page==='alerts'&&<PageAlerts r={result} />}</Suspense></ErrorBoundary></main>
       </div>
       <ProjectLibrary open={projectLibraryOpen} onClose={()=>setProjectLibraryOpen(false)} onOpen={project=>{ void recordProjectOpened(project);setPreviousUpload(null);setResult(project.result);setCurrentProjectId(project.id);setPage('overview');setProjectLibraryOpen(false); }} />
       <ExportDialog result={result} open={exportOpen} onClose={()=>setExportOpen(false)} />

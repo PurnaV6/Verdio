@@ -6,6 +6,8 @@ import { CANNOT_SHOW_WHY, cannotSay, compose, nextFromRecommendation, roleColumn
 import { formatCount, formatPercent, formatPounds, fullMonthName, fullWeekdayName, pluralise } from "../formatters";
 import type { StoryOutcome } from "../types";
 import { joinNames, readRisk, recommendationMatching } from "./shared";
+import { sumColumn } from "../../dataPipeline/salesRows";
+import { salesSummary } from "../../analysis/salesSummary";
 
 /* ── Scenario Planning ──
    Mirrors the arithmetic of PageScenarioPlanner (components/operational/OperationalPages.tsx).
@@ -25,9 +27,9 @@ export function scenarioModel(c: Ctx): ScenarioModel {
   const { r } = c;
   const levers = c.inputs.scenarioLevers ?? { price: 0, volume: 0, cost: 0, retention: 0 };
   const measure = primaryMeasureColumn(r.semantics.columns, r.engineeredRows);
-  const baselineRevenue = measure ? r.engineeredRows.reduce((sum, row) => sum + (Number(row[measure]) || 0), 0) : 0;
+  const baselineRevenue = measure ? salesSummary(r).salesTotal : 0;
   const costColumn = r.semantics.columns.find(column => column.businessRole === 'cost')?.columnName;
-  const baselineCost = costColumn ? r.engineeredRows.reduce((sum, row) => sum + (Number(row[costColumn]) || 0), 0) : baselineRevenue * ASSUMED_COST_SHARE;
+  const baselineCost = costColumn ? sumColumn(r.engineeredRows, costColumn) : baselineRevenue * ASSUMED_COST_SHARE;
   const projectedRevenue = baselineRevenue * (1 + levers.price / 100) * (1 + levers.volume / 100) * (1 + levers.retention / 100 * 0.35);
   const projectedCost = baselineCost * (1 + levers.volume / 100) * (1 + levers.cost / 100);
   return { measure, costColumn, baselineRevenue, baselineProfit: baselineRevenue - baselineCost, projectedProfit: projectedRevenue - projectedCost };
@@ -194,10 +196,10 @@ const PILLAR_MEANING: Record<string, string> = {
 };
 
 export function healthStory(c: Ctx): StoryOutcome {
-  const { f, r, H } = c;
+  const { f, r } = c;
   const pillars = r.decision.health.pillars;
   if (!pillars.length) return cannotSay(c, 'health', 'The health score has no parts to show.', 'Run the analysis again.');
-  f.n('health', H, 'decision.health.total');
+  const shownHealth = c.shownH.value === null ? null : f.n('health', c.shownH.value, 'headlineHealth(result).value');
 
   const seg = r.ml.segmentation;
   const assumed = new Set<string>();
@@ -227,7 +229,7 @@ export function healthStory(c: Ctx): StoryOutcome {
     : `${weak.name} is the lowest part.${meaning ? ` It reflects ${meaning}.` : ''}`;
 
   return compose(c, 'health', {
-    happened: [[`Health is ${formatCount(H)}/100.`], [second]],
+    happened: [[shownHealth === null ? 'The health score is not reliable for this file.' : `Health is ${formatCount(shownHealth)}/100.`], [second]],
     // The first two sit in "why"; any further ones go to notes (below).
     why: assumedSentences.length ? assumedSentences.map((sentence, i) => (i < 2 ? [sentence] : [sentence, ''])) : [[lowestPart]],
     notes: assumedSentences.slice(2),

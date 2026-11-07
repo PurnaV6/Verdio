@@ -8,6 +8,9 @@ import { accessLevelLabel, projectStorageLabel } from '../../lib/auth/accessLabe
 import { StateMark } from '../workspace/StateMark';
 import { Figure, Figures, IdleMark, PageHead } from '../pages/PageParts';
 import { pageLabel } from "../workspace/navigation";
+import { headlineHealth, headlineQuality } from '../../lib/dataPipeline/headlineScores';
+import { sumColumn } from "../../lib/dataPipeline/salesRows";
+import { salesSummary } from "../../lib/analysis/salesSummary";
 
 const PREFS_KEY = 'verdio_operational_preferences_v1';
 
@@ -77,8 +80,8 @@ export function PageAlerts({ r }: { r: PipelineResult }) {
   const [saved, setSaved] = useState(false);
   const update = <K extends keyof OperationalPreferences>(key: K, value: OperationalPreferences[K]) => setPrefs(p=>({...p,[key]:value}));
   const activeSignals = [
-    prefs.healthAlert && r.decision.health.total < prefs.healthThreshold ? `Business health is below ${prefs.healthThreshold}` : null,
-    prefs.qualityAlert && r.quality.overallScore < prefs.qualityThreshold ? `Data quality is below ${prefs.qualityThreshold}` : null,
+    prefs.healthAlert && (headlineHealth(r).value ?? Infinity) < prefs.healthThreshold ? `Business health is below ${prefs.healthThreshold}` : null,
+    prefs.qualityAlert && (headlineQuality(r).value ?? Infinity) < prefs.qualityThreshold ? `Data quality is below ${prefs.qualityThreshold}` : null,
     prefs.revenueDropAlert && r.decision.risks.some(x=>/drop|variability|revenue/i.test(x.title) && x.level !== 'low') ? 'A material revenue movement requires review' : null,
   ].filter(Boolean);
   useEffect(()=>{const sb=getSupabase();if(!sb)return;void sb.auth.getUser().then(async({data})=>{if(!data.user)return;const {data:row}=await sb.from('report_schedules').select('cadence,recipient_email,active').eq('user_id',data.user.id).eq('dataset_key',r.source.fileName).maybeSingle();if(row)setPrefs(current=>({...current,reportCadence:row.active?row.cadence:'off',reportEmail:row.recipient_email}))})},[r.source.fileName]);
@@ -118,9 +121,9 @@ export function PageAlerts({ r }: { r: PipelineResult }) {
 export function PageScenarioPlanner({ r }: { r: PipelineResult }) {
   const [price, setPrice] = useState(0); const [volume, setVolume] = useState(0); const [cost, setCost] = useState(0); const [retention, setRetention] = useState(0);
   const measure = primaryMeasureColumn(r.semantics.columns, r.engineeredRows);
-  const baselineRevenue = useMemo(()=>measure ? r.engineeredRows.reduce((sum,row)=>sum+(Number(row[measure])||0),0) : 0,[r,measure]);
+  const baselineRevenue = useMemo(()=>measure ? salesSummary(r).salesTotal : 0,[r,measure]);
   const costCol = r.semantics.columns.find(c=>c.businessRole==='cost')?.columnName;
-  const baselineCost = costCol ? r.engineeredRows.reduce((sum,row)=>sum+(Number(row[costCol])||0),0) : baselineRevenue * .55;
+  const baselineCost = costCol ? sumColumn(r.engineeredRows,costCol) : baselineRevenue * .55;
   const projectedRevenue = baselineRevenue * (1+price/100) * (1+volume/100) * (1+retention/100*.35);
   const projectedCost = baselineCost * (1+volume/100) * (1+cost/100);
   const baselineProfit = baselineRevenue-baselineCost; const projectedProfit=projectedRevenue-projectedCost;

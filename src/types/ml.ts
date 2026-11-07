@@ -46,6 +46,7 @@ export interface SegmentationResult {
   segments:       CustomerSegment[];
   churnRiskScore: number;        // 0-100
   revenueAtRisk:  number;
+  basis?:         string;        // what "spend" counts, for labelling; missing on results saved before it existed
 }
 
 export interface MLResults {

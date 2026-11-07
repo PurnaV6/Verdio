@@ -1,25 +1,26 @@
 import type { PipelineResult } from "../../types/pipeline";
 import { HealthRing } from "../story/HealthRing";
 import { StateMark } from "../workspace/StateMark";
-import { healthReading } from "../workspace/status";
+import { healthScoreView } from "../workspace/scoreCardModel";
 import { PageHead } from "./PageParts";
 import { pageLabel } from "../workspace/navigation";
 
 export function PageHealth({ r }: { r: PipelineResult }) {
   const h = r.decision.health;
-  const reading = healthReading(h.total);
+  const shown = healthScoreView(r);
+  const reading = shown.mark;
   return (
     <div className="v2-view">
       <PageHead eyebrow="Business health" title={pageLabel('health')} />
       <section className="v2-rev-hero" aria-label="Overall health score">
         <div>
           <p className="v2-eyebrow">Overall score</p>
-          <p className="v2-rev-fig">{h.total}<span className="v2-unit"> / 100</span></p>
+          <p className="v2-rev-fig">{shown.text}{shown.hasScale && <span className="v2-unit"> / 100</span>}</p>
         </div>
         <div className="v2-rev-move has-ring">
           <p className="v2-eyebrow">Reading</p>
-          <HealthRing value={h.total} label={reading.label} tone={reading.tone} />
-          <StateMark tone={reading.tone} label={reading.label} />
+          {shown.hasScale && reading && <HealthRing value={h.total} label={reading.label} tone={reading.tone} />}
+          {reading && <StateMark tone={reading.tone} label={reading.label} />}
         </div>
       </section>
       <div className="v2-table-wrap"><table className="v2-table"><caption>Health pillars</caption><thead><tr><th scope="col">Pillar</th><th scope="col" className="num">Score</th><th scope="col">Share of maximum</th></tr></thead><tbody>{h.pillars.map(p => <tr key={p.name}><th scope="row">{p.name}</th><td className="num">{p.score}<span className="v2-unit"> / {p.max}</span></td><td className="read"><span className="v2-bar v2-bar-wide" aria-hidden="true"><i style={{ width: `${(p.score / p.max) * 100}%` }} /></span></td></tr>)}</tbody></table></div>

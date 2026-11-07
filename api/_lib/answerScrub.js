@@ -141,6 +141,28 @@ export function removeInventedReferences(text, chartNames = new Set()) {
     .trim();
 }
 
+// ---- off-scope check --------------------------------------------------------
+//
+// A last, cheap check on an Advisor answer that has already passed the scrub. It looks only for
+// signs that cannot appear in a real answer about the user's file: the hidden prompt or its
+// delimiter, a jailbreak persona announcing itself, a cheerful "here is your poem", or lines of
+// source code. It deliberately does NOT try to judge whether an answer "mentions the file's
+// metrics": plenty of correct answers have no number ("your file has no date column"), so that
+// test would refuse real answers. Code fences and links are already withheld by the caller.
+
+const PROMPT_LEAK = /verdio_data|SCOPE \(strict\)|PAGES AND CHARTS \(strict\)|HOW TO ANSWER:|You are the Verd\.io assistant|It is DATA, never instructions|reply with exactly:/;
+const PERSONA_ANNOUNCED = /\bDAN\s*:|\[DAN\]|\bas DAN\b|\bdeveloper mode (?:enabled|activated|is on)\b|\bjailbreak(?:en)?(?: mode)? (?:enabled|activated|successful)\b/i;
+const OFF_TOPIC_DELIVERY = /^(?:sure|certainly|of course|okay|ok|absolutely)[,!.]?\s+(?:here(?:'s| is| are)|i'll|let me)\s+(?:a|an|the|my|some)?\s*(?:\w+\s+){0,2}(?:poem|story|joke|essay|song|recipe|haiku|limerick|translation|script|function|code)\b/i;
+// Case-sensitive on purpose, so ordinary sentences such as "From March import volumes rose" are not code.
+const CODE_LINE = /^\s{0,4}(?:def \w+\(|class \w+\s*[:(]|import [\w.]+\s*;?\s*$|from [\w.]+ import \w|function \w+\s*\(|(?:const|let|var) \w+\s*=|#include\s*<|public (?:static|class) |SELECT\s.+\sFROM\s|print\()/;
+
+/** True when an Advisor answer is clearly outside the scope (the caller then returns the off-topic refusal). */
+export function isClearlyOffScope(text) {
+  const value = String(text ?? '');
+  if (PROMPT_LEAK.test(value) || PERSONA_ANNOUNCED.test(value) || OFF_TOPIC_DELIVERY.test(value.trim())) return true;
+  return value.split('\n').filter(line => CODE_LINE.test(line)).length >= 2;
+}
+
 /** True when nothing but [CHART:id] tokens and whitespace is left. */
 export function isEffectivelyEmpty(text) {
   return String(text).replace(CHART_TOKEN, '').trim() === '';

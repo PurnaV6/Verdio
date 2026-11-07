@@ -1,6 +1,8 @@
 import { bestColumnOfRole } from "../analysis/pickColumns";
+import { headlineHealth, headlineQuality, type Headline } from "../dataPipeline/headlineScores";
 import { computeConfidence } from "./confidence";
 import { FactBook } from "./facts";
+import { statusLowConfidence } from "./statusStory";
 import { formatCount, formatPercent, formatPounds, pluralise, roundPercent } from "./formatters";
 import { findBannedWords, fitPart, hasBrokenValue, LIMITS } from "./text";
 import { validateNumbers } from "./validateNumbers";
@@ -32,6 +34,9 @@ export interface Ctx {
   inputs: StoryInputs;
   H: number;
   Q: number;
+  /** What the headline Health and Data quality show for this file's status. H and Q stay the scores as computed. */
+  shownH: Headline;
+  shownQ: Headline;
   N: number;
   file: string;
   ts: TimeSeriesSummary | undefined;
@@ -52,7 +57,7 @@ export function makeCtx(r: PipelineResult, inputs: StoryInputs = {}): Ctx {
   const recs = r.decision.recommendations as EnrichedRecommendation[];
   return {
     r, f: new FactBook(), inputs,
-    H: r.decision.health.total, Q: r.quality.overallScore, N: r.source.rowCount, file: r.source.fileName,
+    H: r.decision.health.total, Q: r.quality.overallScore, shownH: headlineHealth(r), shownQ: headlineQuality(r), N: r.source.rowCount, file: r.source.fileName,
     ts, P: ts?.points.length ?? 0,
     risks, r1: risks[0], recs, a1: recs[0],
     vde: meta._vdeMeta, modelMeta: meta._modelMeta,
@@ -174,7 +179,8 @@ export function cannotSay(c: Ctx, pageId: StoryPageId, reason: string, fix: stri
 export function compose(c: Ctx, pageId: StoryPageId, draft: Draft): StoryResult | CannotSayResult {
   const { f } = c;
   f.n('rows', c.N, 'source.rowCount');
-  f.n('dataQuality', c.Q, 'quality.overallScore');
+  f.n('dataQualityAsUploaded', c.Q, 'quality.overallScore');
+  if (c.shownQ.value !== null) f.n('dataQuality', c.shownQ.value, 'headlineQuality(result).value');
   f.scale100();
   if (c.P > 0) f.n('months', c.P, 'statistics.timeSeries[0].points.length');
   f.s('file', c.file, 'source.fileName');
@@ -186,7 +192,7 @@ export function compose(c: Ctx, pageId: StoryPageId, draft: Draft): StoryResult 
     quality: c.Q, rows: c.N, months: c.P,
     timeBased: draft.timeBased, customerBased: draft.customers !== undefined, customers: draft.customers,
     citedColumns: columns.map(name => ({ name, needsReview: reviewByName.get(name) === true })),
-    forceLow: draft.forceLow,
+    forceLow: draft.forceLow ?? statusLowConfidence(c),
   });
 
   const listed = [...columns, ...(draft.calculatedSales ? ['calculated sales amount'] : [])];

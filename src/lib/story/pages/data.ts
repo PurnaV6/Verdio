@@ -3,6 +3,8 @@ import { formatCount, formatPercent, pluralise } from "../formatters";
 import { LIMITS, asSentence, firstSentence, fitPart, stripFinalPeriod } from "../text";
 import type { AlertPreferencesInput, StoryOutcome } from "../types";
 import { joinNames, recommendationMatching } from "./shared";
+import { leftOutNotes } from "./dataHonesty";
+import { statusNotes } from "../statusStory";
 
 /* ── Data Profile ── */
 
@@ -31,7 +33,7 @@ export function profileStory(c: Ctx): StoryOutcome {
       [`Date: ${found(date)}, sales: ${found(sales)}, customer: ${found(customer)}.`],
     ],
     next: review.length ? fitPart([[`Confirm the role of ${joinNames(shown.slice(0, 2))} in Data Hub.`, 'Confirm the flagged column roles in Data Hub.']], LIMITS.next) : null,
-    notes,
+    notes: [...statusNotes(c), ...notes],
     columns: [date, sales, customer],
   });
 }
@@ -40,7 +42,7 @@ export function profileStory(c: Ctx): StoryOutcome {
 
 export function qualityStory(c: Ctx, pageId: 'quality'): StoryOutcome {
   const { f, r, Q } = c;
-  f.n('dataQuality', Q, 'quality.overallScore');
+  f.n('dataQualityAsUploaded', Q, 'quality.overallScore');
   const areas = [
     { name: 'Completeness', score: r.quality.completenessScore, field: 'completenessScore' },
     { name: 'Validity', score: r.quality.validityScore, field: 'validityScore' },
@@ -59,10 +61,23 @@ export function qualityStory(c: Ctx, pageId: 'quality'): StoryOutcome {
   const filled = f.n('cellsImputed', r.cleaning.cellsImputed, 'cleaning.cellsImputed');
   const filledSentence = filled === 0 ? 'No blank cells were filled.' : `${pluralise(filled, 'blank cell')} ${filled === 1 ? 'was' : 'were'} filled.`;
 
+  // The score is for the file as uploaded. When the rows used for sales score differently, say both.
+  const after = r.qualityAfter?.overallScore;
+  const afterNote = after !== undefined && after !== Q
+    ? [`Data quality is ${formatCount(Q)}/100 on the file as uploaded and ${formatCount(f.n('dataQualityAfter', after, 'qualityAfter.overallScore'))}/100 on the rows used for sales.`]
+    : [];
+
+  // The headline elsewhere follows the dataset status; here the score as uploaded stays visible, with the reason.
+  const shown = c.shownQ;
+  const headlineNote = shown.label
+    ? [`Quality as uploaded is ${formatCount(Q)}/100. The dataset status sets what is shown elsewhere: ${shown.value === null ? 'no score' : `${formatCount(f.n('dataQualityShown', shown.value, 'headlineQuality(result).value'))}/100`}, ${shown.label.toLowerCase()}.`]
+    : [];
+
   return compose(c, pageId, {
-    happened: [[`Quality is ${formatCount(Q)}/100.`], [`Weakest area: ${weakest.name} (${formatCount(weakScore)}/100).`]],
+    happened: [[`${shown.label ? 'Quality as uploaded' : 'Quality'} is ${formatCount(Q)}/100.`], [`Weakest area: ${weakest.name} (${formatCount(weakScore)}/100).`]],
     why: [issues, [filledSentence, '']],
     next: nextFromRecommendation(c, recommendationMatching(c, /data collection/i)),
+    notes: [...statusNotes(c), ...headlineNote, ...afterNote, ...leftOutNotes(c)],
   });
 }
 
@@ -120,17 +135,19 @@ export const DEFAULT_ALERT_PREFERENCES: AlertPreferencesInput = {
 };
 
 export function alertsStory(c: Ctx): StoryOutcome {
-  const { f, r, H, Q } = c;
+  const { f, r } = c;
+  const H = c.shownH.value, Q = c.shownQ.value;
   const prefs = c.inputs.alertPreferences ?? DEFAULT_ALERT_PREFERENCES;
   const healthLimit = f.n('healthThreshold', prefs.healthThreshold, 'alert preferences: healthThreshold');
   const qualityLimit = f.n('qualityThreshold', prefs.qualityThreshold, 'alert preferences: qualityThreshold');
-  f.n('health', H, 'decision.health.total');
+  if (H !== null) f.n('health', H, 'headlineHealth(result).value');
+  if (Q !== null) f.n('dataQuality', Q, 'headlineQuality(result).value');
   f.s('reportCadence', prefs.reportCadence, 'alert preferences: reportCadence');
 
   // Same three rules as PageAlerts.
   const signals = [
-    prefs.healthAlert && H < healthLimit ? `Business health is below ${formatCount(healthLimit)}` : null,
-    prefs.qualityAlert && Q < qualityLimit ? `Data quality is below ${formatCount(qualityLimit)}` : null,
+    prefs.healthAlert && H !== null && H < healthLimit ? `Business health is below ${formatCount(healthLimit)}` : null,
+    prefs.qualityAlert && Q !== null && Q < qualityLimit ? `Data quality is below ${formatCount(qualityLimit)}` : null,
     prefs.revenueDropAlert && r.decision.risks.some(risk => /drop|variability|revenue/i.test(risk.title) && risk.level !== 'low') ? 'A material revenue movement requires review' : null,
   ].filter((signal): signal is string => signal !== null);
   const triggered = f.n('rulesTriggered', signals.length, 'alert rules evaluated against health, quality and risks');
@@ -138,7 +155,7 @@ export function alertsStory(c: Ctx): StoryOutcome {
   return compose(c, 'alerts', {
     happened: [
       [triggered ? `${pluralise(triggered, 'rule')} triggered: ${signals.join('; ')}.` : 'No limit is breached.'],
-      [`Health ${formatCount(H)} vs limit ${formatCount(healthLimit)}; quality ${formatCount(Q)} vs limit ${formatCount(qualityLimit)}; brief: ${prefs.reportCadence}.`],
+      [`Health ${H === null ? 'n/a' : formatCount(H)} vs limit ${formatCount(healthLimit)}; quality ${Q === null ? 'n/a' : formatCount(Q)} vs limit ${formatCount(qualityLimit)}; brief: ${prefs.reportCadence}.`],
     ],
     next: triggered ? nextFromRecommendation(c, c.a1) : null,
   });

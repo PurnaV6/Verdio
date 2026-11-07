@@ -28,6 +28,15 @@ export function generateRecommendations(
     });
   }
 
+  const missingGroupRisk = risks.find(r => r.title.startsWith('Missing '));
+  if (missingGroupRisk) {
+    recs.push({
+      title: `Fill in the blank ${missingGroupRisk.sourceColumns[0]} values`,
+      desc: `${missingGroupRisk.desc} Nothing was guessed: those rows are shown as (Missing) until the file is corrected.`,
+      impact: 'medium', sourceColumns: missingGroupRisk.sourceColumns,
+    });
+  }
+
   const ts = statistics.timeSeries[0];
   if (ts && ts.points.length > 1) {
     const growth = ((ts.points[ts.points.length - 1].value - ts.points[0].value) / (ts.points[0].value || 1)) * 100;

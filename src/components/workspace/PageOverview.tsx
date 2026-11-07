@@ -16,10 +16,12 @@ import { useOverviewSlices, type OverviewSlices } from "./overviewSlices";
 import { SkeletonBlock } from "./Skeleton";
 import { StateMark } from "./StateMark";
 import { WhatChanged } from "./WhatChanged";
+import { guardMoneyText } from "./moneyTextModel";
 import { fmtN } from "./format";
 import { forecastAhead, moveReading, riskCounts, riskReading, segmentCounts, shareItems } from "./overviewModel";
 import { getRevenueView, NO_EARLIER_PERIOD } from "./revenue";
-import { healthReading, type Tone } from "./status";
+import { healthScoreView, qualityScoreView, type ScoreView } from "./scoreCardModel";
+import { moneyFiguresView, type MoneyFiguresView } from "./statusBannerModel";
 
 type RevenueView = ReturnType<typeof getRevenueView>;
 type Section = 'overview' | 'revenue';
@@ -28,16 +30,18 @@ const SECTIONS: Section[] = ['overview', 'revenue'];
 const { formatCount, formatPounds } = formatters;
 
 export function PageOverview({ r, previous = null }: { r: PipelineResult; previous?: UploadSnapshot | null }) {
-  const h = r.decision.health.total; const topRisk = r.decision.risks[0]; const topRec = r.decision.recommendations[0];
+  const topRisk = r.decision.risks[0]; const topRec = r.decision.recommendations[0];
   const [section,setSection]=useState<Section>('overview');
   const [now,setNow]=useState(()=>new Date());
   useEffect(()=>{const timer=window.setInterval(()=>setNow(new Date()),60_000);return()=>window.clearInterval(timer)},[]);
   const greeting=getTimeGreeting(now);
   const dateLabel=new Intl.DateTimeFormat(undefined,{weekday:'long',day:'numeric',month:'long'}).format(now);
-  const health=healthReading(h);
+  const health=healthScoreView(r);
   const revenue=useMemo(()=>getRevenueView(r),[r]);
   const slices=useOverviewSlices(r,revenue.series);
   const story=useMemo(()=>buildStory('overview',r),[r]);
+  // A file whose sales cannot be relied on shows no money figures, only the reason.
+  const figures=useMemo(()=>moneyFiguresView(r.datasetStatus),[r.datasetStatus]);
   const brief=useMemo(()=>buildMondayBrief(r),[r]);
   const comparison=useMemo(()=>compareUploads(previous,takeSnapshot(r)),[previous,r]);
   const recConfidence=(topRec as Partial<EnrichedRecommendation>|undefined)?.confidence;
@@ -64,28 +68,28 @@ export function PageOverview({ r, previous = null }: { r: PipelineResult; previo
       </div>
 
       {section==='revenue'
-        ?<div role="tabpanel" id="v2-panel-revenue" aria-labelledby="v2-tab-revenue"><ExecutiveRevenue result={r}/></div>
+        ?<div role="tabpanel" id="v2-panel-revenue" aria-labelledby="v2-tab-revenue">{figures.withheld?<WithheldPanel title="Revenue" figures={figures}/>:<ExecutiveRevenue result={r}/>}</div>
         :<div role="tabpanel" id="v2-panel-overview" aria-labelledby="v2-tab-overview" className="v2-ov-body">
           <StoryStrip outcome={story} title="Story for this file" brief={brief}/>
           {comparison&&<WhatChanged comparison={comparison}/>}
-          <KeyFigures r={r} view={revenue} healthLabel={health.label} healthTone={health.tone}/>
-          <OverviewSlicers slices={slices}/>
+          <KeyFigures r={r} view={revenue} health={health} figures={figures}/>
+          {!figures.withheld&&<OverviewSlicers slices={slices}/>}
           <div className="v2-ov-row is-wide">
-            <TrendPanel r={r} view={revenue} slices={slices}/>
+            {figures.withheld?<WithheldPanel title="Sales trend and forecast" figures={figures}/>:<TrendPanel r={r} view={revenue} slices={slices}/>}
             <RisksPanel r={r}/>
           </div>
           <div className="v2-ov-row">
-            <SharesPanel r={r} slices={slices}/>
+            {figures.withheld?<WithheldPanel title="Where sales come from" figures={figures}/>:<SharesPanel r={r} slices={slices}/>}
             <SegmentsPanel r={r}/>
           </div>
           <div className="v2-ov-row is-wide">
             <section className="v2-ov-panel" aria-labelledby="v2-ov-action-title">
               <h2 id="v2-ov-action-title" className="v2-ov-h">Recommended action</h2>
               <h3 className="v2-ov-action">{topRec?.title || 'No immediate recommendation'}</h3>
-              <p className="v2-ov-copy">{topRec?.desc || 'Continue monitoring the current business signals.'}</p>
+              <p className="v2-ov-copy">{topRec ? guardMoneyText(r.datasetStatus, topRec.desc) : 'Continue monitoring the current business signals.'}</p>
               <div className="v2-ov-ai" aria-busy={r.aiLoading}>
-                <p className="v2-ov-label">AI summary · {r.aiLoading?'generating':'ready'}</p>
-                {r.aiLoading?<SkeletonBlock lines={2}/>:<p>{r.aiInsights?.executiveSummary || 'AI analysis will appear here when the executive summary is available.'}</p>}
+                <p className="v2-ov-label">{r.aiInsights?.source==='built-in'&&!r.aiLoading?'Built-in summary':`AI summary · ${r.aiLoading?'generating':'ready'}`}</p>
+                {r.aiLoading?<SkeletonBlock lines={2}/>:<p>{r.aiInsights?.executiveSummary ? guardMoneyText(r.datasetStatus, r.aiInsights.executiveSummary) : 'AI analysis will appear here when the executive summary is available.'}</p>}{!r.aiLoading&&r.aiInsights?.notice&&<p className="v2-ai-notice">{r.aiInsights.notice}</p>}
               </div>
             </section>
             <section className="v2-ov-panel" aria-labelledby="v2-ov-evidence-title">
@@ -106,7 +110,7 @@ export function PageOverview({ r, previous = null }: { r: PipelineResult; previo
 
 /* ── Key figures: six tiles, every value read from the pipeline ── */
 
-function KeyFigures({ r, view, healthLabel, healthTone }: { r: PipelineResult; view: RevenueView; healthLabel: string; healthTone: Tone }) {
+function KeyFigures({ r, view, health, figures }: { r: PipelineResult; view: RevenueView; health: ScoreView; figures: MoneyFiguresView }) {
   const series = view.series;
   const points = series?.points ?? [];
   const latest = points.at(-1);
@@ -122,7 +126,7 @@ function KeyFigures({ r, view, healthLabel, healthTone }: { r: PipelineResult; v
   const seg = r.ml.segmentation && r.ml.segmentation.segments.length ? r.ml.segmentation : null;
   const counts = seg ? segmentCounts(seg.segments) : [];
   const lapsed = counts.filter(item => item.key === 'atRisk' || item.key === 'lost');
-  const quality = r.quality.overallScore;
+  const quality = qualityScoreView(r);
   const salesKnown = !!view.revenueColumn || view.connectedRevenue !== undefined;
 
   return (
@@ -130,9 +134,16 @@ function KeyFigures({ r, view, healthLabel, healthTone }: { r: PipelineResult; v
       <h2 id="v2-ov-figures-title" className="sr-only">Key figures</h2>
       <ul className="v2-ov-tiles">
         <li className="v2-ov-tile">
-          <KpiTile label="Business health" value={<>{formatCount(r.decision.health.total)}<span className="v2-ov-unit"> /100</span></>}
-            sub={<><StateMark tone={healthTone} label={healthLabel}/><span className="v2-tag v2-ov-src">combined operational, quality and risk assessment</span></>}/>
+          <KpiTile label="Business health" value={<>{health.text}{health.hasScale&&<span className="v2-ov-unit"> /100</span>}</>}
+            sub={<>{health.mark&&<StateMark tone={health.mark.tone} label={health.mark.label}/>}<span className="v2-tag v2-ov-src">combined operational, quality and risk assessment</span></>}/>
         </li>
+        {figures.withheld
+          ?<li className="v2-ov-tile v2-ds-nofig">
+            <p className="v2-kc-kpi-label">Sales figures</p>
+            <p className="v2-ds-nofig-line">{figures.message}.</p>
+            {figures.reason&&<p className="v2-ds-nofig-reason">{figures.reason}</p>}
+          </li>
+          :<>
         <li className="v2-ov-tile">
           <KpiTile label="Total sales in your file" value={salesKnown && view.total ? formatPounds(view.total) : 'Not available'}
             sub={<span className="v2-tag v2-ov-src">{view.connectedRevenue!==undefined?<><b>connected sales source</b> · reconciled across the connected source</>:view.revenueColumn?<><b>{view.revenueColumn}</b> · mapped sales field</>:'Sales field not detected'}</span>}/>
@@ -150,6 +161,7 @@ function KeyFigures({ r, view, healthLabel, healthTone }: { r: PipelineResult; v
               ? <><StateMark tone="watch" label={`Estimate, ${forecast.scenario} case`}/><span className="v2-tag v2-ov-src">Planning range {formatPounds(first.low)} to {formatPounds(first.high)}</span></>
               : <span className="v2-ov-vs">A forecast needs at least {minMonths} months of dated sales. {points.length > 0 ? `Your file has ${points.length}.` : 'Your file has no dated sales series.'}</span>}/>
         </li>
+          </>}
         <li className="v2-ov-tile">
           <KpiTile label="Customers" value={seg ? formatCount(seg.segments.length) : 'Not available'}
             sub={seg
@@ -159,10 +171,21 @@ function KeyFigures({ r, view, healthLabel, healthTone }: { r: PipelineResult; v
               : <span className="v2-ov-vs">Customer analysis needs a customer, date and amount column.</span>}/>
         </li>
         <li className="v2-ov-tile">
-          <KpiTile label="Data quality" value={<>{formatCount(quality)}<span className="v2-ov-unit"> /100</span></>}
-            sub={<span className="v2-tag v2-ov-src"><b>quality check</b> · completeness, validity, consistency</span>}/>
+          <KpiTile label="Data quality" value={<>{quality.text}{quality.hasScale&&<span className="v2-ov-unit"> /100</span>}</>}
+            sub={<>{quality.mark&&<StateMark tone={quality.mark.tone} label={quality.mark.label}/>}<span className="v2-tag v2-ov-src"><b>quality check</b> · completeness, validity, consistency</span></>}/>
         </li>
       </ul>
+    </section>
+  );
+}
+
+/* ── Shown in place of a money chart when the file's sales figures cannot be relied on ── */
+
+function WithheldPanel({ title, figures }: { title: string; figures: MoneyFiguresView }) {
+  return (
+    <section className="v2-ov-panel">
+      <h2 className="v2-ov-h">{title}</h2>
+      <CannotShow message={`${figures.message}.${figures.reason ? ` ${figures.reason}` : ''}`}/>
     </section>
   );
 }

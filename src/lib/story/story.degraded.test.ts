@@ -84,11 +84,20 @@ describe('degraded files', () => {
   });
 
   it('is honest about a very small dataset', async () => {
-    const file = await resultFromCsv('Order ID,Revenue\n1,10\n2,20\n3,30');
+    const lines = Array.from({ length: 12 }, (_, i) => `${i + 1},${(i + 1) * 10}`);
+    const file = await resultFromCsv(`Order ID,Revenue\n${lines.join('\n')}`);
     const overview = asStory('overview', file);
     expect(overview.confidence.label).toBe('Low');
-    expect(overview.confidence.caveat).toContain('only 3 rows');
-    expect(overview.happened).toContain('from 3 rows');
+    expect(overview.confidence.caveat).toContain('only 12 rows');
+    expect(overview.happened).toContain('from 12 rows');
+  });
+
+  it('refuses to tell a sales story from fewer than 10 usable rows', async () => {
+    const file = await resultFromCsv('Order ID,Revenue\n1,10\n2,20\n3,30');
+    expect(file.datasetStatus?.status).toBe('not_compatible');
+    const overview = asCannotSay('overview', file);
+    expect(overview.reason).toContain('Verd.io cannot give reliable sales figures for this file.');
+    expect(overview.reason).toContain('Only 3 of 3 rows');
   });
 
   it('flags the missing customer column', async () => {

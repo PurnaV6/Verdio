@@ -1,5 +1,5 @@
 import type { RawRow, DatasetProfile, CleaningAction, CleanedDataset } from "../../types/dataPipeline";
-import { isMissingValue, looksNumeric } from "./profileDataset";
+import { isMissingValue, parseAmount } from "./profileDataset";
 import { toIsoDateString } from "./dateParsing";
 
 /* ================================================================
@@ -7,43 +7,19 @@ import { toIsoDateString } from "./dateParsing";
    Every action taken here is recorded in a CleaningReport so the UI
    can show the user exactly what Verdio changed before analysis.
 
-   Imputation rules (deliberately conservative):
-   • Never impute identifier-like columns (high uniqueness) — a
-     fabricated customer ID or SKU is worse than a gap.
-   • Never impute date columns — a fabricated date corrupts trend
-     and forecasting analysis silently.
-   • Only impute a column if <=40% of it is missing. Beyond that,
-     the column is left as-is; downstream stages should treat it as
-     unreliable rather than trust a mostly-invented column.
-   • Numeric columns: median if the distribution is skewed
-     (|mean - median| / stdDev > 0.5), otherwise mean.
-   • Categorical/string columns: mode (most frequent value).
+   This stage only tidies structure: whitespace, missing markers, number and
+   date formats. It never fills a missing value and never removes a row.
+   Anything that depends on what a column means (duplicates, calculated
+   revenue, rows left out of sales) lives in roleAwareSteps.ts and runs once
+   the semantic engine has assigned roles.
    ================================================================ */
-
-const IMPUTE_MAX_MISSING_PCT = 40;
-const HIGH_UNIQUENESS_SKIP = 0.8; // uniquenessRatio above this => treat as identifier-like, don't impute
-
-function median(nums: number[]): number {
-  const s = [...nums].sort((a, b) => a - b);
-  const mid = Math.floor(s.length / 2);
-  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
-}
-
-function mode(values: string[]): string | null {
-  if (!values.length) return null;
-  const counts = new Map<string, number>();
-  for (const v of values) counts.set(v, (counts.get(v) || 0) + 1);
-  let best: string | null = null, bestCount = 0;
-  for (const [v, c] of counts) if (c > bestCount) { best = v; bestCount = c; }
-  return best;
-}
 
 export function cleanDataset(rows: RawRow[], profile: DatasetProfile): CleanedDataset {
   const actions: CleaningAction[] = [];
   const rowsBefore = rows.length;
 
   if (!rows.length) {
-    return { rows: [], report: { actions, rowsBefore: 0, rowsAfter: 0, cellsImputed: 0 } };
+    return { rows: [], sourceRows: [], report: { actions, rowsBefore: 0, rowsAfter: 0, cellsImputed: 0 } };
   }
 
   const headers = Object.keys(rows[0]);
@@ -79,20 +55,9 @@ export function cleanDataset(rows: RawRow[], profile: DatasetProfile): CleanedDa
     actions.push({ type: 'standardise_missing', count: standardised, detail: `Standardised ${standardised} missing-value marker(s) (e.g. "N/A", "null", "-") to a consistent blank.` });
   }
 
-  /* ── 3. Remove exact duplicate rows ── */
-  const seen = new Set<string>();
-  const deduped: RawRow[] = [];
-  let removedDupes = 0;
-  for (const row of working) {
-    const key = headers.map(h => row[h]).join('\u0001');
-    if (seen.has(key)) { removedDupes++; continue; }
-    seen.add(key);
-    deduped.push(row);
-  }
-  working = deduped;
-  if (removedDupes > 0) {
-    actions.push({ type: 'remove_duplicate_rows', count: removedDupes, detail: `Removed ${removedDupes} exact duplicate row(s).` });
-  }
+  /* ── 3. Exact duplicate rows are NOT removed here ──
+     Whether a repeated row is a duplicate or a genuine second identical sale depends on whether the file
+     has a unique order or transaction ID, which needs the column roles. See roleAwareSteps.ts. */
 
   /* ── 4. Convert & normalise numeric / date columns ── */
   const colProfileByName = new Map(profile.columns.map(c => [c.name, c]));
@@ -105,7 +70,7 @@ export function cleanDataset(rows: RawRow[], profile: DatasetProfile): CleanedDa
       working = working.map(row => {
         const v = row[h];
         if (v === '') return row;
-        const n = looksNumeric(v);
+        const n = parseAmount(v);
         if (n === null) return row;
         const normalised = String(n);
         if (normalised !== v) converted++;
@@ -128,57 +93,9 @@ export function cleanDataset(rows: RawRow[], profile: DatasetProfile): CleanedDa
     }
   }
 
-  /* ── 5. Selective imputation ── */
-  let cellsImputed = 0;
-  for (const h of headers) {
-    const cp = colProfileByName.get(h);
-    if (!cp) continue;
-    if (cp.missingCount === 0) continue;
-    if (cp.missingPct > IMPUTE_MAX_MISSING_PCT) continue;
-    if (cp.inferredType === 'date') continue;               // never fabricate dates
-    if (cp.uniquenessRatio > HIGH_UNIQUENESS_SKIP) continue; // never fabricate identifiers
-
-    if (cp.inferredType === 'number') {
-      const nums = working.map(r => r[h]).filter(v => v !== '').map(Number).filter(Number.isFinite);
-      if (!nums.length) continue;
-      const mean = nums.reduce((s, v) => s + v, 0) / nums.length;
-      const med = median(nums);
-      const sd = Math.sqrt(nums.reduce((s, v) => s + (v - mean) ** 2, 0) / nums.length) || 1;
-      const skewed = Math.abs(mean - med) / sd > 0.5;
-      const fillValue = String(skewed ? med : mean);
-      let count = 0;
-      working = working.map(row => {
-        if (row[h] !== '') return row;
-        count++;
-        return { ...row, [h]: fillValue };
-      });
-      if (count > 0) {
-        cellsImputed += count;
-        actions.push({
-          type: skewed ? 'impute_numeric_median' : 'impute_numeric_mean',
-          column: h, count,
-          detail: `Filled ${count} missing value(s) in "${h}" with the column ${skewed ? 'median' : 'mean'} (${fillValue}); the distribution is ${skewed ? 'skewed' : 'stable'}.`,
-        });
-      }
-    } else if (cp.inferredType === 'string' || cp.inferredType === 'boolean') {
-      const nonEmpty = working.map(r => r[h]).filter(v => v !== '');
-      const fillValue = mode(nonEmpty);
-      if (!fillValue) continue;
-      let count = 0;
-      working = working.map(row => {
-        if (row[h] !== '') return row;
-        count++;
-        return { ...row, [h]: fillValue };
-      });
-      if (count > 0) {
-        cellsImputed += count;
-        actions.push({ type: 'impute_categorical_mode', column: h, count, detail: `Filled ${count} missing value(s) in "${h}" with the most common value ("${fillValue}").` });
-      }
-    }
-  }
-
   return {
     rows: working,
-    report: { actions, rowsBefore, rowsAfter: working.length, cellsImputed },
+    sourceRows: working.map((_, i) => i + 1),
+    report: { actions, rowsBefore, rowsAfter: working.length, cellsImputed: 0 },
   };
 }
